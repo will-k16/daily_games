@@ -94,7 +94,7 @@ Pitfalls to avoid: bare higher/lower feedback (it becomes binary search), ambigu
 - Position factor: `pos = max(0, 1 − e / (half − P))`, which reaches 0 at the ends. Narrow ranges are naturally harsher.
 - Precision factor (a bell curve with a gentle tail): `prec = 1 / (1 + (e / K)²)`, where `K = ln 3 − P`. That gives 50% at 3× off.
 - `score = 100` if `e = 0` (within 1.05×), otherwise `floor(100 · pos · prec)`, so every distance gives a distinct, continuous score.
-- Sample values on a very wide range (10¹²×): 1.05× → 100, 1.1× → 99, 1.5× → 87, 2× → 69, 3× → 46, 10× → 14, 30× → 6.
+- Scores are out of **1,000** per stage (the formula below gives 0–100; the game multiplies by 10). Sample values on a very wide range (10¹²×): 1.05× → 100, 1.1× → 99, 1.5× → 87, 2× → 69, 3× → 46, 10× → 14, 30× → 6.
 - On a narrow range (30×): 1.1× → 96, 1.5× → 70, 2× → 44, 3× → 18.
 - Second guess: `round(raw × 0.8)`.
 
@@ -197,7 +197,7 @@ A US/metric toggle. Values are formatted with sensible units (oz/lb/tons, in/ft/
 - **Stages:** 🌲 Foothills (easy, green), 🪨 Ridge (medium, rocky with snowcaps), 🏔️ Peak (hard, snowy with falling snow).
 - **The fog:** after the first guess, fog rolls over the cable and the cabin rides into it, so the score shows but not the direction. Keeping or taking the second ride clears the fog and the cabin rides to the real spot.
 - **Score meters:** 10-block meter for the first guess; on reveal, a 31-cell gauge from too small to too big, shaded by score, with cabin markers that slide in.
-- **Daily progress:** every point climbs 10 m; 300 points reaches the 3,000 m summit. A pixel climber walks up a switchback trail in the header, and the end-of-day panorama shows camps at 1,000 / 2,000 / 3,000 m.
+- **Daily progress:** each stage is scored out of 1,000 and every point is a meter climbed; a perfect day reaches the 3,000 m summit. A pixel climber walks up a switchback trail in the header, and the end-of-day panorama shows camps at 1,000 / 2,000 / 3,000 m.
 - **Time of day:** morning, day, evening and night palettes for the sky, mountains and UI. Night has stars, a moon and glowing windows.
 - **Type:** Pixelify Sans for headings, Silkscreen for numbers, Nunito for reading.
 - **Motion (no sound):** pointer parallax across 4 layers, drifting clouds, flapping birds, chimney smoke, twinkling stars, falling snow, pendulum-physics cabin swing, jolt on off-the-cable answers, fireworks at the lodge on 90+, count-ups and staggered reveals. Respects `prefers-reduced-motion`.

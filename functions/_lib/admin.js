@@ -25,7 +25,7 @@ export async function dashboard(env) {
   const dist = (await db.prepare(`SELECT pl.score FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id
       WHERE z.date = ? AND pl.mode = 'daily' AND pl.state = 'done'`).bind(date).all()).results;
   const hist = new Array(11).fill(0);
-  dist.forEach(r => hist[Math.min(10, Math.floor(r.score / 10))]++);
+  dist.forEach(r => hist[Math.min(10, Math.floor(r.score / 100))]++);
   const errors = (await db.prepare(`SELECT provider, kind, error, created_at FROM ai_log WHERE ok = 0 ORDER BY id DESC LIMIT 8`).all()).results;
   return {
     date, players: players.n, signedIn: signed.n, todayPlayers: todayPlayers.n,

@@ -3,7 +3,7 @@ import { estimate, generatePuzzles, suggestMiddle } from './ai.js';
 import { planSpecs, recentItems } from './plan.js';
 import { answerMeasurementProblem } from '../../public/js/measure.js';
 import { PROPS } from '../../public/js/props.js';
-import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS } from '../../public/js/score.js';
+import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS, MAX_SCORE } from '../../public/js/score.js';
 
 const LIVE = `status IN ('approved','auto')`;
 
@@ -111,7 +111,7 @@ async function reveal(env, p, mode, view, who) {
   const scores = (await db.prepare(`SELECT player_id, score FROM plays WHERE puzzle_id = ? AND mode = 'daily' AND state = 'done'`).bind(p.id).all()).results;
   const others = scores.filter(s => s.player_id !== who.player.id).map(s => s.score);
   const hist = new Array(11).fill(0);
-  scores.forEach(s => { hist[Math.min(10, Math.floor(s.score / 10))]++; });
+  scores.forEach(s => { hist[Math.min(10, Math.floor(s.score / 100))]++; });
   const my = view.score;
   out.crowd = {
     total: scores.length,
@@ -249,7 +249,7 @@ export async function guess(env, who, body) {
 
   const raw = outside ? 0 : scoreGuess(p.small_value, p.big_value, est.value);
   const score = finalScore(raw, attempt);
-  const next = attempt === 1 && raw < 100 ? 'decide' : 'done';
+  const next = attempt === 1 && raw < MAX_SCORE ? 'decide' : 'done';
 
   // Move the state forward first so a double-submit can't record two guesses.
   const moved = await db.prepare(`UPDATE plays SET state = ?, score = ?, used_second = ?, finished_at = ? WHERE id = ? AND state = ?`)
@@ -335,7 +335,7 @@ export async function bestAnswer(env, who, puzzleId, mode) {
     const pickBest = list => list.reduce((b, c) => (!b || c.score > b.score ? c : b), null);
     const base = { property: p.property, unitLabel: p.unit_label, target, small: p.small_item, big: p.big_item };
     try { best = pickBest(await judge(await suggestMiddle(env, base))); } catch { best = null; }
-    if (!best || best.score < 97) {
+    if (!best || best.score < 970) {
       try { best = pickBest([best, ...(await judge(await suggestMiddle(env, { ...base, closest: best, count: 6 })))].filter(Boolean)); } catch { /* keep round one */ }
     }
   }
@@ -392,8 +392,8 @@ export async function stats(env, who) {
   });
   const full = Object.keys(days).filter(d => days[d].n >= 3).sort();
   const totals = full.map(d => days[d].t);
-  const dist = [0, 0, 0, 0, 0, 0]; // 0-99, 100-149, 150-199, 200-249, 250-299, 300
-  totals.forEach(t => { dist[t >= 300 ? 5 : t < 100 ? 0 : Math.min(4, Math.floor((t - 50) / 50))]++; });
+  const dist = [0, 0, 0, 0, 0, 0]; // 0-999, 1000-1499, 1500-1999, 2000-2499, 2500-2999, 3000 (meters)
+  totals.forEach(t => { dist[t >= 3000 ? 5 : t < 1000 ? 0 : Math.min(4, Math.floor((t - 500) / 500))]++; });
 
   let streak = 0, d = todayUTC();
   const set = new Set(full);

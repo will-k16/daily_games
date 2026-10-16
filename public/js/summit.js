@@ -3,7 +3,7 @@ import { createScene, createClimb } from './summit-scene.js';
 import { skipperPortrait } from './pixel.js';
 import { fmt, nice } from './units.js';
 import { PROPS, propLabel } from './props.js';
-import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS } from './score.js';
+import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE } from './score.js';
 import * as pad from './pad.js';
 
 /* ═══════════ Basics ═══════════ */
@@ -22,7 +22,7 @@ const STAGES = {
   3: { name: 'Peak', emoji: '🏔️', tier: 'Hard' }
 };
 const stageOf = slot => STAGES[slot] || STAGES[1];
-const METERS_PER_POINT = 10;
+const SUMMIT_M = 3000;   // three stages × 1000; every point is a meter climbed
 
 const S = {
   units: store.get('jr.units', 'imperial'),
@@ -68,15 +68,15 @@ document.addEventListener('pointerdown', e => {
 
 /* ═══════════ Verdicts ═══════════ */
 function verdict(s) {
-  if (s >= 100) return { t: 'Summit!', mood: 'happy', d: 'Skipper docked right at the lodge.' };
-  if (s >= 90) return { t: 'So close!', mood: 'wow', d: 'Just a few meters from the lodge.' };
-  if (s >= 75) return { t: 'Smooth ride', mood: 'smile', d: 'A comfy spot on the cable.' };
-  if (s >= 50) return { t: 'A bit wobbly', mood: 'neutral', d: 'Not bad, not the lodge.' };
-  if (s >= 25) return { t: 'Rough ride', mood: 'sad', d: 'Skipper is clinging on.' };
+  if (s >= 1000) return { t: 'Summit!', mood: 'happy', d: 'Skipper docked right at the lodge.' };
+  if (s >= 900) return { t: 'So close!', mood: 'wow', d: 'Just a few meters from the lodge.' };
+  if (s >= 750) return { t: 'Smooth ride', mood: 'smile', d: 'A comfy spot on the cable.' };
+  if (s >= 500) return { t: 'A bit wobbly', mood: 'neutral', d: 'Not bad, not the lodge.' };
+  if (s >= 250) return { t: 'Rough ride', mood: 'sad', d: 'Skipper is clinging on.' };
   if (s > 0) return { t: 'Off the rails', mood: 'dizzy', d: 'Way out on the cable.' };
   return { t: 'Lost in the clouds', mood: 'dizzy', d: 'Nowhere near the lodge.' };
 }
-const tier = s => s >= 90 ? 'green' : s >= 60 ? 'yellow' : s >= 30 ? 'orange' : 'red';
+const tier = s => s >= 900 ? 'green' : s >= 600 ? 'yellow' : s >= 300 ? 'orange' : 'red';
 const square = s => ({ green: '🟩', yellow: '🟨', orange: '🟧', red: '🟥' })[tier(s)];
 
 /* ═══════════ Time of day ═══════════ */
@@ -181,15 +181,15 @@ function renderHead(c) {
   const hadClimb = !!(S.climb && el.querySelector('.climb-canvas'));
   if (!hadClimb) {
     el.innerHTML = `<div><div class="daylabel">${c.kind === 'archive' ? '<span class="badge">Archive</span> ' : ''}Day <b>#${c.number}</b> · ${esc(dateStr)}</div><div class="tabs" id="tabs"></div></div>
-      <div class="climbbox" title="Each point climbs 10 m. 300 points reaches the summit."><div id="climbHost"></div><div class="alt"><b id="altNum">0 m</b><span>of 3,000 m</span></div></div>`;
+      <div class="climbbox" title="Every point is a meter. Three perfect stages reach the 3,000 m summit."><div id="climbHost"></div><div class="alt"><b id="altNum">0 m</b><span>of 3,000 m</span></div></div>`;
     S.climb = createClimb($('#climbHost'), { w: 72, h: 34 });
   }
   $('#tabs').innerHTML = tabs;
   document.querySelectorAll('[data-room]').forEach(b => b.onclick = () => { S.roomIdx = Number(b.dataset.room); S.showSummary = false; render('enter'); });
   const sb = document.querySelector('[data-summary]'); if (sb) sb.onclick = () => { S.showSummary = true; render(); };
   if (total !== S.shownTotal || !hadClimb) {
-    S.climb.set(total / 300, { dur: 1500 });
-    countUp($('#altNum'), total * METERS_PER_POINT, { dur: 1500, fmt: meters });
+    S.climb.set(total / SUMMIT_M, { dur: 1500 });
+    countUp($('#altNum'), total, { dur: 1500, fmt: meters });
     S.shownTotal = total;
   }
 }
@@ -232,7 +232,7 @@ function syncScene(r, event) {
       if (t == null) { sc.toStation(); sc.setMood('sad'); sc.pins(pinsFor()); return; }
       sc.travelTo(t, {
         dur: event === 'enter' ? 1800 : 2600,
-        done: () => { sc.settle(play.score); sc.setMood(v.mood); sc.pins(pinsFor()); if (event !== 'enter' && play.score >= 90) sc.celebrate(play.score); }
+        done: () => { sc.settle(play.score); sc.setMood(v.mood); sc.pins(pinsFor()); if (event !== 'enter' && play.score >= 900) sc.celebrate(play.score); }
       });
     };
     setTimeout(go, event === 'enter' ? 450 : 900);
@@ -241,7 +241,7 @@ function syncScene(r, event) {
     sc.setFog(true);
     sc.setMood(g ? verdict(g.raw).mood : 'neutral');
     if (event === 'enter') { sc.jumpTo(0.5); }
-    else if (event === 'first') { sc.travelTo(0.5, { dur: 2400, done: () => sc.settle(g ? g.raw : 50) }); }
+    else if (event === 'first') { sc.travelTo(0.5, { dur: 2400, done: () => sc.settle(g ? g.raw : 500) }); }
   } else {
     sc.setFog(false); sc.pins([]);
     if (event === 'enter') { sc.jumpTo(0.075); sc.setMood('smile'); }
@@ -271,7 +271,7 @@ function pipsHTML(used) {
 }
 
 function blocks(score) {
-  const on = Math.round(score / 10);
+  const on = Math.round(score / 100);
   return `<div class="meter"><b data-count="${score}">0</b><div class="cells">${Array.from({ length: 10 }, (_, i) => `<i class="${i < on ? 'on ' + tier(score) : ''}" style="--d:${i}"></i>`).join('')}</div></div>`;
 }
 
@@ -307,7 +307,7 @@ function decideHTML(r) {
       : `Skipper is somewhere in the fog. The lodge is either <b>bigger or smaller</b> than ${esc(val(r.puzzle, g.value))}, but you don't know which.`}</span></div>
     <div class="choices rise" style="--d:3">
       <button class="btn green" id="keepBtn">Keep ${g.score}<small>Lock it in</small></button>
-      <button class="btn alt" id="retryBtn">One more ride<small>Final answer, worth up to ${Math.round(100 * SECOND_GUESS_MULT)}</small></button>
+      <button class="btn alt" id="retryBtn">One more ride<small>Final answer, worth up to ${Math.round(MAX_SCORE * SECOND_GUESS_MULT)}</small></button>
     </div>`;
 }
 
@@ -323,7 +323,7 @@ function gaugeHTML(r) {
   const p = r.reveal.puzzle, play = r.play, N = 31;
   const cells = Array.from({ length: N }, (_, i) => {
     const v = Math.exp(Math.log(p.smallValue) + (i + .5) / N * (Math.log(p.bigValue) - Math.log(p.smallValue)));
-    const sc = scoreGuess(p.smallValue, p.bigValue, v);
+    const sc = scoreGuess(p.smallValue, p.bigValue, v) / 10;
     return `<i class="g${sc >= 90 ? 4 : sc >= 70 ? 3 : sc >= 45 ? 2 : sc >= 20 ? 1 : 0}" style="--d:${i}"></i>`;
   }).join('');
   const pos = g => (clamp(logPos(p.smallValue, p.bigValue, g.value), 0, 1) * 100).toFixed(2) + '%';
@@ -351,14 +351,14 @@ function revealHTML(r, c) {
 
   let crowd = '';
   if (rv.crowd) {
-    const max = Math.max(1, ...rv.crowd.hist), myB = Math.min(10, Math.floor(play.score / 10));
+    const max = Math.max(1, ...rv.crowd.hist), myB = Math.min(10, Math.floor(play.score / 100));
     const beat = c.kind === 'daily'
       ? (rv.crowd.beat == null ? 'You\'re one of the first riders today.' : `You beat <b>${rv.crowd.beat}%</b> of ${rv.crowd.total - 1} other riders.`)
       : `${rv.crowd.total} people rode this one on the day.`;
     crowd = `<div class="crowd">
       <div><div class="h4">📊 How everyone did</div><p class="beat">${beat}</p>
-        <div class="histo">${rv.crowd.hist.map((n, i) => `<i class="${i === myB && c.kind === 'daily' ? 'me' : ''}" style="height:${Math.max(4, n / max * 100)}%;--d:${i}" title="${i * 10}${i < 10 ? '–' + (i * 10 + 9) : ''}: ${n}"></i>`).join('')}</div>
-        <div class="histo-l"><span>0</span><span>50</span><span>100</span></div></div>
+        <div class="histo">${rv.crowd.hist.map((n, i) => `<i class="${i === myB && c.kind === 'daily' ? 'me' : ''}" style="height:${Math.max(4, n / max * 100)}%;--d:${i}" title="${i * 100}${i < 10 ? '–' + (i * 100 + 99) : ''}: ${n}"></i>`).join('')}</div>
+        <div class="histo-l"><span>0</span><span>500</span><span>1000</span></div></div>
       <div><div class="h4">🏆 Top answers today</div>
         ${rv.top.length ? `<ol class="toplist">${rv.top.map((t, i) => `<li style="--d:${i}"><span class="rk">${i === 0 ? '👑' : i + 1}</span><span class="nm">${esc(t.name)}<small>≈ ${esc(val(p, t.value))} · ${t.count} ${t.count === 1 ? 'rider' : 'riders'}</small></span><span class="sc">${t.score}</span></li>`).join('')}</ol>`
           : '<p class="empty">Top answers show up once a few riders find the same thing.</p>'}</div></div>`;
@@ -369,7 +369,7 @@ function revealHTML(r, c) {
     : nextIdx >= 0 ? `<button class="btn" id="nextRoom" data-next="${nextIdx}">Next: ${stageOf(c.rooms[nextIdx].puzzle.slot).emoji} ${stageOf(c.rooms[nextIdx].puzzle.slot).name} →</button>`
       : '<button class="btn" id="toSummary">See your climb 🚩</button>';
 
-  return `<div class="verdict rise"><div class="score pop"><span id="bigScore" data-count="${play.score}">0</span><small>/ 100</small></div>
+  return `<div class="verdict rise"><div class="score pop"><span id="bigScore" data-count="${play.score}">0</span><small>/ 1,000</small></div>
       <div><h3>${v.t}</h3><p>${v.d}${play.usedSecond ? ' Second ride (×0.8).' : ''}</p></div></div>
     ${gaugeHTML(r)}
     <div class="facts">${facts}</div>
@@ -484,7 +484,7 @@ async function loadBest(box, r) {
   const draw = b => {
     if (!box.isConnected) return;
     const p = r.reveal.puzzle;
-    box.innerHTML = `<div class="fact best"><span class="n">${b.score >= 100 ? '👑' : '🐐'}</span>
+    box.innerHTML = `<div class="fact best"><span class="n">${b.score >= MAX_SCORE ? '👑' : '🐐'}</span>
       <div class="w"><b>${esc(b.name)}</b> ≈ ${esc(val(p, b.value))}<small>Type “${esc(b.input)}” · ${esc(offText(p, b.value))} · ${b.by === 'player' ? 'found by a rider' : 'found by Skipper'}</small></div>
       <span class="s">${b.score}</span></div>
       ${!r.play.gaveUp && r.play.guesses.length && r.play.guesses[r.play.guesses.length - 1].raw >= b.score ? '<p class="beatskipper">🎉 That is the best answer anyone has found!</p>' : ''}`;
@@ -504,7 +504,7 @@ async function loadBest(box, r) {
 function panoHTML() {
   return `<div class="pano"><div id="panoHost"></div>
     <span class="camp" style="left:3%;top:90%">Base · 0 m</span><span class="camp" style="left:30%;top:58%">Treeline · 1,000 m</span>
-    <span class="camp" style="left:52%;top:30%">Glacier · 2,000 m</span><span class="camp" style="left:70%;top:2%">Summit · 3,000 m</span></div>`;
+    <span class="camp" style="left:52%;top:30%">Glacier · 2,000 m</span><span class="camp" style="left:60%;top:9%">Summit · 3,000 m</span></div>`;
 }
 function summaryHTML(c) {
   const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
@@ -515,9 +515,9 @@ function summaryHTML(c) {
   return `<div class="summary">
       <div class="daylabel rise">${c.kind === 'archive' ? 'Archive · ' : ''}Day #${c.number}</div>
       ${panoHTML()}
-      <div class="total rise" style="--d:2"><span id="sumTotal">0</span><small> / 300</small></div>
-      <div class="altline rise" style="--d:3">⛰️ <span id="sumAlt">0 m</span> climbed</div>
-      <h3 class="prompt rise" style="--d:4;margin-top:8px">${total >= 300 ? 'You reached the summit!' : v.t}</h3>
+      <div class="total rise" style="--d:2"><span id="sumTotal">0 m</span><small> / 3,000 m</small></div>
+      <div class="altline rise" style="--d:3">⛰️ climbed today</div>
+      <h3 class="prompt rise" style="--d:4;margin-top:8px">${total >= SUMMIT_M ? 'You reached the summit!' : v.t}</h3>
       ${beat}
       <div class="mini">${c.rooms.map((r, i) => `<span style="--d:${i}">${stageOf(r.puzzle.slot).emoji} ${r.play.gaveUp ? '🏳️' : ''}${r.play.score}</span>`).join('')}</div>
       <div class="row" style="justify-content:center">
@@ -531,9 +531,8 @@ function summaryHTML(c) {
 function wireSummary(c) {
   const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
   setTimeout(() => {
-    createClimb($('#panoHost'), { w: 160, h: 72, big: true }).set(total / 300, { dur: 2200 });
-    countUp($('#sumTotal'), total, { dur: 2200 });
-    countUp($('#sumAlt'), total * METERS_PER_POINT, { dur: 2200, fmt: meters });
+    createClimb($('#panoHost'), { w: 160, h: 72, big: true }).set(total / SUMMIT_M, { dur: 2200 });
+    countUp($('#sumTotal'), total, { dur: 2200, fmt: meters });
   }, 250);
   $('#shareBtn').onclick = () => doShare(c);
   $('#statsBtn2').onclick = showStats;
@@ -543,7 +542,7 @@ function wireSummary(c) {
 /* ═══════════ Share ═══════════ */
 function shareText(c) {
   const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
-  const head = `Summit #${c.number}${c.kind === 'archive' ? ' (archive)' : ''} ⛰️ ${total}/300 · ${meters(total * METERS_PER_POINT)}`;
+  const head = `Summit #${c.number}${c.kind === 'archive' ? ' (archive)' : ''} ⛰️ ${meters(total)} / 3,000 m`;
   const rows = c.rooms.map(r => {
     const p = r.play, g1 = p.guesses[0], g2 = p.guesses[1];
     let s = stageOf(r.puzzle.slot).emoji + ' ' + '❌'.repeat(p.rejects1 || 0);
@@ -589,7 +588,7 @@ let skipperTimer = 0;
 function showSkipper(r) {
   const play = r ? r.play : null;
   const last = play && play.guesses.length ? play.guesses[play.guesses.length - 1] : null;
-  const mood = !play || play.state === 'g1' ? 'smile' : play.state === 'done' ? (play.gaveUp ? 'sad' : verdict(play.score).mood) : verdict(last ? last.raw : 50).mood;
+  const mood = !play || play.state === 'g1' ? 'smile' : play.state === 'done' ? (play.gaveUp ? 'sad' : verdict(play.score).mood) : verdict(last ? last.raw : 500).mood;
   const lines = {
     smile: "Ready when you are. Name something and I'll take you there.",
     happy: 'Right at the lodge! Best ride all week.',
@@ -625,7 +624,7 @@ function showHelp() {
       <div class="stepc" style="--d:1">${ICON.lodge}<p><b class="n">Ride to the lodge</b>Name something real that's juuust right in between. The lodge is the middle by <b>ratio</b>: between 1 and 100 it's <b>10</b>, not 50. Shortcut: √(small × big).</p></div>
       <div class="stepc" style="--d:2">${ICON.fog}<p><b class="n">Into the fog</b>You'll see your score, but fog hides which way you're off. Keep it, or take one final ride worth ×0.8. Answers off the cable get ❌: three are free, then the next scores 0.</p></div>
     </div>
-    <p class="sub">Every point climbs 10 m. A perfect day reaches the 3,000 m summit. New mountain at midnight UTC.</p>
+    <p class="sub">Each stage is worth up to 1,000 m. A perfect day reaches the 3,000 m summit. New mountain at midnight UTC.</p>
     <div class="row"><button class="btn" id="helpGo">All aboard 🚡</button></div>`);
   $('#helpGo').onclick = closeModal;
 }
@@ -633,12 +632,12 @@ async function showStats() {
   openModal('<h2>Your stats</h2><div class="shimmer">Counting meters…</div>');
   try {
     const s = await api('stats');
-    const max = Math.max(1, ...s.dist), names = ['0–99', '100–149', '150–199', '200–249', '250–299', '300'];
+    const max = Math.max(1, ...s.dist), names = ['0–999', '1,000+', '1,500+', '2,000+', '2,500+', '3,000'];
     openModal(`<h2>Your stats</h2>
-      <div class="statgrid"><div><b>${s.played}</b><span>Days</span></div><div><b>${s.avg}</b><span>Avg / 300</span></div><div><b>${s.best}</b><span>Best</span></div>
+      <div class="statgrid"><div><b>${s.played}</b><span>Days</span></div><div><b>${s.avg}</b><span>Avg m</span></div><div><b>${s.best}</b><span>Best m</span></div>
         <div><b>${s.streak}</b><span>Streak</span></div><div><b>${s.maxStreak}</b><span>Max streak</span></div></div>
       <div class="bars">${s.dist.map((n, i) => `<div class="bar"><span>${names[i]}</span><i style="width:${Math.max(8, n / max * 100)}%;--d:${i}">${n}</i></div>`).join('')}</div>
-      <p class="sub">Highest climb: ${meters(s.best * METERS_PER_POINT)}. Archive: ${s.archive.played} stages · average ${s.archive.avg}.</p>
+      <p class="sub">Highest climb: ${meters(s.best)}. Archive: ${s.archive.played} stages · average ${s.archive.avg}.</p>
       ${S.me.signedIn ? '' : '<p class="sub">Stats live on this device. <button class="link" id="statsSignin">Sign in</button> to keep them everywhere.</p>'}`);
     const si = $('#statsSignin'); if (si) si.onclick = showAccount;
   } catch (e) { openModal(`<h2>Your stats</h2><div class="note bad">${esc(e.message)}</div>`); }

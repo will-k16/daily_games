@@ -247,12 +247,13 @@ export function createScene(host, { stage = 1, seed = 1, onGondolaClick } = {}) 
     setFog(on) { st.fogTarget = on ? 1 : 0; },
     setMood(m) { st.mood = m || 'smile'; },
     bump() { st.swingV += (Math.random() < .5 ? -1 : 1) * 160; host.classList.remove('jolt'); void host.offsetWidth; host.classList.add('jolt'); },
-    settle(score) { st.swingV += (Math.random() < .5 ? -1 : 1) * (12 + (100 - score) * 1.9); st.idleAmp = score >= 90 ? .7 : score >= 50 ? 1.2 : 2.2; },
+    /** score: 0..1000 */
+    settle(score) { const s = score / 10; st.swingV += (Math.random() < .5 ? -1 : 1) * (12 + (100 - s) * 1.9); st.idleAmp = s >= 90 ? .7 : s >= 50 ? 1.2 : 2.2; },
     celebrate(level) {
       if (reduced()) return;
       st.party = 3;
       const colors = ['#ffd166', '#ff8c61', '#ffffff', '#7bdff2', '#b8f2a6', '#f28cb1'];
-      const n = level >= 100 ? 5 : 3;
+      const n = level >= 1000 ? 5 : 3;
       for (let b = 0; b < n; b++) setTimeout(() => {
         if (!alive) return;
         const cx = 90 + Math.random() * 140, cy = 18 + Math.random() * 40, c = colors[b % colors.length], c2 = colors[(b + 2) % colors.length];

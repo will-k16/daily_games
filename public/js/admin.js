@@ -54,7 +54,7 @@ async function dash(box) {
       <tbody>${d.rooms.map(r => `<tr><td>${room(r.slot).emoji} ${room(r.slot).name}</td><td>${esc(r.small_item)} ↔ ${esc(r.big_item)}<br><span class="sub">${esc(propLabel(r.property))}</span></td>
         <td><span class="st ${r.status}">${r.status}</span></td><td>${r.plays}</td><td>${r.avg == null ? '–' : Math.round(r.avg)}</td><td>${r.plays ? Math.round(100 * (r.seconds || 0) / r.plays) + '%' : '–'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Not generated yet. It will be created on the first visit.</td></tr>'}</tbody></table></div>
       <div class="crowd" style="margin-top:6px">
-        <div><div class="section-title">Score spread today</div><div class="histo">${d.hist.map(n => `<i style="height:${Math.max(4, n / max * 100)}%" title="${n}"></i>`).join('')}</div><div class="histo-l"><span>0</span><span>50</span><span>100</span></div></div>
+        <div><div class="section-title">Score spread today</div><div class="histo">${d.hist.map(n => `<i style="height:${Math.max(4, n / max * 100)}%" title="${n}"></i>`).join('')}</div><div class="histo-l"><span>0</span><span>500</span><span>1000</span></div></div>
         <div><div class="section-title">Daily players (14 days)</div><div class="histo">${d.week.map(w => `<i style="height:${Math.max(4, w.n / wmax * 100)}%" title="${w.date}: ${w.n}"></i>`).join('') || '<span class="empty">No data yet</span>'}</div></div>
       </div>
     </section>

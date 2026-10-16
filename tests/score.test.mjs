@@ -5,10 +5,10 @@ import { parseNum, convert } from '../public/js/units.js';
 
 const lo = 1, hi = 1e12, mid = 1e6;
 
-test('100 only within 1.05x of the middle', () => {
-  assert.equal(scoreGuess(lo, hi, mid), 100);
-  assert.equal(scoreGuess(lo, hi, mid * 1.04), 100);
-  assert.ok(scoreGuess(lo, hi, mid * 1.06) < 100);
+test('1000 only within 1.05x of the middle', () => {
+  assert.equal(scoreGuess(lo, hi, mid), 1000);
+  assert.equal(scoreGuess(lo, hi, mid * 1.04), 1000);
+  assert.ok(scoreGuess(lo, hi, mid * 1.06) < 1000);
 });
 
 test('symmetric by ratio', () => {
@@ -16,7 +16,7 @@ test('symmetric by ratio', () => {
 });
 
 test('smoothly decreasing with distance', () => {
-  let prev = 101;
+  let prev = 1001;
   for (const f of [1, 1.1, 1.5, 2, 3, 5, 10, 30, 100]) { const s = scoreGuess(lo, hi, mid * f); assert.ok(s < prev, `${f}x`); prev = s; }
 });
 
@@ -33,8 +33,8 @@ test('narrow ranges are harsher', () => {
 });
 
 test('second guess is worth 0.8x', () => {
-  assert.equal(finalScore(100, 2), 80);
-  assert.equal(finalScore(73, 1), 73);
+  assert.equal(finalScore(1000, 2), 800);
+  assert.equal(finalScore(734, 1), 734);
 });
 
 test('number parsing and conversion', () => {
