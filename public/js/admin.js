@@ -33,7 +33,8 @@ function go(t) {
   box.innerHTML = '<div class="loading">Loading…</div>';
   ({ dash, cal, comp, ans })[t](box).catch(e => {
     box.innerHTML = `<div class="card"><div class="note bad">${esc(e.message)}</div>
-      ${/Admins only/.test(e.message) ? '<p class="sub">Sign in with your admin Google account on the game page first (the person icon).</p>' : ''}</div>`;
+      ${/Admins only/.test(e.message) ? `<p class="sub">Sign in with your admin Google account, then come back to this page.</p>
+        <div class="row"><a class="btn" href="/api/auth/login" style="display:inline-flex;align-items:center;text-decoration:none">Sign in with Google</a></div>` : ''}</div>`;
   });
 }
 
@@ -78,7 +79,13 @@ async function cal(box) {
     const live = list.find(p => p.status === 'approved' || p.status === 'auto');
     const drafts = list.filter(p => p.status === 'draft');
     const show1 = live || drafts[drafts.length - 1];
-    if (!show1) return `<td><span class="st empty">empty</span> <button class="mini-btn" data-new="${date}|${slot}">+ Add</button></td>`;
+    const genBtn = `<button class="mini-btn" data-gen="${date}|${slot}" title="Ask the AI for a new draft for this room">✨ Generate</button>`;
+    if (!show1) {
+      const rejected = list.filter(p => p.status === 'rejected').length;
+      return `<td><span class="st empty">empty</span>${rejected ? ` <span class="sub">${rejected} rejected</span>` : ''}
+        <div class="row" style="margin-top:6px;gap:4px">${genBtn}<button class="mini-btn" data-new="${date}|${slot}">+ Write one</button>
+        ${rejected ? `<button class="mini-btn" data-all="${date}|${slot}">All (${list.length})</button>` : ''}</div></td>`;
+    }
     const mid = Math.sqrt(show1.smallValue * show1.bigValue);
     return `<td><span class="st ${show1.status}">${show1.status}</span>${drafts.length > (live ? 0 : 1) ? ` <span class="sub">+${drafts.length - (live ? 0 : 1)} draft</span>` : ''}
       <div style="margin-top:4px"><b>${esc(show1.smallItem)}</b> ↔ <b>${esc(show1.bigItem)}</b></div>
@@ -86,6 +93,7 @@ async function cal(box) {
       <div class="row" style="margin-top:6px;gap:4px">
         ${show1.status === 'draft' ? `<button class="mini-btn ok" data-approve="${show1.id}">Approve</button>` : ''}
         <button class="mini-btn" data-edit="${show1.id}">Edit</button>
+        ${!show1.plays ? genBtn : ''}
         ${list.length > 1 ? `<button class="mini-btn" data-all="${date}|${slot}">All (${list.length})</button>` : ''}
         ${!show1.plays && show1.status !== 'rejected' ? `<button class="mini-btn danger" data-reject="${show1.id}">Reject</button>` : ''}
       </div></td>`;
@@ -105,9 +113,17 @@ async function cal(box) {
   const all = d.puzzles;
   $('#gGo').onclick = async () => {
     $('#gGo').disabled = true; $('#gGo').textContent = 'Thinking…';
-    try { const r = await api('admin/generate', { from: $('#gFrom').value, days: Number($('#gDays').value) }); toast(`Made ${r.made} drafts`); go('cal'); }
+    try { const r = await api('admin/generate', { from: $('#gFrom').value, days: Number($('#gDays').value) }); toast(r.failed ? `Made ${r.made} drafts. ${r.failed} rooms are still empty because the AI was busy. Wait a minute, then use ✨ Generate on them.` : `Made ${r.made} drafts`); go('cal'); }
     catch (e) { toast(e.message); $('#gGo').disabled = false; $('#gGo').textContent = 'Generate'; }
   };
+  box.querySelectorAll('[data-gen]').forEach(b => b.onclick = async () => {
+    const [date, slot] = b.dataset.gen.split('|');
+    b.disabled = true; b.textContent = 'Thinking…';
+    try {
+      const r = await api('admin/generate-slot', { date, slot: Number(slot) });
+      toast(`New ${room(Number(slot)).name} draft: ${r.puzzle.smallItem} ↔ ${r.puzzle.bigItem}`); go('cal');
+    } catch (e) { toast(e.message); b.disabled = false; b.textContent = '✨ Generate'; }
+  });
   box.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => setStatus(Number(b.dataset.approve), 'approved'));
   box.querySelectorAll('[data-reject]').forEach(b => b.onclick = () => { if (confirm('Reject this puzzle?')) setStatus(Number(b.dataset.reject), 'rejected'); });
   box.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editor(all.find(p => p.id === Number(b.dataset.edit))));

@@ -1,6 +1,7 @@
 import { HttpError, nowISO, todayUTC, addDays, isDate, dayIndex, clampStr, normalize } from './util.js';
 import { generatePuzzles, cleanPuzzle } from './ai.js';
 import { rescoreAnswer, rescorePuzzle } from './game.js';
+import { planSpecs, recentItems } from './plan.js';
 import { PROPS } from '../../public/js/props.js';
 
 export function requireAdmin(who) {
@@ -56,20 +57,40 @@ export async function generateDrafts(env, body) {
   const from = isDate(body.from) ? body.from : addDays(todayUTC(), 1);
   const days = Math.max(1, Math.min(7, Number(body.days) || 3));
   const db = env.DB;
-  const recent = (await db.prepare(`SELECT small_item, big_item FROM puzzles ORDER BY id DESC LIMIT 80`).all()).results.map(r => r.small_item + ' / ' + r.big_item);
-  let made = 0;
+  const recent = await recentItems(env);
+  let made = 0, failed = 0;
   for (let i = 0; i < days; i++) {
     const date = addDays(from, i);
     const taken = (await db.prepare(`SELECT slot FROM puzzles WHERE date = ? AND status IN ('approved','auto','draft')`).bind(date).all()).results.map(r => r.slot);
     const missing = [1, 2, 3].filter(s => !taken.includes(s));
     if (!missing.length) continue;
-    const gen = await generatePuzzles(env, missing, { avoid: recent, seed: dayIndex(date) });
-    const stmts = gen.map((p, j) => db.prepare(`INSERT INTO puzzles (date, slot, status, property, unit_label, small_item, small_value, big_item, big_value, note, created_at)
-      VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`).bind(date, missing[j], p.property, p.unitLabel, p.smallItem, p.smallValue, p.bigItem, p.bigValue, p.note, nowISO()));
-    gen.forEach(p => recent.push(p.smallItem + ' / ' + p.bigItem));
-    if (stmts.length) { await db.batch(stmts); made += stmts.length; }
+    const gen = await generatePuzzles(env, await planSpecs(env, date, missing), { avoidItems: recent, seed: dayIndex(date), fallback: false });
+    const ok = missing.map((slot, j) => [slot, gen[j]]).filter(([, p]) => p);
+    if (ok.length) await insertDrafts(env, date, ok.map(x => x[0]), ok.map(x => x[1]));
+    ok.forEach(([, p]) => recent.unshift(p.smallItem, p.bigItem));
+    made += ok.length;
+    failed += missing.length - ok.length;
   }
-  return { made };
+  return { made, failed };
+}
+
+/** One fresh AI draft for a single day + room (e.g. after rejecting one). */
+export async function generateSlot(env, body) {
+  const date = isDate(body.date) ? body.date : null;
+  const slot = [1, 2, 3].includes(Number(body.slot)) ? Number(body.slot) : null;
+  if (!date || !slot) throw new HttpError(400, 'Pick a date and a room.');
+  const live = await env.DB.prepare(`SELECT z.id, (SELECT COUNT(*) FROM plays pl WHERE pl.puzzle_id = z.id) AS plays FROM puzzles z
+      WHERE z.date = ? AND z.slot = ? AND z.status IN ('approved','auto')`).bind(date, slot).first();
+  if (live && live.plays > 0) throw new HttpError(409, 'People already played this room that day.');
+  const [p] = await generatePuzzles(env, await planSpecs(env, date, [slot]), { avoidItems: await recentItems(env), seed: Math.floor(Math.random() * 1000), fallback: false });
+  if (!p) throw new HttpError(503, 'The AI is busy right now (free-tier limit). Wait a minute and click Generate again.');
+  await insertDrafts(env, date, [slot], [p]);
+  return { ok: true, puzzle: p };
+}
+
+function insertDrafts(env, date, slots, list) {
+  return env.DB.batch(list.map((p, j) => env.DB.prepare(`INSERT INTO puzzles (date, slot, status, property, unit_label, small_item, small_value, big_item, big_value, note, created_at)
+    VALUES (?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`).bind(date, slots[j], p.property, p.unitLabel, p.smallItem, p.smallValue, p.bigItem, p.bigValue, p.note, nowISO())));
 }
 
 /** Create or update a puzzle. Approving demotes any other unplayed live puzzle for that day + slot. */

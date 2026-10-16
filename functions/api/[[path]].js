@@ -18,6 +18,7 @@ const ROUTES = {
   'GET admin/dashboard': (c) => admin.dashboard(c.env),
   'GET admin/calendar': (c) => admin.calendar(c.env, c.q),
   'POST admin/generate': (c) => admin.generateDrafts(c.env, c.body),
+  'POST admin/generate-slot': (c) => admin.generateSlot(c.env, c.body),
   'POST admin/puzzle': (c) => admin.savePuzzle(c.env, c.body),
   'POST admin/puzzle/status': (c) => admin.setPuzzleStatus(c.env, c.body),
   'POST admin/puzzle/delete': (c) => admin.deletePuzzle(c.env, c.body),
@@ -62,9 +63,12 @@ export async function onRequest(context) {
   }
 }
 
+/** Adds the identity cookies, but never one that would undo a cookie the response itself sets (e.g. a fresh sign-in). */
 function withCookies(res, cookies) {
   if (!cookies || !cookies.length) return res;
   const r = new Response(res.body, res);
-  cookies.forEach(c => r.headers.append('set-cookie', c));
+  const own = typeof r.headers.getSetCookie === 'function' ? r.headers.getSetCookie() : [];
+  const ownNames = new Set(own.map(c => c.split('=')[0].trim()));
+  cookies.filter(c => !ownNames.has(c.split('=')[0].trim())).forEach(c => r.headers.append('set-cookie', c));
   return r;
 }

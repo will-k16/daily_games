@@ -1,5 +1,6 @@
 import { HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, puzzleNumber, sameItem, normalize, clampStr } from './util.js';
 import { estimate, generatePuzzles } from './ai.js';
+import { planSpecs, recentItems } from './plan.js';
 import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS } from '../../public/js/score.js';
 
 const LIVE = `status IN ('approved','auto')`;
@@ -13,11 +14,6 @@ export function publicPuzzle(p) {
 
 function revealPuzzle(p) {
   return { ...publicPuzzle(p), smallValue: p.small_value, bigValue: p.big_value, middle: middle(p.small_value, p.big_value) };
-}
-
-async function recentPairs(env) {
-  const { results } = await env.DB.prepare(`SELECT small_item, big_item FROM puzzles ORDER BY id DESC LIMIT 80`).all();
-  return results.map(r => r.small_item + ' / ' + r.big_item);
 }
 
 /** Makes sure a date (today or earlier) has its 3 live puzzles, creating any that are missing. */
@@ -40,7 +36,7 @@ export async function ensureDay(env, date) {
   if (!missing.length) return rows;
 
   // 2) Ask the AI (falls back to the bank inside generatePuzzles).
-  const gen = await generatePuzzles(env, missing, { avoid: await recentPairs(env), seed: dayIndex(date) });
+  const gen = await generatePuzzles(env, await planSpecs(env, date, missing), { avoidItems: await recentItems(env), seed: dayIndex(date) });
   const stmts = gen.map((p, i) => db.prepare(`INSERT OR IGNORE INTO puzzles
       (date, slot, status, property, unit_label, small_item, small_value, big_item, big_value, note, created_at)
       VALUES (?, ?, 'auto', ?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -197,7 +193,7 @@ export async function archiveDay(env, who, date) {
 export async function newUnlimited(env, who) {
   if (!who.isAdmin) throw new HttpError(403, 'Admins only.');
   const tier = 1 + Math.floor(Math.random() * 3);
-  const [p] = await generatePuzzles(env, [tier], { avoid: await recentPairs(env), seed: Math.floor(Math.random() * 1000) });
+  const [p] = await generatePuzzles(env, await planSpecs(env, null, [tier]), { avoidItems: await recentItems(env), seed: Math.floor(Math.random() * 1000) });
   const r = await env.DB.prepare(`INSERT INTO puzzles (date, slot, status, property, unit_label, small_item, small_value, big_item, big_value, note, created_at)
     VALUES (NULL, ?, 'unlimited', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`)
     .bind(tier, p.property, p.unitLabel, p.smallItem, p.smallValue, p.bigItem, p.bigValue, p.note, nowISO()).first();

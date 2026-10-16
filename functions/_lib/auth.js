@@ -113,7 +113,8 @@ export async function googleCallback(request, env, who) {
     return redirect('/?signin=failed', [clear]);
   }
   const cookies = await signIn(env, who, 'google:' + payload.sub, String(payload.email).toLowerCase(), secureFor(url));
-  return redirect(saved.ret || '/', [clear, ...cookies]);
+  // Always land on a fresh home page so the whole app reloads signed in.
+  return redirect('/?signedin=1', [clear, ...cookies]);
 }
 
 /** Localhost-only shortcut for testing, enabled by DEV_LOGIN_EMAIL in .dev.vars. */
@@ -122,7 +123,7 @@ export async function devLogin(request, env, who) {
   if (!env.DEV_LOGIN_EMAIL || !isLocal(url)) throw new HttpError(404, 'Not found');
   const email = String(env.DEV_LOGIN_EMAIL).toLowerCase();
   const cookies = await signIn(env, who, 'dev:' + email, email, secureFor(url));
-  return redirect(safeReturn(url.searchParams.get('return')), cookies);
+  return redirect('/?signedin=1', cookies);
 }
 
 async function signIn(env, who, sub, email, secure) {

@@ -92,7 +92,11 @@ async function loadToday() {
   if (d.notifications && d.notifications.length) showNotifications(d.notifications);
   else if (!store.get('jr.seenHelp', false)) { store.set('jr.seenHelp', true); showHelp(); }
   const sp = new URLSearchParams(location.search);
-  if (sp.get('signin') === 'failed') { toast('Sign-in didn\'t work. Try again.'); history.replaceState(null, '', location.pathname + location.hash); }
+  if (sp.get('signin') === 'failed') { toast('Sign-in didn\'t work. Try again.'); history.replaceState(null, '', '/'); }
+  if (sp.get('signedin') === '1') {
+    history.replaceState(null, '', '/');
+    toast(S.me.signedIn ? `Signed in as ${S.me.email}. Your stats now follow you.` : 'Sign-in didn\'t stick. Try once more.');
+  }
 }
 
 async function loadArchiveDay(date) {

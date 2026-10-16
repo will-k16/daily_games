@@ -1,6 +1,7 @@
 import { HttpError, nowISO, todayUTC, normalize, safeJson } from './util.js';
 import { PROPS } from '../../public/js/props.js';
 import { FALLBACK } from './fallback.js';
+import { itemCore } from './plan.js';
 
 const GROQ_MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'];
 const DEFAULT_GEMINI_MODEL = 'gemini-flash-latest';
@@ -122,59 +123,77 @@ function estimatePrompt(info, answer, avg) {
 /* ───────────── Puzzle generation ───────────── */
 
 const TIER_RULES = {
-  1: 'tier 1 (EASY, "Porridge"): property from [weight, height, length, speed, price]; both items are things everyone knows (a house cat, a school bus); ratio between values 1,000x to 10,000,000x; tons of everyday things live near the middle.',
-  2: 'tier 2 (MEDIUM, "Chairs"): property from [distance, volume, age, population, duration, capacity, calories] or an easy one; familiar items; ratio 100x to 100,000x.',
-  3: 'tier 3 (HARD, "Beds"): property from [area, lifespan, depth, power, data, words, copies] or a medium one; items may be less everyday but must be well documented; ratio 30x to 1,000x; fewer obvious things near the middle, but it must still be answerable.'
+  1: 'EASY: both items are things almost everyone knows; the bigger value is 1,000x to 10,000,000x the smaller; lots of everyday things live near the middle.',
+  2: 'MEDIUM: familiar items; the bigger value is 100x to 100,000x the smaller.',
+  3: 'HARD: items can be less everyday but must be well documented; the bigger value is only 30x to 1,000x the smaller; fewer obvious things near the middle, but it must still be answerable.'
 };
 
 /**
- * tiers: e.g. [1,2,3]. Returns cleaned puzzles with .tier set. Falls back to the built-in bank.
- * avoid: strings like "a cat / a whale" to keep puzzles fresh.
+ * specs: [{ tier, property, worlds: [smallWorld, bigWorld] }] (see plan.js).
+ * avoidItems: item names already used; any puzzle reusing one is retried, then replaced from the bank.
+ * Returns cleaned puzzles in the same order as specs (null where the AI failed and fallback is false).
  */
-export async function generatePuzzles(env, tiers, { property = '', avoid = [], seed = 0 } = {}) {
-  let list = [];
+export async function generatePuzzles(env, specs, { avoidItems = [], seed = 0, fallback = true } = {}) {
+  const banned = new Set(avoidItems.map(itemCore).filter(Boolean));
+  const out = new Array(specs.length).fill(null);
+
   if (env.MOCK_AI !== '1') {
-    const keys = Object.keys(PROPS);
-    const prompt = [
-      'You write puzzles for "Just Right". Players see a "too small" thing and a "too big" thing plus one measurable property, then try to name a third real thing whose value sits at the GEOMETRIC middle, sqrt(small*big).',
-      '',
-      'Write exactly ' + tiers.length + ' puzzle(s), one for each of these tiers, in this order: ' + tiers.join(', ') + '.',
-      ...tiers.filter((t, i, a) => a.indexOf(t) === i).map(t => '- ' + TIER_RULES[t]),
-      property ? 'Use the property "' + property + '" for every puzzle.' + (PROPS[property] ? '' : ' Put its unit in "unitLabel".')
-        : 'Every puzzle in this set must use a DIFFERENT property, so one answer can\'t fit them all.',
-      'Allowed property keys and their units: ' + keys.map(k => k + ' (' + PROPS[k].unit + ')').join('; ') + '.',
-      '',
-      'Rules:',
-      '- smallItem has the smaller value, bigItem the bigger one. Give values as plain numbers in the unit listed.',
-      '- Items are real, specific, and phrased with an article ("an adult house cat", "Mount Everest").',
-      '- Each item has one clear, well-documented typical value for the property. Be accurate.',
-      '- Pairings should be fun and surprising, often from different worlds (an animal vs. a building, a snack vs. a planet).',
-      '- Do not reuse these pairs or their items: ' + (avoid.length ? avoid.slice(-80).join('; ') : 'none') + '.',
-      '- "note": one short sentence naming 2 or 3 real things near the middle (admin only).',
-      '- "unitLabel": empty string unless the property is not in the list.',
-      '- "tier": the tier number this puzzle is for.'
-    ].join('\n');
-    try {
-      const res = await callAI(env, prompt, GEN_SCHEMA, 'generate', '');
-      list = (res.puzzles || []).map(cleanPuzzle).filter(Boolean);
-    } catch (e) { console.error('generate failed', e.message); }
-  }
-  // Match results to the requested tiers; fill gaps from the bank.
-  const out = [];
-  const usedProps = new Set();
-  tiers.forEach((t, i) => {
-    let p = list.find(x => x.tier === t && !usedProps.has(x.property) && !out.includes(x))
-      || list.find(x => !out.includes(x) && !usedProps.has(x.property));
-    if (!p) {
-      const bank = FALLBACK.filter(f => f.tier === t && !usedProps.has(f.property) && (!property || f.property === property));
-      const pool = bank.length ? bank : FALLBACK.filter(f => f.tier === t);
-      p = cleanPuzzle(pool[(seed + i * 7) % pool.length]);
+    for (let round = 0; round < 2; round++) {
+      const todo = specs.map((s, i) => i).filter(i => !out[i]);
+      if (!todo.length) break;
+      const prompt = [
+        'You write puzzles for "Just Right". Players see a "too small" thing and a "too big" thing plus one measurable property, then try to name a third real thing whose value sits at the GEOMETRIC middle, sqrt(small*big).',
+        '',
+        `Write exactly ${todo.length} puzzle(s), in this order:`,
+        ...todo.map((i, n) => {
+          const s = specs[i], p = PROPS[s.property];
+          return `${n + 1}. tier ${s.tier}, property "${s.property}" = ${p ? p.desc.replace('{YEAR}', new Date().getUTCFullYear()) : s.property}, values in ${p ? p.unit : 'units'}. `
+            + `Difficulty: ${TIER_RULES[s.tier] || TIER_RULES[2]} `
+            + (p && p.fits ? `Both items must be ${p.fits}. Pick two different kinds of those for a surprising pairing.` : '')
+            + (s.worlds ? `For variety, try the small item from one of [${s.worlds[0].join(' / ')}] and the big item from one of [${s.worlds[1].join(' / ')}]. `
+              + 'Only use those ideas if they give a natural, well-known item that clearly has this property; otherwise choose freely.' : '');
+        }),
+        '',
+        'Rules:',
+        '- smallItem has the smaller value, bigItem the bigger one. Values are plain numbers in the unit given.',
+        '- Items are REAL (nothing fictional: no Death Star, no Hogwarts), specific, and recognizable to a typical teenager. Phrase them with an article ("a harp", "the Eiffel Tower", "a bowling ball").',
+        '- Both items must naturally HAVE the property and be measured the obvious way (no "calories of a paper clip", no "power of a houseplant", no "depth of a crown").',
+        '- Each item has one clear, well-documented typical value for the property. Be accurate.',
+        '- Item names are plain noun phrases with no parentheses or explanations ("a garden worm", not "a garden worm (length)").',
+        '- Pairings should be fun and surprising: the two items come from different worlds.',
+        '- Be inventive. Avoid the most obvious picks (house cats, mice, elephants, blue whales, soda cans, smartphone chargers, Mount Everest) unless the world demands it.',
+        '- Never use any of these already-used items or close variants of them: ' + (avoidItems.length ? avoidItems.slice(0, 120).join('; ') : 'none') + '.',
+        '- "note": one short sentence naming 2 or 3 real things near the middle (admin only).',
+        '- "tier" and "property": copy them from the request. "unitLabel": empty string.'
+      ].join('\n');
+      let list = [];
+      try {
+        const res = await callAI(env, prompt, GEN_SCHEMA, 'generate', '', 0.8);
+        list = Array.isArray(res.puzzles) ? res.puzzles : [];
+      } catch (e) { console.error('generate failed', e.message); break; }
+      todo.forEach((i, n) => {
+        const p = cleanPuzzle({ ...list[n], property: specs[i].property, tier: specs[i].tier });
+        if (!p) return;
+        const a = itemCore(p.smallItem), b = itemCore(p.bigItem);
+        if (banned.has(a) || banned.has(b)) return;   // reused an item: try again next round
+        banned.add(a); banned.add(b);
+        out[i] = p;
+      });
     }
-    p.tier = t;
-    usedProps.add(p.property);
-    out.push(p);
+  }
+
+  // Anything still missing comes from the built-in bank (prefer the requested property, then the tier),
+  // unless the caller would rather leave it empty (admin drafts: just try again later).
+  return specs.map((s, i) => {
+    if (out[i] || !fallback) return out[i];
+    const fresh = f => !banned.has(itemCore(f.smallItem)) && !banned.has(itemCore(f.bigItem));
+    const pool = [FALLBACK.filter(f => f.property === s.property && fresh(f)), FALLBACK.filter(f => f.tier === s.tier && fresh(f)),
+      FALLBACK.filter(f => f.property === s.property), FALLBACK.filter(f => f.tier === s.tier)].find(x => x.length);
+    const p = cleanPuzzle(pool[(seed + i * 7) % pool.length]);
+    banned.add(itemCore(p.smallItem)); banned.add(itemCore(p.bigItem));
+    p.tier = s.tier;
+    return p;
   });
-  return out;
 }
 
 export function cleanPuzzle(p) {
@@ -197,7 +216,7 @@ export function cleanPuzzle(p) {
 
 /* ───────────── Providers ───────────── */
 
-async function callAI(env, prompt, schema, kind, playerId) {
+async function callAI(env, prompt, schema, kind, playerId, temperature = 0) {
   const g1 = env.GROQ_API_KEY || '', g2 = env.GEMINI_API_KEY || '';
   const groqKey = g1 || (g2.startsWith('gsk_') ? g2 : '');
   const geminiKey = g2 && !g2.startsWith('gsk_') ? g2 : '';
@@ -205,8 +224,8 @@ async function callAI(env, prompt, schema, kind, playerId) {
 
   let busy = false;
   const attempts = [];
-  if (groqKey) attempts.push(['groq', () => groqAny(env, prompt, schema, groqKey)]);
-  if (geminiKey) attempts.push(['gemini', () => gemini(prompt, schema, geminiKey, env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL)]);
+  if (groqKey) attempts.push(['groq', () => groqAny(env, prompt, schema, groqKey, temperature)]);
+  if (geminiKey) attempts.push(['gemini', () => gemini(prompt, schema, geminiKey, env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, temperature)]);
   for (const [name, fn] of attempts) {
     const t = Date.now();
     try {
@@ -227,12 +246,12 @@ function log(env, kind, provider, ok, ms, error, playerId) {
 }
 
 let knownGroqModel = null;
-async function groqAny(env, prompt, schema, key) {
+async function groqAny(env, prompt, schema, key, temperature) {
   const order = [env.GROQ_MODEL, knownGroqModel, ...GROQ_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
   let last = null;
   for (const model of order) {
     try {
-      const out = await groq(prompt, schema, key, model);
+      const out = await groq(prompt, schema, key, model, temperature);
       knownGroqModel = model;
       return out;
     } catch (e) {
@@ -243,9 +262,20 @@ async function groqAny(env, prompt, schema, key) {
   throw last || new Error('No Groq model available.');
 }
 
-function groq(prompt, schema, key, model) {
+async function groq(prompt, schema, key, model, temperature) {
+  try { return await groqOnce(prompt, schema, key, model, temperature, true); }
+  catch (e) {
+    // Groq's strict JSON check sometimes rejects good replies; ask again without it and parse it ourselves.
+    if (!/json_validate_failed/.test(e.message)) throw e;
+    return groqOnce(prompt, schema, key, model, temperature, false);
+  }
+}
+
+function groqOnce(prompt, schema, key, model, temperature, jsonMode) {
   return fetchJson('https://api.groq.com/openai/v1/chat/completions', { authorization: 'Bearer ' + key }, {
-    model, temperature: 0, max_tokens: 2000, response_format: { type: 'json_object' },
+    model, temperature, max_tokens: 8000, ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+    // Reasoning models spend tokens thinking first; keep that short so the JSON always fits.
+    ...(/gpt-oss/.test(model) ? { reasoning_effort: 'low' } : {}),
     messages: [
       { role: 'system', content: 'Reply with one JSON object and nothing else. It must match this shape exactly: ' + schemaText(schema) },
       { role: 'user', content: prompt }
@@ -253,11 +283,11 @@ function groq(prompt, schema, key, model) {
   }, j => (j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '');
 }
 
-function gemini(prompt, schema, key, model) {
+function gemini(prompt, schema, key, model, temperature) {
   return fetchJson('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent',
     { 'x-goog-api-key': key }, {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: schema }
+      generationConfig: { temperature, responseMimeType: 'application/json', responseSchema: schema }
     }, j => ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join(''));
 }
 
@@ -272,7 +302,12 @@ async function fetchJson(url, headers, body, pick) {
       return JSON.parse(a >= 0 && b > a ? out.slice(a, b + 1) : out);
     }
     last = res.status + ': ' + text.slice(0, 300);
-    if (res.status === 429 || res.status >= 500) { await new Promise(r => setTimeout(r, 1200 * (attempt + 1))); continue; }
+    if (res.status === 429 || res.status >= 500) {
+      const m = text.match(/try again in ([\d.]+)s/i);
+      const wait = m ? Math.min(20000, Math.ceil(parseFloat(m[1]) * 1000) + 300) : 1500 * (attempt + 1);
+      await new Promise(r => setTimeout(r, wait));
+      continue;
+    }
     break;
   }
   throw new Error(last);
