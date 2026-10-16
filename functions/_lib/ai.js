@@ -196,6 +196,28 @@ export async function generatePuzzles(env, specs, { avoidItems = [], seed = 0, f
   });
 }
 
+/* ───────────── Best answer ───────────── */
+
+const SUGGEST_SCHEMA = {
+  type: 'OBJECT',
+  properties: { candidates: { type: 'ARRAY', items: { type: 'STRING' } } },
+  required: ['candidates']
+};
+
+/** Asks the AI for real things whose value is close to `target` (base units). Returns plain names. */
+export async function suggestMiddle(env, { property, unitLabel, target, small, big }) {
+  if (env.MOCK_AI === '1') return [`perfect thing ${Number(target.toPrecision(3))}`, `close thing ${Number((target * 1.3).toPrecision(3))}`];
+  const info = propInfo(property, unitLabel);
+  const prompt = [
+    `Name 5 different real, specific, well-known things whose ${info.desc} is as close as possible to ${Number(target.toPrecision(3))} ${info.unit}.`,
+    `(For context, this is between "${small}" and "${big}"; don't name either of those.)`,
+    'Prefer things a typical teenager would recognize. Order them from closest to farthest.',
+    'Each candidate is a short noun phrase with an article, like "a grand piano" or "the Statue of Liberty". No numbers, no explanations.'
+  ].join('\n');
+  const res = await callAI(env, prompt, SUGGEST_SCHEMA, 'best', '', 0.3);
+  return (Array.isArray(res.candidates) ? res.candidates : []).map(c => String(c).trim().slice(0, 80)).filter(Boolean).slice(0, 5);
+}
+
 export function cleanPuzzle(p) {
   if (!p) return null;
   let a = Number(p.smallValue), b = Number(p.bigValue);

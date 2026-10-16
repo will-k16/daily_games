@@ -1,5 +1,5 @@
 import { HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, puzzleNumber, sameItem, normalize, clampStr } from './util.js';
-import { estimate, generatePuzzles } from './ai.js';
+import { estimate, generatePuzzles, suggestMiddle } from './ai.js';
 import { planSpecs, recentItems } from './plan.js';
 import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS } from '../../public/js/score.js';
 
@@ -72,7 +72,7 @@ async function guessesFor(env, playId) {
 }
 
 function playView(play, guesses) {
-  if (!play) return { state: 'g1', rejects: 0, guesses: [], score: null, usedSecond: false };
+  if (!play) return { state: 'g1', rejects: 0, guesses: [], score: null, usedSecond: false, gaveUp: false };
   return {
     id: play.id,
     state: play.state,
@@ -83,7 +83,8 @@ function playView(play, guesses) {
       raw: g.raw_score, score: g.score, outOfRange: !!g.out_of_range
     })),
     score: play.score,
-    usedSecond: !!play.used_second
+    usedSecond: !!play.used_second,
+    gaveUp: !!play.gave_up
   };
 }
 
@@ -280,6 +281,50 @@ export async function room(env, who, puzzleId, mode) {
   return { ...(await fullState(env, who, p, mode)), mode };
 }
 
+/** Ends a room with a 0 (from the first or second guess). */
+export async function giveUp(env, who, body) {
+  const mode = ['daily', 'archive', 'unlimited'].includes(body.mode) ? body.mode : 'daily';
+  const p = await getPuzzle(env, body.puzzleId);
+  checkAccess(p, mode, who);
+  await env.DB.prepare(`INSERT OR IGNORE INTO plays (player_id, puzzle_id, mode, state, created_at) VALUES (?, ?, ?, 'g1', ?)`)
+    .bind(who.player.id, p.id, mode, nowISO()).run();
+  await env.DB.prepare(`UPDATE plays SET state = 'done', score = 0, gave_up = 1, finished_at = ?
+      WHERE player_id = ? AND puzzle_id = ? AND mode = ? AND state IN ('g1','g2','decide')`)
+    .bind(nowISO(), who.player.id, p.id, mode).run();
+  return { status: 'ok', ...(await fullState(env, who, p, mode)) };
+}
+
+/**
+ * The bear's pick: the closest answer the AI can find, scored by the same judge players get.
+ * Only shown after you finish the room. Worked out once per puzzle, then cached on the puzzle.
+ */
+export async function bestAnswer(env, who, puzzleId, mode) {
+  const p = await getPuzzle(env, puzzleId);
+  checkAccess(p, mode, who);
+  const play = await getPlay(env, who.player.id, p.id, mode);
+  if (!play || play.state !== 'done') throw new HttpError(403, 'Finish the room first!');
+  const shape = (input, name, value) => ({ input, name, value, score: scoreGuess(p.small_value, p.big_value, value) });
+  if (p.best_name) return shape(p.best_input, p.best_name, p.best_value);
+
+  const target = middle(p.small_value, p.big_value);
+  const names = await suggestMiddle(env, { property: p.property, unitLabel: p.unit_label, target, small: p.small_item, big: p.big_item });
+  let best = null;
+  for (const n of names) {
+    if (sameItem(n, p.small_item) || sameItem(n, p.big_item)) continue;
+    let est;
+    try { est = await estimate(env, { property: p.property, unitLabel: p.unit_label, answer: n, avg: false, playerId: '' }); }
+    catch { continue; }
+    if (est.status !== 'ok' || !inRange(p.small_value, p.big_value, est.value)) continue;
+    const cand = shape(n, est.name, est.value);
+    if (!best || cand.score > best.score) best = cand;
+    if (best.score >= 99) break;
+  }
+  if (!best) throw new HttpError(503, 'The bear could not think of one right now.');
+  await env.DB.prepare(`UPDATE puzzles SET best_input = ?, best_name = ?, best_value = ? WHERE id = ?`)
+    .bind(best.input, best.name, best.value, p.id).run();
+  return best;
+}
+
 /* ───────────── Complaints & notifications ───────────── */
 
 export async function complain(env, who, body) {
@@ -385,7 +430,7 @@ async function refreshPlayScores(env, playIds) {
   const db = env.DB;
   const stmts = playIds.map(id => db.prepare(`
     UPDATE plays SET score = (SELECT g.score FROM guesses g WHERE g.play_id = plays.id ORDER BY g.attempt DESC LIMIT 1)
-    WHERE id = ? AND state = 'done'`).bind(id));
+    WHERE id = ? AND state = 'done' AND gave_up = 0`).bind(id));
   for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50));
 }
 

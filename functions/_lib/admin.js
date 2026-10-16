@@ -127,7 +127,11 @@ export async function savePuzzle(env, body) {
     }
     await db.prepare(`UPDATE puzzles SET date = ?, slot = ?, status = ?, property = ?, unit_label = ?, small_item = ?, small_value = ?, big_item = ?, big_value = ?, note = ? WHERE id = ?`)
       .bind(...vals, id).run();
-    if (old.small_value !== clean.smallValue || old.big_value !== clean.bigValue) await rescorePuzzle(env, id);
+    if (old.small_value !== clean.smallValue || old.big_value !== clean.bigValue) {
+      await rescorePuzzle(env, id);
+      // The bear's pick was scored against the old ends; work it out again next time.
+      await db.prepare(`UPDATE puzzles SET best_input = NULL, best_name = NULL, best_value = NULL WHERE id = ?`).bind(id).run();
+    }
   } else {
     await db.prepare(`INSERT INTO puzzles (date, slot, status, property, unit_label, small_item, small_value, big_item, big_value, note, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(...vals, nowISO()).run();

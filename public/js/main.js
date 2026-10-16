@@ -223,6 +223,7 @@ function guessFormHTML(r) {
       <button class="btn full-sm" type="submit">${second ? 'Final answer' : VERB[r.puzzle.slot] || 'Serve it'}</button>
     </form>
     ${pipsHTML(play.rejects || 0)}
+    <button type="button" class="link giveup" id="giveUpBtn">🏳️ Give up and take a 0</button>
     <div class="msg" id="msg"></div>
     <p class="sub">${second
       ? `This guess is final and is worth <b>×${SECOND_GUESS_MULT}</b>. It has to be something different.`
@@ -263,8 +264,8 @@ function thermoHTML(r) {
     const s = scoreGuess(p.smallValue, p.bigValue, v);
     stops.push(`rgba(90,168,100,${(s / 100 * .95).toFixed(3)}) ${(t * 100).toFixed(1)}%`);
   }
-  const final = play.guesses[play.guesses.length - 1];
-  const first = play.guesses.length > 1 ? play.guesses[0] : null;
+  const final = play.gaveUp ? null : play.guesses[play.guesses.length - 1];
+  const first = play.gaveUp ? play.guesses[0] || null : play.guesses.length > 1 ? play.guesses[0] : null;
   const pos = g => (clamp(logPos(p.smallValue, p.bigValue, g.value), 0, 1) * 100).toFixed(2) + '%';
   return `<div class="thermo" aria-label="Porridge thermometer">
       <div class="bar"><div class="band" style="background:linear-gradient(90deg,${stops.join(',')})"></div><div class="ticks"></div>
@@ -290,7 +291,7 @@ function offText(p, v) {
 
 function revealHTML(r, c) {
   const play = r.play, rv = r.reveal, p = rv.puzzle;
-  const v = verdict(play.score);
+  const v = play.gaveUp ? { t: 'Gave up', face: 'sad', d: 'No shame. The bear gets stumped too.' } : verdict(play.score);
   const guesses = play.guesses.map(g => {
     const isFinal = g.attempt === play.guesses.length;
     const complained = r.complaints && r.complaints[g.id];
@@ -321,10 +322,11 @@ function revealHTML(r, c) {
         </div></div>`;
   }
 
-  const idx = c.rooms.indexOf(r);
+  const nextIdx = c.rooms.findIndex(x => x !== r && x.play.state !== 'done');
+  const nextRoom = nextIdx >= 0 ? roomOf(c.rooms[nextIdx].puzzle.slot) : null;
   const next = c.kind === 'unlimited'
     ? `<button class="btn" id="nextUnl">Next puzzle →</button>`
-    : idx < c.rooms.length - 1 ? `<button class="btn" id="nextRoom">Next room: ${roomOf(c.rooms[idx + 1].puzzle.slot).emoji} ${roomOf(c.rooms[idx + 1].puzzle.slot).name} →</button>`
+    : nextRoom ? `<button class="btn" id="nextRoom" data-next="${nextIdx}">Next room: ${nextRoom.emoji} ${nextRoom.name} →</button>`
       : `<button class="btn" id="toSummary">See today's honey 🍯</button>`;
 
   return `<div class="verdict">
@@ -332,7 +334,9 @@ function revealHTML(r, c) {
       <div><h3>${v.t}</h3><p>${v.d}${play.usedSecond ? ' Second guess (×0.8).' : ''}</p></div>
     </div>
     ${thermoHTML(r)}
-    <div class="facts">${guesses}</div>
+    <div class="facts">${guesses}${play.gaveUp ? '<div class="fact final"><span class="n">🏳️</span><div class="w"><b>You gave up</b><small>Scored 0 for this room.</small></div><span class="s">0</span></div>' : ''}</div>
+    <div class="section-title">🐻 The bear's pick</div>
+    <div class="bestbox" id="bestBox" data-id="${p.id}" data-mode="${esc(r.mode || 'daily')}"><span class="empty">The bear is thinking of the juuust right answer…</span></div>
     ${crowd}
     <div class="row">${next}</div>`;
 }
@@ -373,10 +377,12 @@ function wire(c) {
   const keep = $('#keepBtn'); if (keep) keep.onclick = () => decide(r, 'keep');
   const retry = $('#retryBtn'); if (retry) retry.onclick = () => decide(r, 'retry');
   document.querySelectorAll('.report').forEach(b => b.onclick = () => showReport(r, Number(b.dataset.guess)));
-  const nr = $('#nextRoom'); if (nr) nr.onclick = () => { S.roomIdx++; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const nr = $('#nextRoom'); if (nr) nr.onclick = () => { S.roomIdx = Number(nr.dataset.next); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const ts = $('#toSummary'); if (ts) ts.onclick = () => { S.showSummary = true; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const nu = $('#nextUnl'); if (nu) nu.onclick = () => loadUnlimited(true);
   const nu2 = $('#newUnl'); if (nu2) nu2.onclick = () => loadUnlimited(true);
+  const gu = $('#giveUpBtn'); if (gu) gu.onclick = () => confirmGiveUp(r);
+  const bb = $('#bestBox'); if (bb) loadBest(bb, r);
   const share = $('#shareBtn'); if (share) share.onclick = () => doShare(c);
   const st2 = $('#statsBtn2'); if (st2) st2.onclick = showStats;
   // Slide thermometer markers in.
@@ -451,6 +457,41 @@ async function refreshDay() {
   } catch { /* fine */ }
 }
 
+function confirmGiveUp(r) {
+  openModal(`<h2>Give up on this room?</h2>
+    <p>You'll get <b>0</b> for ${esc(roomOf(r.puzzle.slot).name)}, and the bear will show you the answer.</p>
+    <div class="row"><button class="btn alt" id="guNo">Keep trying</button><button class="btn" id="guYes" style="background:var(--hot);color:#fff">Give up</button></div>`);
+  $('#guNo').onclick = closeModal;
+  $('#guYes').onclick = async () => {
+    $('#guYes').disabled = true;
+    try {
+      const res = await api('giveup', { puzzleId: r.puzzle.id, mode: r.mode || 'daily' });
+      Object.assign(r, { play: res.play, reveal: res.reveal, complaints: res.complaints || {} });
+      closeModal(); afterChange(r);
+    } catch (e) { toast(e.message); $('#guYes').disabled = false; }
+  };
+}
+
+const bestCache = new Map();
+async function loadBest(box, r) {
+  const key = r.puzzle.id + '|' + (r.mode || 'daily');
+  const draw = b => {
+    if (!box.isConnected) return;
+    const p = r.reveal.puzzle;
+    box.innerHTML = `<div class="fact best"><span class="n">${b.score >= 100 ? '👑' : '✨'}</span>
+      <div class="w"><b>${esc(b.name)}</b> ≈ ${esc(val(p, b.value))}<small>Type “${esc(b.input)}” · ${esc(offText(p, b.value))}</small></div>
+      <span class="s">${b.score}</span></div>`;
+  };
+  if (bestCache.has(key)) return draw(bestCache.get(key));
+  try {
+    const b = await api(`best?id=${r.puzzle.id}&mode=${encodeURIComponent(r.mode || 'daily')}`);
+    bestCache.set(key, b); draw(b);
+  } catch (e) {
+    if (box.isConnected) box.innerHTML = `<span class="empty">${esc(e.message)} <button class="link" type="button">Try again</button></span>`;
+    const again = box.querySelector('button'); if (again) again.onclick = () => { box.innerHTML = '<span class="empty">Thinking…</span>'; loadBest(box, r); };
+  }
+}
+
 /* ═══════════ Share ═══════════ */
 function shareText(c) {
   const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
@@ -459,6 +500,7 @@ function shareText(c) {
     const p = r.play;
     let s = roomOf(r.puzzle.slot).emoji + ' ' + '❌'.repeat(p.rejects1 || 0);
     const g1 = p.guesses[0], g2 = p.guesses[1];
+    if (p.gaveUp) return s + (g1 ? square(g1.score) + '→' + '❌'.repeat(p.rejects2 || 0) : '') + '🏳️ 0';
     if (g1) s += square(g1.score);
     if (g2) s += '→' + '❌'.repeat(p.rejects2 || 0) + square(g2.score);
     return s + ' ' + p.score;

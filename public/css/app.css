@@ -453,3 +453,7 @@ tr.today td { background: color-mix(in srgb, var(--honey) 16%, var(--panel)); }
 .verdict .score { font-size: 60px; }
 .gcard .bigscore { font-size: 44px; }
 .summary .total { font-size: 54px; }
+
+/* Give up + bear's pick */
+.giveup { display: inline-block; margin-top: 10px; }
+.fact.best { border-color: var(--good-d); background: color-mix(in srgb, var(--good) 14%, var(--panel)); }
