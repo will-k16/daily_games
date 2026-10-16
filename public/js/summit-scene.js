@@ -1,366 +1,324 @@
-// Summit: an animated mountain scene with a cable car (and Gus the goat) riding between two stations.
-// Everything moves with eased, physics-driven motion: the cabin swings like a pendulum, the camera
-// parallaxes with the pointer, clouds and birds drift, smoke curls from the lodge, fog rolls in.
+// Summit: a pixel-art mountain with a cable car (and Skipper the goat) riding between two stations.
+// Scenery is painted once onto low-res layer canvases, then scaled up crisp every frame with
+// parallax. The cabin moves smoothly on top with pendulum physics.
+import * as P from './pixel.js';
 
-const W = 1000, H = 520;
-const P0 = { x: 150, y: 240 }, C = { x: 500, y: 352 }, P2 = { x: 850, y: 146 };
+const LW = 320, LH = 166, M = 24;             // low-res size, parallax margin
+const LEFT = { cx: 40, base: 88 }, RIGHT = { cx: 280, base: 58 }, LODGE = { cx: 160, base: 147 };
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ease = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+const STATION_T = 0.075;
 
+let GEO = null;   // cable geometry, set when a scene is painted
 export function cableAt(t) {
-  const u = 1 - t;
+  const { P0, C, P2 } = GEO, u = 1 - t;
   return { x: u * u * P0.x + 2 * u * t * C.x + t * t * P2.x, y: u * u * P0.y + 2 * u * t * C.y + t * t * P2.y };
 }
 function cableAngle(t) {
-  const dx = 2 * (1 - t) * (C.x - P0.x) + 2 * t * (P2.x - C.x);
-  const dy = 2 * (1 - t) * (C.y - P0.y) + 2 * t * (P2.y - C.y);
-  return Math.atan2(dy, dx) * 180 / Math.PI;
-}
-const ease = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
-const rand = (a, b) => a + Math.random() * (b - a);
-const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-const STATION_T = 0.075;
-
-function pine(x, y, s, cls = '') {
-  const h = 70 * s, w = 34 * s;
-  return `<g class="pine ${cls}" style="animation-delay:${rand(-4, 0).toFixed(2)}s">
-    <rect x="${x - 3 * s}" y="${y - 10 * s}" width="${6 * s}" height="${10 * s}" fill="var(--trunk)"/>
-    <path d="M${x} ${y - h} L${x + w * .55} ${y - h * .45} L${x - w * .55} ${y - h * .45}Z" fill="var(--pine)"/>
-    <path d="M${x} ${y - h * .78} L${x + w * .75} ${y - h * .22} L${x - w * .75} ${y - h * .22}Z" fill="var(--pine)"/>
-    <path d="M${x} ${y - h * .55} L${x + w} ${y - 8 * s} L${x - w} ${y - 8 * s}Z" fill="var(--pine2)"/>
-  </g>`;
+  const { P0, C, P2 } = GEO;
+  return Math.atan2(2 * (1 - t) * (C.y - P0.y) + 2 * t * (P2.y - C.y), 2 * (1 - t) * (C.x - P0.x) + 2 * t * (P2.x - C.x));
 }
 
-function cloud(y, scale, dur, delay, op) {
-  return `<g transform="translate(0 ${y}) scale(${scale})"><g class="cloud" style="animation-duration:${dur}s;animation-delay:${delay}s;opacity:${op}">
-    <ellipse cx="0" cy="0" rx="62" ry="20" fill="var(--cloud)"/><ellipse cx="-30" cy="-10" rx="34" ry="22" fill="var(--cloud)"/>
-    <ellipse cx="22" cy="-16" rx="40" ry="28" fill="var(--cloud)"/><ellipse cx="55" cy="-4" rx="26" ry="16" fill="var(--cloud)"/>
-  </g></g>`;
-}
-
-function bird(dx, dy, d) {
-  return `<g transform="translate(${dx} ${dy})"><path class="wing" style="animation-delay:${d}s" d="M-9 0 Q-4.5 -6 0 0 Q4.5 -6 9 0" fill="none" stroke="var(--bird)" stroke-width="2.2" stroke-linecap="round"/></g>`;
-}
-
-function gondolaSVG() {
-  return `<g id="gond">
-    <g id="trolley">
-      <rect x="-20" y="-10" width="40" height="12" rx="5" fill="var(--steel)"/>
-      <g class="wheel" transform="translate(-10 -7)"><circle r="6" fill="var(--steel2)"/><path d="M-6 0H6M0 -6V6" stroke="var(--steel)" stroke-width="1.6"/></g>
-      <g class="wheel" transform="translate(10 -7)"><circle r="6" fill="var(--steel2)"/><path d="M-6 0H6M0 -6V6" stroke="var(--steel)" stroke-width="1.6"/></g>
-    </g>
-    <g id="cabin">
-      <path d="M0 2V20M-14 20H14M-14 20L-24 31M14 20L24 31" stroke="var(--steel)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
-      <rect x="-33" y="29" width="66" height="52" rx="13" fill="var(--cabin)"/>
-      <rect x="-33" y="29" width="66" height="12" rx="10" fill="var(--cabin2)"/>
-      <clipPath id="winClip"><rect x="-25" y="42" width="50" height="26" rx="7"/></clipPath>
-      <rect x="-25" y="42" width="50" height="26" rx="7" fill="var(--glass)"/>
-      <g clip-path="url(#winClip)">
-        <g id="goat" transform="translate(0 58)">
-          <path d="M-9 -10 Q-15 -20 -7 -21 M9 -10 Q15 -20 7 -21" stroke="#8a6b4e" stroke-width="3" fill="none" stroke-linecap="round"/>
-          <ellipse cx="-13" cy="-3" rx="6" ry="3" fill="#e9e1d4" transform="rotate(-20 -13 -3)"/>
-          <ellipse cx="13" cy="-3" rx="6" ry="3" fill="#e9e1d4" transform="rotate(20 13 -3)"/>
-          <ellipse cx="0" cy="1" rx="11" ry="12" fill="#f7f2ea"/>
-          <ellipse cx="0" cy="7" rx="7" ry="5" fill="#efe3d3"/>
-          <g id="eyes"><circle class="eye" cx="-4.5" cy="-1" r="1.9" fill="#2b2b2b"/><circle class="eye" cx="4.5" cy="-1" r="1.9" fill="#2b2b2b"/></g>
-          <path id="mouth" d="M-3 8 Q0 10.5 3 8" stroke="#6b4a3a" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-        </g>
-        <rect x="-25" y="42" width="18" height="26" fill="rgba(255,255,255,.28)" transform="skewX(-18)"/>
-      </g>
-      <rect x="-33" y="70" width="66" height="11" rx="6" fill="var(--cabin2)"/>
-      <circle cx="-22" cy="75.5" r="2" fill="var(--gold)"/><circle cx="22" cy="75.5" r="2" fill="var(--gold)"/>
-    </g>
-  </g>`;
-}
-
-function stationSVG(x, y, flip, label) {
-  const s = flip ? -1 : 1;
-  return `<g class="station">
-    <rect x="${x - 30}" y="${y + 6}" width="60" height="40" rx="5" fill="var(--house)"/>
-    <path d="M${x - 38} ${y + 10} L${x} ${y - 14} L${x + 38} ${y + 10}Z" fill="var(--roof)"/>
-    <path d="M${x - 38} ${y + 10} L${x} ${y - 14} L${x + 38} ${y + 10} L${x + 30} ${y + 10} L${x} ${y - 6} L${x - 30} ${y + 10}Z" fill="var(--snow)" opacity=".9"/>
-    <rect x="${x - 20}" y="${y + 18}" width="14" height="12" rx="2" fill="var(--lamp)" class="glow-win"/>
-    <rect x="${x + 6}" y="${y + 18}" width="14" height="12" rx="2" fill="var(--lamp)" class="glow-win"/>
-    <circle cx="${x}" cy="${y}" r="7" fill="var(--steel2)" stroke="var(--steel)" stroke-width="2.5"/>
-    <g transform="translate(${x} ${y - 30})">
-      <rect x="-28" y="-9" width="56" height="18" rx="5" fill="var(--sign)"/>
-      <text x="0" y="4.5" text-anchor="middle" class="sig">${label}</text>
-    </g>
-  </g>`;
-}
-
-function lodgeSVG() {
-  const smoke = Array.from({ length: 7 }, (_, i) => `<circle class="smoke" cx="531" cy="356" r="${5 + i % 3}" style="animation-delay:${(i * .62).toFixed(2)}s"/>`).join('');
-  return `<g id="lodge">
-    ${smoke}
-    <rect x="525" y="360" width="12" height="26" fill="var(--chimney)"/>
-    <rect x="455" y="392" width="90" height="42" rx="3" fill="var(--house)"/>
-    <path d="M444 396 L500 356 L556 396Z" fill="var(--roof)"/>
-    <path d="M444 396 L500 356 L556 396 L548 396 L500 364 L452 396Z" fill="var(--snow)"/>
-    <rect id="lw1" x="466" y="402" width="16" height="14" rx="2" fill="var(--lamp)" class="glow-win"/>
-    <rect id="lw2" x="518" y="402" width="16" height="14" rx="2" fill="var(--lamp)" class="glow-win"/>
-    <rect x="492" y="410" width="16" height="24" rx="2" fill="var(--door)"/>
-    <path d="M500 356 V330" stroke="var(--steel)" stroke-width="2"/>
-    <path class="flag" d="M500 330 L522 336 L500 342Z" fill="var(--gold)"/>
-  </g>`;
-}
-
-/**
- * Builds the scene inside `host`. stage: 1 foothills, 2 ridge, 3 peak.
- * Returns a controller: { travelTo, toStation, setFog, setMood, bump, celebrate, pins, destroy }.
- */
-export function createScene(host, { stage = 1, smallLabel = 'SMALL', bigLabel = 'BIG' } = {}) {
-  const night = document.documentElement.dataset.tod === 'night';
-  const stars = night ? Array.from({ length: 46 }, () =>
-    `<circle class="star" cx="${rand(0, W).toFixed(0)}" cy="${rand(0, 230).toFixed(0)}" r="${rand(.6, 1.8).toFixed(1)}" style="animation-delay:${rand(-4, 0).toFixed(2)}s;animation-duration:${rand(2.4, 5).toFixed(1)}s"/>`).join('') : '';
-  const snow = stage === 3 ? Array.from({ length: 55 }, () =>
-    `<circle class="flake" cx="${rand(0, W).toFixed(0)}" cy="-10" r="${rand(1.2, 3).toFixed(1)}" style="animation-delay:${rand(-12, 0).toFixed(2)}s;animation-duration:${rand(7, 14).toFixed(1)}s;--sx:${rand(-60, 60).toFixed(0)}px"/>`).join('') : '';
-  const caps = stage >= 2 ? `<g fill="var(--snow)" opacity=".95">
-      <path d="M650 200 L630 222 L642 219 L652 228 L662 218 L672 222Z"/><path d="M870 190 L850 214 L862 210 L873 220 L884 210 L894 214Z"/>
-      <path d="M260 210 L242 230 L254 227 L262 236 L270 226 L280 230Z"/><path d="M460 220 L444 238 L455 235 L462 243 L470 234 L478 238Z"/></g>` : '';
-  const bigCap = stage >= 2 ? `<path d="M850 160 L806 202 L826 198 L838 210 L852 196 L868 208 L880 196 L900 200Z" fill="var(--snow)"/>` : '';
-  const sun = night
-    ? `<g class="moon"><circle cx="820" cy="78" r="26" fill="#f4f1e6"/><circle cx="810" cy="70" r="5" fill="#e3dfd0"/><circle cx="830" cy="88" r="3.5" fill="#e3dfd0"/></g>`
-    : `<g class="sun"><circle cx="${document.documentElement.dataset.tod === 'evening' ? 300 : 790}" cy="${document.documentElement.dataset.tod === 'evening' ? 210 : 82}" r="34" fill="var(--sun)"/></g>`;
-
-  host.innerHTML = `
-    <svg class="scene-svg stage-${stage}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="A cable car between two mountain stations">
-      <defs>
-        <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--sky1)"/><stop offset="1" style="stop-color:var(--sky2)"/></linearGradient>
-        <radialGradient id="sunGlow"><stop offset="0" stop-color="var(--sun)" stop-opacity=".55"/><stop offset="1" stop-color="var(--sun)" stop-opacity="0"/></radialGradient>
-        <filter id="blur8" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="14"/></filter>
-        <filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        <linearGradient id="farG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--far1)"/><stop offset="1" style="stop-color:var(--far2)"/></linearGradient>
-        <linearGradient id="nearG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--near1)"/><stop offset="1" style="stop-color:var(--near2)"/></linearGradient>
-        <linearGradient id="midG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--mid1)"/><stop offset="1" style="stop-color:var(--mid2)"/></linearGradient>
-      </defs>
-      <rect width="${W}" height="${H}" fill="url(#skyG)"/>
-      <g class="stars">${stars}</g>
-      <circle cx="${night ? 820 : 790}" cy="${night ? 78 : 82}" r="110" fill="url(#sunGlow)" class="sunglow"/>
-      ${sun}
-      <g class="px" data-depth="6">${cloud(110, 1.1, 140, -40, .85)}${cloud(60, .8, 110, -90, .7)}${cloud(170, .7, 95, -10, .6)}</g>
-      <g class="px birds-wrap" data-depth="10"><g class="birds">${bird(0, 0, 0)}${bird(26, 10, -.3)}${bird(-20, 14, -.6)}</g></g>
-      <g class="px layer enter-far" data-depth="12">
-        <path d="M-60 330 L80 250 L170 300 L260 210 L360 290 L460 220 L560 300 L650 200 L760 280 L870 190 L1060 270 L1060 560 L-60 560Z" fill="url(#farG)"/>
-        ${caps}
-      </g>
-      <g class="px layer enter-mid" data-depth="22">
-        <path d="M-60 380 C80 330 140 300 220 340 S380 300 470 350 S640 300 720 330 S900 290 1060 320 L1060 560 L-60 560Z" fill="url(#midG)"/>
-        ${pine(240, 352, .45, 'far')}${pine(262, 356, .38, 'far')}${pine(690, 340, .42, 'far')}${pine(712, 344, .36, 'far')}
-      </g>
-      <g class="px layer enter-near" data-depth="34">
-        <path d="M-60 560 L-60 330 L60 298 L150 258 L230 306 L330 376 L420 430 L470 560Z" fill="url(#nearG)"/>
-        <path d="M520 560 L600 420 L700 300 L780 222 L850 162 L910 208 L1060 260 L1060 560Z" fill="url(#nearG)"/>
-        ${bigCap}
-        <path d="M290 560 C360 470 440 436 500 434 C560 436 640 470 710 560Z" fill="var(--hill)"/>
-        ${lodgeSVG()}
-        ${stationSVG(P0.x, P0.y, false, smallLabel)}
-        ${stationSVG(P2.x, P2.y, true, bigLabel)}
-        <path d="M${P0.x} ${P0.y - 3} Q${C.x} ${C.y - 3} ${P2.x} ${P2.y - 3}" stroke="var(--cable)" stroke-width="2.6" fill="none"/>
-        <path d="M${P0.x} ${P0.y + 4} Q${C.x} ${C.y + 2} ${P2.x} ${P2.y + 4}" stroke="var(--cable)" stroke-width="1.4" fill="none" opacity=".55"/>
-        <g id="pins"></g>
-        ${gondolaSVG()}
-        <g class="fog" id="fog" filter="url(#blur8)">
-          <ellipse class="fogb" cx="500" cy="296" rx="240" ry="92" fill="var(--fog)"/>
-          <ellipse class="fogb b2" cx="400" cy="320" rx="160" ry="64" fill="var(--fog)"/>
-          <ellipse class="fogb b3" cx="610" cy="262" rx="170" ry="70" fill="var(--fog)"/>
-        </g>
-      </g>
-      <g class="px layer enter-front" data-depth="52">
-        ${pine(30, 540, 1.5)}${pine(92, 548, 1.05)}${pine(140, 556, .8)}${pine(905, 540, 1.35)}${pine(962, 550, 1)}${pine(860, 556, .75)}
-      </g>
-      <g class="snow">${snow}</g>
-    </svg>
-    <canvas class="fx"></canvas>`;
-
-  const svg = host.querySelector('svg');
-  const gond = svg.querySelector('#gond'), trolley = svg.querySelector('#trolley'), cabin = svg.querySelector('#cabin');
-  const wheels = [...svg.querySelectorAll('.wheel')];
-  const fog = svg.querySelector('#fog'), pins = svg.querySelector('#pins');
-  const eyes = svg.querySelector('#eyes'), mouth = svg.querySelector('#mouth');
-  const layers = [...svg.querySelectorAll('.px')];
-  const canvas = host.querySelector('canvas.fx'), ctx = canvas.getContext('2d');
-
-  const st = { t: STATION_T, v: 0, swing: 0, swingV: 0, wheel: 0, move: null, px: 0, py: 0, tx: 0, ty: 0, time: 0, idleAmp: 1.4 };
-  const particles = [];
-  let raf = 0, last = performance.now(), alive = true;
-
-  function place() {
-    const p = cableAt(st.t);
-    gond.setAttribute('transform', `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})`);
-    trolley.setAttribute('transform', `rotate(${cableAngle(st.t).toFixed(2)})`);
-    const idle = reduced() ? 0 : Math.sin(st.time * 1.6) * st.idleAmp;
-    cabin.setAttribute('transform', `rotate(${(st.swing + idle).toFixed(2)})`);
-    wheels.forEach((w, i) => w.setAttribute('transform', `translate(${i ? 10 : -10} -7) rotate(${st.wheel.toFixed(1)})`));
+/* ───────────── painting the static layers ───────────── */
+function nearRidge(r) {
+  const out = [];
+  for (let x = -M; x < LW + M; x++) {
+    const l = LEFT.base + Math.max(0, Math.abs(x - LEFT.cx) - 9) * .62;
+    const rr = RIGHT.base + Math.max(0, Math.abs(x - RIGHT.cx) - 9) * .78;
+    const h = LODGE.base + Math.max(0, Math.abs(x - LODGE.cx) - 22) ** 2 * .013;
+    let y = Math.min(l, rr, h);
+    const flat = Math.abs(x - LEFT.cx) <= 9 || Math.abs(x - RIGHT.cx) <= 9 || Math.abs(x - LODGE.cx) <= 22;
+    if (!flat) y += Math.sin(x * .9) * .8 + (r() - .5) * 1.4;
+    out.push(y);
   }
+  return out;
+}
 
-  function step(now) {
-    if (!alive) return;
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; st.time += dt;
-    let drive = 0;
-    if (st.move) {
-      const m = st.move, p = Math.min(1, (now - m.start) / m.dur);
-      const prev = st.t;
-      st.t = m.from + (m.to - m.from) * ease(p);
-      const v = (st.t - prev) / Math.max(dt, 1e-3);
-      drive = -((v - st.v) / Math.max(dt, 1e-3)) * 520;
-      st.v = v;
-      st.wheel += (st.t - prev) * 2600;
-      if (p >= 1) { st.move = null; st.v = 0; m.done && m.done(); }
-    }
-    // Damped pendulum: the cabin leans back when it speeds up and swings when it stops.
-    const K = 30, D = 2.1;
-    st.swingV += (-K * st.swing - D * st.swingV + drive) * dt;
-    st.swing += st.swingV * dt;
-    st.swing = Math.max(-38, Math.min(38, st.swing));
-    // Pointer parallax, smoothed.
-    st.px += (st.tx - st.px) * Math.min(1, dt * 3);
-    st.py += (st.ty - st.py) * Math.min(1, dt * 3);
-    layers.forEach(l => { const d = Number(l.dataset.depth) / 52; l.style.transform = `translate(${(st.px * d * 18).toFixed(2)}px, ${(st.py * d * 8).toFixed(2)}px)`; });
-    place();
-    drawParticles(dt);
-    raf = requestAnimationFrame(step);
+function fogCanvas() {
+  const c = P.canvas(LW, LH), x = c.getContext('2d');
+  for (let y = 40; y < 140; y++) for (let xx = 40; xx < 280; xx++) {
+    const d = ((xx - 160) / 105) ** 2 + ((y - 96) / 34) ** 2;
+    const d2 = ((xx - 120) / 60) ** 2 + ((y - 106) / 22) ** 2, d3 = ((xx - 205) / 62) ** 2 + ((y - 84) / 24) ** 2;
+    const m = Math.min(d, d2 * 1.1, d3 * 1.1);
+    if (m < 1 && P.bayer(xx, y) < (1 - m) * 1.9) { x.fillStyle = m < .45 ? '#f5f8fb' : '#dde6ef'; x.fillRect(xx, y, 1, 1); }
   }
+  return c;
+}
+
+function paint(stage, tod, seed) {
+  const r = P.rng(seed), pal = P.palette(stage, tod), W = LW + 2 * M;
+  const L = { pal };
+  L.sky = P.canvas(LW, LH); P.drawSky(L.sky.getContext('2d'), LW, LH, pal);
+  // far range
+  L.far = P.canvas(W, LH);
+  P.drawTerrain(L.far.getContext('2d'), P.ridgeNoise(r, W, 76, 26, 4, 70), LH, pal.far, pal, r, { snowline: pal.snowline, specks: 0 });
+  // mid range with little pines
+  L.mid = P.canvas(W, LH);
+  const mctx = L.mid.getContext('2d'), mr = P.ridgeNoise(r, W, 106, 12, 3, 50);
+  P.drawTerrain(mctx, mr, LH, pal.mid, pal, r, { snowline: stage === 3 ? 200 : -1, specks: .02, rocks: stage === 1 ? 4 : 10 });
+  for (let i = 0; i < 26; i++) { const x = Math.floor(r() * W); P.drawPine(mctx, x, mr[x] + 3 + r() * 16, 5 + Math.floor(r() * 4), pal, stage === 3); }
+  // near: the two station mountains, the lodge hill, buildings and the cable (drawn in screen coords + M)
+  L.near = P.canvas(W, LH);
+  const n = L.near.getContext('2d');
+  const nr = nearRidge(r);
+  P.drawTerrain(n, nr, LH, pal.near, pal, r, { snowline: pal.nearSnow, specks: .03, rocks: stage === 1 ? 6 : 16 });
+  n.save(); n.translate(M, 0);
+  for (let x = 120; x <= 200; x++) {
+    const top = Math.round(nr[x + M]);
+    if (top >= LODGE.base - 1) for (let y = top; y < top + 4; y++) { n.fillStyle = y === top ? pal.hill[0] : (P.bayer(x, y) > .5 ? pal.hill[1] : pal.hill[0]); n.fillRect(x, y, 1, 1); }
+  }
+  for (let i = 0; i < 34; i++) {
+    const x = Math.floor(r() * LW);
+    if (Math.abs(x - LEFT.cx) < 14 || Math.abs(x - RIGHT.cx) < 14 || Math.abs(x - LODGE.cx) < 28) continue;
+    const y = nr[x + M] + 4 + r() * 18;
+    if (y > LH + 2) continue;
+    P.drawPine(n, x, y, 7 + Math.floor(r() * 6), pal, stage >= 2);
+  }
+  const ls = P.drawStation(n, LEFT.cx, LEFT.base, 1, pal);
+  const rs = P.drawStation(n, RIGHT.cx, RIGHT.base, -1, pal);
+  const lodge = P.drawChalet(n, LODGE.cx, LODGE.base, { w: 34, wallH: 13, roofH: 10, windows: 2, door: true, chimney: true, balcony: true, flag: true }, pal);
+  GEO = { P0: ls.wheel, P2: rs.wheel, C: { x: 160, y: 118 } };
+  P.drawCable(n, { x: GEO.P0.x, y: GEO.P0.y - 2 }, { x: GEO.C.x, y: GEO.C.y - 3 }, { x: GEO.P2.x, y: GEO.P2.y - 2 }, P.mix(pal.cable, pal.sky[3], .45));
+  P.drawCable(n, GEO.P0, GEO.C, GEO.P2, pal.cable);
+  if (tod === 'night' || tod === 'evening') {
+    [...ls.windows, ...rs.windows, ...lodge.windows].forEach(w => {
+      for (let dy = -5; dy <= 5; dy++) for (let dx = -6; dx <= 6; dx++) {
+        const d = Math.hypot(dx, dy * 1.3) / 6;
+        if (d < 1 && d > .35 && P.bayer(w.x + dx, w.y + dy) > d + .25) { n.fillStyle = 'rgba(255,207,106,.35)'; n.fillRect(w.x + dx, w.y + dy, 1, 1); }
+      }
+    });
+  }
+  n.restore();
+  // front: big pines in the corners
+  L.front = P.canvas(W, LH);
+  const f = L.front.getContext('2d');
+  [[M + 4, 38], [M + 15, 30], [M + 26, 24], [M + LW - 6, 40], [M + LW - 18, 31], [M + LW - 30, 22]].forEach(([x, h]) => P.drawPine(f, x, LH + 3, h, pal, stage >= 2));
+  // sprites + spots
+  L.clouds = [0, 1, 2, 3].map(() => ({ img: P.cloudSprite(r, 22 + Math.floor(r() * 22), 8 + Math.floor(r() * 5), pal), x: r() * LW, y: 8 + r() * 44, v: 1.2 + r() * 2.6 }));
+  L.sun = P.sunSprite(pal, tod === 'night');
+  L.sunPos = tod === 'evening' ? { x: 58, y: 54 } : tod === 'morning' ? { x: 48, y: 30 } : { x: 238, y: 8 };
+  L.stars = tod === 'night' ? Array.from({ length: 70 }, () => ({ x: Math.floor(r() * LW), y: Math.floor(r() * 80), ph: r() * 6, sp: .8 + r() * 2 })) : [];
+  L.fog = fogCanvas();
+  L.chimney = lodge.chimneyTop;
+  L.lodgeWins = lodge.windows;
+  return L;
+}
+
+/* ───────────── the live scene ───────────── */
+export function createScene(host, { stage = 1, seed = 1, onGondolaClick } = {}) {
+  const tod = document.documentElement.dataset.tod || 'day';
+  const L = paint(stage, tod, seed * 7919 + stage * 131);
+  host.innerHTML = '<canvas class="scene-canvas" aria-label="A pixel-art cable car between two mountain stations. Click the cabin to meet Skipper."></canvas>';
+  const cv = host.querySelector('canvas'), ctx = cv.getContext('2d');
+  const sprites = {}; const gsprite = (mood, blink) => sprites[mood + blink] || (sprites[mood + blink] = P.gondolaSprite(mood, blink));
+  const trolley = P.trolleySprite();
+
+  const st = { t: STATION_T, v: 0, swing: 0, swingV: 0, move: null, px: 0, py: 0, tx: 0, ty: 0, time: 0, idleAmp: 1.2,
+    mood: 'smile', blink: false, hover: false, fog: 0, fogTarget: 0, enter: 0, party: 0, pins: [] };
+  const parts = [];
+  let k = 1, raf = 0, last = performance.now(), alive = true, smokeT = 0;
 
   function resize() {
-    const r = host.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
-    canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const r = host.getBoundingClientRect(), dpr = Math.min(2.5, devicePixelRatio || 1);
+    cv.width = Math.max(LW, Math.round(r.width * dpr)); cv.height = Math.max(LH, Math.round(r.height * dpr));
+    k = Math.max(cv.width / LW, cv.height / LH);
+    ctx.imageSmoothingEnabled = false;
   }
-  /** Converts viewBox coordinates to canvas CSS pixels (preserveAspectRatio slice). */
-  function toPx(x, y) {
-    const r = host.getBoundingClientRect(), s = Math.max(r.width / W, r.height / H);
-    return { x: (r.width - W * s) / 2 + x * s, y: (r.height - H * s) / 2 + y * s, s };
+  const oy = () => (cv.height - LH * k) / 2, ox = () => (cv.width - LW * k) / 2;
+  const blit = (img, lx, ly, off = 0, offY = 0) => ctx.drawImage(img, Math.round(ox() + lx * k + off), Math.round(oy() + ly * k + offY), Math.ceil(img.width * k), Math.ceil(img.height * k));
+  const dot = (lx, ly, c, size = 1) => { ctx.fillStyle = c; ctx.fillRect(Math.round(ox() + Math.round(lx) * k), Math.round(oy() + Math.round(ly) * k), Math.ceil(k * size), Math.ceil(k * size)); };
+  const enterOff = layer => (1 - ease(Math.min(1, st.enter))) * [20, 40, 70, 120][layer];
+  const offsets = () => [st.px * 3 + enterOff(0), st.px * 6 + enterOff(1), st.px * 10 + enterOff(2), st.px * 18 + enterOff(3)].map(v => v * (k / 3));
+
+  function gondolaBox() {
+    const p = cableAt(st.t), off = offsets()[2];
+    return { x: ox() + p.x * k + off - 11 * k, y: oy() + p.y * k, w: 22 * k, h: 28 * k };
   }
-  function drawParticles(dt) {
-    const r = host.getBoundingClientRect();
-    ctx.clearRect(0, 0, r.width, r.height);
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
-      p.life -= dt;
-      if (p.life <= 0) { particles.splice(i, 1); continue; }
-      p.vy += p.g * dt; p.vx *= (1 - 1.2 * dt); p.vy *= (1 - 1.2 * dt);
-      p.x += p.vx * dt; p.y += p.vy * dt;
-      const a = Math.max(0, Math.min(1, p.life / p.max));
-      ctx.globalAlpha = a;
-      ctx.fillStyle = p.c;
-      if (p.kind === 'spark') {
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.6 + a * .6), 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = a * .25; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 3, 0, Math.PI * 2); ctx.fill();
-        ctx.globalCompositeOperation = 'source-over';
-      }
-      else { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot += p.vr * dt); ctx.fillRect(-p.r, -p.r * .5, p.r * 2, p.r); ctx.restore(); }
+
+  function frame(now) {
+    if (!alive) return;
+    const dt = Math.min(.05, (now - last) / 1000); last = now; st.time += dt;
+    if (st.enter < 1) st.enter += dt / 1.2;
+    let drive = 0;
+    if (st.move) {
+      const m = st.move, p = Math.min(1, (now - m.start) / m.dur), prev = st.t;
+      st.t = m.from + (m.to - m.from) * ease(p);
+      const v = (st.t - prev) / Math.max(dt, 1e-3);
+      drive = -((v - st.v) / Math.max(dt, 1e-3)) * 520; st.v = v;
+      if (p >= 1) { st.move = null; st.v = 0; m.done && m.done(); }
     }
+    st.swingV += (-30 * st.swing - 2.1 * st.swingV + drive) * dt;
+    st.swing = Math.max(-38, Math.min(38, st.swing + st.swingV * dt));
+    st.px += (st.tx - st.px) * Math.min(1, dt * 3); st.py += (st.ty - st.py) * Math.min(1, dt * 3);
+    st.fog += (st.fogTarget - st.fog) * Math.min(1, dt * 1.8);
+    if (st.party > 0) st.party -= dt;
+    L.clouds.forEach(c => { c.x += c.v * dt; if (c.x > LW + 10) c.x = -c.img.width - 10; });
+    if (!reduced()) {
+      smokeT -= dt;
+      if (smokeT <= 0) { smokeT = .38; parts.push({ kind: 'smoke', x: L.chimney.x + Math.random(), y: L.chimney.y, vx: 2 + Math.random() * 2, vy: -5 - Math.random() * 2, life: 4, max: 4 }); }
+      if (stage === 3 && Math.random() < dt * 22) parts.push({ kind: 'snow', x: Math.random() * LW, y: -2, vx: -2 + Math.random() * 4, vy: 9 + Math.random() * 8, life: 30, max: 30 });
+    }
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const q = parts[i]; q.life -= dt;
+      if (q.life <= 0 || q.y > LH + 4) { parts.splice(i, 1); continue; }
+      if (q.kind === 'spark') { q.vy += 30 * dt; q.vx *= 1 - dt; q.vy *= 1 - dt * .8; }
+      q.x += q.vx * dt; q.y += q.vy * dt;
+    }
+    draw();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    blit(L.sky, 0, 0);
+    L.stars.forEach(s => { const b = Math.sin(st.time * s.sp + s.ph); if (b > -.3) dot(s.x, s.y, b > .6 ? '#ffffff' : '#9fb0d8'); });
+    blit(L.sun, L.sunPos.x, L.sunPos.y, st.px * 2);
+    L.clouds.forEach(c => blit(c.img, Math.round(c.x), Math.round(c.y), st.px * 3));
+    const bx = ((st.time * 13) % (LW + 120)) - 60, by = 46 + Math.sin(st.time * .8) * 5, flap = Math.floor(st.time * 5) % 2;
+    const bc = document.documentElement.dataset.tod === 'night' ? '#c9d3e6' : '#33404f';
+    [[0, 0], [7, 3], [-6, 4]].forEach(([dx, dy]) => {
+      const x = bx + dx, y = by + dy;
+      if (flap) { dot(x - 2, y, bc); dot(x - 1, y - 1, bc); dot(x, y, bc); dot(x + 1, y - 1, bc); dot(x + 2, y, bc); }
+      else { dot(x - 2, y - 1, bc); dot(x - 1, y, bc); dot(x, y, bc); dot(x + 1, y, bc); dot(x + 2, y - 1, bc); }
+    });
+    const offs = offsets();
+    blit(L.far, -M, 0, offs[0], st.py * 1.5);
+    blit(L.mid, -M, 0, offs[1], st.py * 2.5);
+    blit(L.near, -M, 0, offs[2], st.py * 3.5);
+    const nx = offs[2] / k, ny = st.py * 3.5 / k;
+    if (st.party > 0 && Math.floor(st.time * 8) % 2) L.lodgeWins.forEach(w => { for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) dot(w.x + dx + nx, w.y + dy + ny, '#fff6c2'); });
+    parts.forEach(q => {
+      if (q.kind !== 'smoke') return;
+      ctx.globalAlpha = Math.min(1, q.life / q.max * 1.4) * .8;
+      dot(q.x + nx, q.y + ny, document.documentElement.dataset.tod === 'night' ? '#aeb8cc' : '#eef1f4', q.life > 2.6 ? 1 : q.life > 1.2 ? 2 : 3);
+    });
+    ctx.globalAlpha = 1;
+    st.pins.forEach(pn => {
+      const p = cableAt(Math.max(.02, Math.min(.98, pn.t)));
+      dot(p.x + nx - 1, p.y + ny - 1, '#ffffff', 3); dot(p.x + nx, p.y + ny, '#5b7cfa');
+    });
+    drawGondola(offs[2], st.py * 3.5);
+    if (st.fog > .01) { ctx.globalAlpha = Math.min(1, st.fog); blit(L.fog, Math.round(Math.sin(st.time * .6) * 4), 0, offs[2] * .5); ctx.globalAlpha = 1; }
+    blit(L.front, -M, 0, offs[3], st.py * 6);
+    parts.forEach(q => {
+      if (q.kind === 'snow') dot(q.x, q.y, '#ffffff');
+      else if (q.kind === 'spark') { ctx.globalAlpha = Math.max(0, Math.min(1, q.life / q.max * 1.5)); dot(q.x, q.y, q.c, q.life > q.max * .6 ? 2 : 1); }
+    });
     ctx.globalAlpha = 1;
   }
-  function burst(x, y, n, colors, speed = 260, kind = 'spark', g = 120) {
-    if (reduced()) return;
-    const o = toPx(x, y);
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2, sp = speed * (0.35 + Math.random() * .75) * o.s;
-      particles.push({ x: o.x, y: o.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: g * o.s, life: rand(1.1, 2), max: 2, r: rand(2.4, 4.6) * Math.max(.8, o.s),
-        c: colors[i % colors.length], kind, rot: Math.random() * 6, vr: rand(-8, 8) });
-    }
+
+  function drawGondola(offX, offY) {
+    const p = cableAt(st.t), a = cableAngle(st.t);
+    const x = ox() + p.x * k + offX, y = oy() + p.y * k + offY;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    ctx.drawImage(trolley, Math.round(-trolley.width / 2 * k), Math.round(-trolley.height * k + 2 * k), Math.ceil(trolley.width * k), Math.ceil(trolley.height * k));
+    ctx.restore();
+    const idle = reduced() ? 0 : Math.sin(st.time * 1.6) * st.idleAmp + (st.hover ? Math.sin(st.time * 9) * 2 : 0);
+    const g = gsprite(st.hover ? 'wow' : st.mood, st.blink);
+    ctx.save(); ctx.translate(x, y + k); ctx.rotate((st.swing + idle) * Math.PI / 180);
+    ctx.drawImage(g, Math.round(-g.width / 2 * k), 0, Math.ceil(g.width * k), Math.ceil(g.height * k));
+    ctx.restore();
   }
 
+  const toCanvas = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height }; };
+  const inCabin = e => { const p = toCanvas(e), b = gondolaBox(); return p.x > b.x && p.x < b.x + b.w && p.y > b.y - 4 * k && p.y < b.y + b.h; };
   const onMove = e => {
-    const r = host.getBoundingClientRect();
-    st.tx = ((e.clientX - r.left) / r.width - .5) * 2;
-    st.ty = ((e.clientY - r.top) / r.height - .5) * 2;
+    const p = toCanvas(e);
+    st.tx = (p.x / cv.width - .5) * 2; st.ty = (p.y / cv.height - .5) * 2;
+    st.hover = inCabin(e); cv.style.cursor = st.hover ? 'pointer' : '';
   };
-  const onLeave = () => { st.tx = 0; st.ty = 0; };
-  host.addEventListener('pointermove', onMove);
-  host.addEventListener('pointerleave', onLeave);
-  const ro = new ResizeObserver(resize); ro.observe(host);
-  resize(); place();
-  raf = requestAnimationFrame(step);
-
-  // Blink every few seconds.
-  const blink = setInterval(() => { if (!reduced()) { eyes.classList.add('blink'); setTimeout(() => eyes.classList.remove('blink'), 160); } }, 3800);
-
-  const MOUTHS = {
-    happy: 'M-4 6.5 Q0 12 4 6.5', smile: 'M-3 8 Q0 10.5 3 8', neutral: 'M-3 8.5 L3 8.5',
-    sad: 'M-3 10 Q0 7.5 3 10', wow: 'M-2 8 Q0 12.5 2 8 Q0 6 -2 8', dizzy: 'M-3 9 Q-1 7.5 0 9 Q1 10.5 3 9'
-  };
+  const onLeave = () => { st.tx = 0; st.ty = 0; st.hover = false; };
+  const onClick = e => { if (inCabin(e) && onGondolaClick) { st.swingV += 90; onGondolaClick(); } };
+  cv.addEventListener('pointermove', onMove); cv.addEventListener('pointerleave', onLeave); cv.addEventListener('click', onClick);
+  const ro = new ResizeObserver(resize); ro.observe(host); resize();
+  const blinkT = setInterval(() => { st.blink = true; setTimeout(() => { st.blink = false; }, 170); }, 3400);
+  if (reduced()) st.enter = 1;
+  raf = requestAnimationFrame(frame);
 
   const api = {
     get t() { return st.t; },
-    /** Glide to position t (0..1 along the cable). */
     travelTo(t, { dur, done } = {}) {
-      t = Math.max(0.02, Math.min(0.98, t));
-      if (reduced()) { st.t = t; place(); done && done(); return; }
-      const dist = Math.abs(t - st.t);
-      st.move = { from: st.t, to: t, start: performance.now(), dur: dur || 900 + dist * 2600, done };
+      t = Math.max(.02, Math.min(.98, t));
+      if (reduced()) { st.t = t; done && done(); return; }
+      st.move = { from: st.t, to: t, start: performance.now(), dur: dur || 900 + Math.abs(t - st.t) * 2600, done };
     },
-    toStation(opts) { api.travelTo(STATION_T, opts); },
-    jumpTo(t) { st.t = Math.max(0.02, Math.min(0.98, t)); st.move = null; place(); },
-    swing(amount) { st.swingV += amount; },
-    setFog(on) { fog.classList.toggle('on', !!on); },
-    setMood(m) {
-      mouth.setAttribute('d', MOUTHS[m] || MOUTHS.smile);
-      eyes.classList.toggle('happy', m === 'happy');
-      eyes.classList.toggle('dizzy', m === 'dizzy');
-    },
-    /** A jolt at the station (rejected answer). */
+    toStation(o) { api.travelTo(STATION_T, o); },
+    jumpTo(t) { st.t = Math.max(.02, Math.min(.98, t)); st.move = null; },
+    setFog(on) { st.fogTarget = on ? 1 : 0; },
+    setMood(m) { st.mood = m || 'smile'; },
     bump() { st.swingV += (Math.random() < .5 ? -1 : 1) * 160; host.classList.remove('jolt'); void host.offsetWidth; host.classList.add('jolt'); },
-    /** Score-driven arrival: a gentle settle for great answers, wild swinging for bad ones. */
-    settle(score) {
-      st.swingV += (Math.random() < .5 ? -1 : 1) * (12 + (100 - score) * 1.9);
-      st.idleAmp = score >= 90 ? .8 : score >= 50 ? 1.4 : 2.4;
-    },
+    settle(score) { st.swingV += (Math.random() < .5 ? -1 : 1) * (12 + (100 - score) * 1.9); st.idleAmp = score >= 90 ? .7 : score >= 50 ? 1.2 : 2.2; },
     celebrate(level) {
-      const lodge = { x: 500, y: 330 };
-      const gold = ['#ffd166', '#f4b942', '#ffffff', '#ff8c61', '#7bdff2', '#b8f2a6'];
-      svg.querySelector('#lodge').classList.add('party');
-      const n = level >= 100 ? 4 : 2;
-      for (let i = 0; i < n; i++) setTimeout(() => alive && burst(lodge.x + rand(-180, 180), lodge.y - rand(90, 220), level >= 100 ? 90 : 60, gold, 340), i * 420);
-      if (level >= 100) setTimeout(() => alive && burst(500, 0, 90, gold, 120, 'confetti', 160), 300);
+      if (reduced()) return;
+      st.party = 3;
+      const colors = ['#ffd166', '#ff8c61', '#ffffff', '#7bdff2', '#b8f2a6', '#f28cb1'];
+      const n = level >= 100 ? 5 : 3;
+      for (let b = 0; b < n; b++) setTimeout(() => {
+        if (!alive) return;
+        const cx = 90 + Math.random() * 140, cy = 18 + Math.random() * 40, c = colors[b % colors.length], c2 = colors[(b + 2) % colors.length];
+        for (let i = 0; i < 46; i++) {
+          const ang = (i / 46) * Math.PI * 2, sp = 16 + Math.random() * 30;
+          parts.push({ kind: 'spark', x: cx, y: cy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, life: 1.3 + Math.random() * .7, max: 2, c: i % 3 ? c : c2 });
+        }
+      }, b * 380);
     },
-    /** Small numbered markers on the cable (previous guesses). */
-    pins(list) {
-      pins.innerHTML = list.map(p => {
-        const q = cableAt(Math.max(0.02, Math.min(0.98, p.t)));
-        return `<g class="pin" transform="translate(${q.x.toFixed(1)} ${q.y.toFixed(1)})"><circle r="9" fill="var(--pin)" stroke="#fff" stroke-width="2"/><text y="4" text-anchor="middle" class="pin-t">${p.label}</text></g>`;
-      }).join('');
-    },
+    pins(list) { st.pins = list || []; },
     destroy() {
-      alive = false; cancelAnimationFrame(raf); clearInterval(blink); ro.disconnect();
-      host.removeEventListener('pointermove', onMove); host.removeEventListener('pointerleave', onLeave);
+      alive = false; cancelAnimationFrame(raf); clearInterval(blinkT); ro.disconnect();
+      cv.removeEventListener('pointermove', onMove); cv.removeEventListener('pointerleave', onLeave); cv.removeEventListener('click', onClick);
     }
   };
   return api;
 }
 
-/* ───────────── The climb: daily total as altitude on a little mountain ───────────── */
-
-const TRAIL = 'M10 92 C40 88 52 76 74 74 S104 60 122 58 S150 44 168 40 S196 22 214 14';
-export function climbSVG(cls = 'climb') {
-  return `<svg class="${cls}" viewBox="0 0 230 100" aria-hidden="true">
-    <path d="M0 100 L40 78 L70 84 L118 50 L140 58 L214 8 L230 18 L230 100Z" fill="var(--climb-mtn)"/>
-    <path d="M214 8 L200 20 L208 19 L214 26 L221 18 L228 20Z" fill="var(--snow)"/>
-    <path class="trail-bg" d="${TRAIL}" fill="none"/>
-    <path class="trail-fill" d="${TRAIL}" fill="none"/>
-    <path d="M214 14 V-2" stroke="var(--steel)" stroke-width="1.5"/><path class="summit-flag" d="M214 -2 L226 2 L214 6Z" fill="var(--accent)"/>
-    <g class="climber"><circle r="6" fill="var(--accent)" stroke="#fff" stroke-width="2"/></g>
-  </svg>`;
-}
-
-/** Animates a climb widget from its current progress to `pct` (0..1). */
-export function animateClimb(svgEl, pct, { dur = 1400, onTick } = {}) {
-  if (!svgEl) return;
-  const fill = svgEl.querySelector('.trail-fill'), climber = svgEl.querySelector('.climber');
-  const len = fill.getTotalLength();
-  fill.style.strokeDasharray = `${len}`;
-  const from = Number(svgEl.dataset.pct || 0);
-  const start = performance.now();
-  const go = now => {
-    const p = reduced() ? 1 : Math.min(1, (now - start) / dur);
-    const cur = from + (pct - from) * ease(p);
-    fill.style.strokeDashoffset = `${len * (1 - cur)}`;
-    const pt = fill.getPointAtLength(len * cur);
-    climber.setAttribute('transform', `translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)})`);
-    onTick && onTick(cur);
-    if (p < 1) requestAnimationFrame(go); else svgEl.dataset.pct = String(pct);
+/* ───────────── the climb: daily total as a climber on a pixel mountain ───────────── */
+export function createClimb(host, { w = 72, h = 34, big = false } = {}) {
+  const tod = document.documentElement.dataset.tod || 'day';
+  const pal = P.palette(3, tod === 'night' ? 'night' : 'day');
+  const base = P.canvas(w, h), b = base.getContext('2d'), r = P.rng(4242);
+  const ridge = [];
+  for (let x = 0; x < w; x++) ridge.push(h - 2 - (x / (w - 1)) * (h - 6) + Math.sin(x * .7) * .8 + (x > w * .86 ? (x - w * .86) * 1.4 : 0));
+  P.drawTerrain(b, ridge, h, pal.mid, pal, r, { snowline: h * .45, specks: .03 });
+  if (big) { const gp = P.palette(1, tod); for (let i = 0; i < 9; i++) { const x = 4 + Math.floor(r() * w * .5); P.drawPine(b, x, ridge[x] + 3 + r() * 6, 5 + Math.floor(r() * 3), gp); } }
+  const pts = [], sx = 3, sy = h - 3, ex = Math.round(w * .86), ey = Math.round(ridge[Math.round(w * .86)]) - 1;
+  const legs = big ? 6 : 4;
+  let lx = sx, ly = sy;
+  for (let i = 1; i <= legs; i++) {
+    const tx = Math.round(sx + (ex - sx) * i / legs + (i < legs ? (i % 2 ? 3 : -3) : 0)), ty = Math.round(sy + (ey - sy) * i / legs);
+    const steps = Math.max(1, Math.abs(tx - lx), Math.abs(ty - ly));
+    for (let s = 1; s <= steps; s++) pts.push({ x: Math.round(lx + (tx - lx) * s / steps), y: Math.round(ly + (ty - ly) * s / steps) });
+    lx = tx; ly = ty;
+  }
+  const cv = P.canvas(w, h); cv.className = big ? 'pano-canvas' : 'climb-canvas';
+  host.innerHTML = ''; host.appendChild(cv);
+  const ctx = cv.getContext('2d');
+  let cur = 0, anim = 0, idle = 0;
+  function draw(p) {
+    ctx.clearRect(0, 0, w, h); ctx.drawImage(base, 0, 0);
+    const upto = Math.round(p * (pts.length - 1));
+    pts.forEach((q, i) => { if (i <= upto || i % 2 === 0) { ctx.fillStyle = i <= upto ? '#d9482b' : 'rgba(255,255,255,.8)'; ctx.fillRect(q.x, q.y, 1, 1); } });
+    const wave = Math.floor(performance.now() / 300) % 2;
+    ctx.fillStyle = '#3a3f47'; ctx.fillRect(ex, ey - 7, 1, 7);
+    ctx.fillStyle = '#d9482b'; ctx.fillRect(ex + 1, ey - 7, 3 + wave, 2); ctx.fillRect(ex + 1, ey - 5, 2, 1);
+    const c = pts[upto] || pts[0];
+    ctx.fillStyle = '#1d1410'; ctx.fillRect(c.x - 2, c.y - 3, 5, 5);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(c.x - 1, c.y - 2, 3, 3);
+    ctx.fillStyle = '#d9482b'; ctx.fillRect(c.x, c.y - 1, 1, 1);
+  }
+  const loop = () => { if (!cv.isConnected) return; draw(cur); idle = requestAnimationFrame(loop); };
+  idle = requestAnimationFrame(loop);
+  return {
+    get value() { return cur; },
+    set(p, { dur = 1400, onTick } = {}) {
+      cancelAnimationFrame(anim);
+      const from = cur, start = performance.now();
+      const go = now => {
+        const t = reduced() ? 1 : Math.min(1, (now - start) / dur);
+        cur = from + (p - from) * ease(t); onTick && onTick(cur);
+        if (t < 1) anim = requestAnimationFrame(go);
+      };
+      anim = requestAnimationFrame(go);
+    },
+    stop() { cancelAnimationFrame(anim); cancelAnimationFrame(idle); }
   };
-  requestAnimationFrame(go);
 }

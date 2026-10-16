@@ -1,5 +1,6 @@
-// Just Right · Summit edition. Same API, data and rules as the classic page; new look and motion.
-import { createScene, climbSVG, animateClimb } from './summit-scene.js';
+// Summit: the daily game. A pixel-art cable car rides to whatever you name.
+import { createScene, createClimb } from './summit-scene.js';
+import { skipperPortrait } from './pixel.js';
 import { fmt, nice } from './units.js';
 import { PROPS, propLabel } from './props.js';
 import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS } from './score.js';
@@ -67,11 +68,11 @@ document.addEventListener('pointerdown', e => {
 
 /* ═══════════ Verdicts ═══════════ */
 function verdict(s) {
-  if (s >= 100) return { t: 'Summit!', mood: 'happy', d: 'Gus docked right at the lodge.' };
+  if (s >= 100) return { t: 'Summit!', mood: 'happy', d: 'Skipper docked right at the lodge.' };
   if (s >= 90) return { t: 'So close!', mood: 'wow', d: 'Just a few meters from the lodge.' };
   if (s >= 75) return { t: 'Smooth ride', mood: 'smile', d: 'A comfy spot on the cable.' };
   if (s >= 50) return { t: 'A bit wobbly', mood: 'neutral', d: 'Not bad, not the lodge.' };
-  if (s >= 25) return { t: 'Rough ride', mood: 'sad', d: 'Gus is clinging on.' };
+  if (s >= 25) return { t: 'Rough ride', mood: 'sad', d: 'Skipper is clinging on.' };
   if (s > 0) return { t: 'Off the rails', mood: 'dizzy', d: 'Way out on the cable.' };
   return { t: 'Lost in the clouds', mood: 'dizzy', d: 'Nowhere near the lodge.' };
 }
@@ -133,7 +134,7 @@ function setCtx(ctx) {
   $('#main').innerHTML = `
     <div class="dayhead" id="dayhead"></div>
     <section id="stageWrap">
-      <div class="stage"><div class="stage-label" id="stageLabel"></div><div class="scene-host" id="sceneHost"></div></div>
+      <div class="stage"><div class="stage-label" id="stageLabel"></div><div class="scene-host" id="sceneHost"></div><div class="stage-hint">Click the cable car to meet Skipper</div></div>
       <div class="signs" id="signs"></div>
     </section>
     <section class="card" id="card"></section>`;
@@ -177,16 +178,17 @@ function renderHead(c) {
     return `<button class="tab ${i === S.roomIdx && !S.showSummary ? 'on' : ''}" data-room="${i}" ${locked ? 'disabled' : ''}>
       <span class="em">${st.emoji}</span>${st.name}<span class="sc">${done ? r.play.score : locked ? '🔒' : '·'}</span></button>`;
   }).join('') + (allDone ? `<button class="tab ${S.showSummary ? 'on' : ''}" data-summary="1"><span class="em">🚩</span>Summit</button>` : '');
-  const hadClimb = el.querySelector('svg.climb');
+  const hadClimb = !!(S.climb && el.querySelector('.climb-canvas'));
   if (!hadClimb) {
     el.innerHTML = `<div><div class="daylabel">${c.kind === 'archive' ? '<span class="badge">Archive</span> ' : ''}Day <b>#${c.number}</b> · ${esc(dateStr)}</div><div class="tabs" id="tabs"></div></div>
-      <div class="climbbox" title="Each point climbs 10 m. 300 points reaches the summit.">${climbSVG()}<div class="alt"><b id="altNum">0 m</b><span>of 3,000 m</span></div></div>`;
+      <div class="climbbox" title="Each point climbs 10 m. 300 points reaches the summit."><div id="climbHost"></div><div class="alt"><b id="altNum">0 m</b><span>of 3,000 m</span></div></div>`;
+    S.climb = createClimb($('#climbHost'), { w: 72, h: 34 });
   }
   $('#tabs').innerHTML = tabs;
   document.querySelectorAll('[data-room]').forEach(b => b.onclick = () => { S.roomIdx = Number(b.dataset.room); S.showSummary = false; render('enter'); });
   const sb = document.querySelector('[data-summary]'); if (sb) sb.onclick = () => { S.showSummary = true; render(); };
   if (total !== S.shownTotal || !hadClimb) {
-    animateClimb(el.querySelector('svg.climb'), total / 300, { dur: 1500 });
+    S.climb.set(total / 300, { dur: 1500 });
     countUp($('#altNum'), total * METERS_PER_POINT, { dur: 1500, fmt: meters });
     S.shownTotal = total;
   }
@@ -205,13 +207,13 @@ function ensureScene(r, how) {
   const fresh = S.scenePid !== r.puzzle.id || !S.scene;
   if (fresh) {
     dropScene();
-    S.scene = createScene($('#sceneHost'), { stage: r.puzzle.slot, smallLabel: 'SMALL', bigLabel: 'BIG' });
+    S.scene = createScene($('#sceneHost'), { stage: r.puzzle.slot, seed: r.puzzle.id, onGondolaClick: () => showSkipper(r) });
     S.scenePid = r.puzzle.id;
   }
   if (fresh || how === 'enter') syncScene(r, 'enter');
 }
 
-/** Moves Gus to match the room's state. `event` says what just happened. */
+/** Moves Skipper to match the room's state. `event` says what just happened. */
 function syncScene(r, event) {
   const sc = S.scene; if (!sc) return;
   const play = r.play;
@@ -268,17 +270,15 @@ function pipsHTML(used) {
   return `<div class="pips rise" style="--d:3">${s}<span>${left > 0 ? `${left} off-the-cable ${left === 1 ? 'try' : 'tries'} left before it counts as 0` : 'Next out-of-range answer counts as 0!'}</span></div>`;
 }
 
-function ring(score, small) {
-  const C = 2 * Math.PI * 38;
-  return `<div class="ring"><svg viewBox="0 0 86 86"><circle class="bg" cx="43" cy="43" r="38" fill="none" stroke-width="7"/>
-    <circle class="fg" cx="43" cy="43" r="38" fill="none" stroke-width="7" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}" data-off="${(C * (1 - score / 100)).toFixed(1)}"/></svg>
-    <b data-count="${score}">0</b></div>`;
+function blocks(score) {
+  const on = Math.round(score / 10);
+  return `<div class="meter"><b data-count="${score}">0</b><div class="cells">${Array.from({ length: 10 }, (_, i) => `<i class="${i < on ? 'on ' + tier(score) : ''}" style="--d:${i}"></i>`).join('')}</div></div>`;
 }
 
 function guessCard(r, g, compact) {
   const complained = r.complaints && r.complaints[g.id];
   return `<div class="gcard ${compact ? 'compact' : ''} rise" style="--d:1">
-    ${ring(g.score, compact)}
+    ${blocks(g.score)}
     <div><div class="said">You said “${esc(g.input)}”${g.outOfRange ? ' · off the cable' : ''}</div>
       <div class="judged">Judged as ${esc(g.name)} · <span class="val">≈ ${esc(val(r.puzzle, g.value))}</span></div>
       ${complained ? `<span class="empty">Report sent (${esc(complained)})</span>` : `<button class="link report" data-guess="${g.id}">Judge got it wrong?</button>`}</div></div>`;
@@ -304,7 +304,7 @@ function decideHTML(r) {
   return `${guessCard(r, g, false)}
     <div class="deduce rise" style="--d:2"><span class="fogicon"></span><span>${g.outOfRange
       ? 'That one ran off the cable, so it counts as 0.'
-      : `Gus is somewhere in the fog. The lodge is either <b>bigger or smaller</b> than ${esc(val(r.puzzle, g.value))}, but you don't know which.`}</span></div>
+      : `Skipper is somewhere in the fog. The lodge is either <b>bigger or smaller</b> than ${esc(val(r.puzzle, g.value))}, but you don't know which.`}</span></div>
     <div class="choices rise" style="--d:3">
       <button class="btn green" id="keepBtn">Keep ${g.score}<small>Lock it in</small></button>
       <button class="btn alt" id="retryBtn">One more ride<small>Final answer, worth up to ${Math.round(100 * SECOND_GUESS_MULT)}</small></button>
@@ -320,24 +320,24 @@ function offText(p, v) {
 }
 
 function gaugeHTML(r) {
-  const p = r.reveal.puzzle, play = r.play;
-  const stops = [];
-  for (let i = 0; i <= 40; i++) {
-    const t = i / 40, v = Math.exp(Math.log(p.smallValue) + t * (Math.log(p.bigValue) - Math.log(p.smallValue)));
-    stops.push(`rgba(47,158,106,${(scoreGuess(p.smallValue, p.bigValue, v) / 100 * .9).toFixed(3)}) ${(t * 100).toFixed(1)}%`);
-  }
+  const p = r.reveal.puzzle, play = r.play, N = 31;
+  const cells = Array.from({ length: N }, (_, i) => {
+    const v = Math.exp(Math.log(p.smallValue) + (i + .5) / N * (Math.log(p.bigValue) - Math.log(p.smallValue)));
+    const sc = scoreGuess(p.smallValue, p.bigValue, v);
+    return `<i class="g${sc >= 90 ? 4 : sc >= 70 ? 3 : sc >= 45 ? 2 : sc >= 20 ? 1 : 0}" style="--d:${i}"></i>`;
+  }).join('');
   const pos = g => (clamp(logPos(p.smallValue, p.bigValue, g.value), 0, 1) * 100).toFixed(2) + '%';
   const marks = play.guesses.map((g, i) => {
     const isFinal = !play.gaveUp && i === play.guesses.length - 1;
-    return `<span class="mk ${isFinal ? '' : 'ghost'}" data-left="${pos(g)}" title="Guess ${g.attempt}">${isFinal ? '🚡' : g.attempt}</span>`;
+    return `<span class="mk ${isFinal ? '' : 'ghost'}" data-left="${pos(g)}" title="Guess ${g.attempt}">${isFinal ? '' : g.attempt}</span>`;
   }).join('');
-  return `<div class="gauge rise" style="--d:2"><div class="bar"><div class="band" style="background:linear-gradient(90deg,${stops.join(',')})"></div><span class="mid"></span>${marks}</div>
+  return `<div class="gauge rise" style="--d:2"><div class="bar"><div class="cells">${cells}</div><span class="mid"></span>${marks}</div>
     <div class="legend"><div>Too small<b>${esc(val(p, p.smallValue))}</b></div><div class="c">Just right · lodge<b>≈ ${esc(val(p, p.middle))}</b></div><div class="r">Too big<b>${esc(val(p, p.bigValue))}</b></div></div></div>`;
 }
 
 function revealHTML(r, c) {
   const play = r.play, rv = r.reveal, p = rv.puzzle;
-  const v = play.gaveUp ? { t: 'Gave up', d: 'Gus rode back down. No shame.' } : verdict(play.score);
+  const v = play.gaveUp ? { t: 'Gave up', d: 'Skipper rode back down. No shame.' } : verdict(play.score);
   const facts = play.guesses.map((g, i) => {
     const isFinal = !play.gaveUp && g.attempt === play.guesses.length;
     const complained = r.complaints && r.complaints[g.id];
@@ -373,8 +373,8 @@ function revealHTML(r, c) {
       <div><h3>${v.t}</h3><p>${v.d}${play.usedSecond ? ' Second ride (×0.8).' : ''}</p></div></div>
     ${gaugeHTML(r)}
     <div class="facts">${facts}</div>
-    <div class="h4">🐐 Gus's pick</div>
-    <div id="bestBox"><div class="shimmer">Gus is scouting the perfect answer…</div></div>
+    <div class="h4">🐐 The best answer</div>
+    <div id="bestBox"><div class="shimmer">Skipper is scouting the perfect answer…</div></div>
     ${crowd}
     <div class="row">${next}</div>`;
 }
@@ -394,8 +394,7 @@ function wireCard(r, c) {
   const nu = $('#nextUnl'); if (nu) nu.onclick = () => loadUnlimited(true);
   // Animate numbers, rings and markers in.
   requestAnimationFrame(() => setTimeout(() => {
-    document.querySelectorAll('.ring .fg').forEach(f => { f.style.strokeDashoffset = f.dataset.off; });
-    document.querySelectorAll('.ring b[data-count]').forEach(b => countUp(b, Number(b.dataset.count), { dur: 1000 }));
+    document.querySelectorAll('.meter b[data-count]').forEach(b => countUp(b, Number(b.dataset.count), { dur: 1000 }));
     const bs = $('#bigScore'); if (bs) countUp(bs, Number(bs.dataset.count), { dur: 1300 });
     document.querySelectorAll('.gauge .mk').forEach((m, i) => setTimeout(() => { m.style.left = m.dataset.left; }, 300 + i * 250));
   }, 60));
@@ -448,7 +447,7 @@ async function decide(r, choice) {
 
 function confirmGiveUp(r) {
   openModal(`<h2>Give up on this stage?</h2>
-    <p>You'll get <b>0</b> for the ${esc(stageOf(r.puzzle.slot).name)}, and Gus will show you the answer.</p>
+    <p>You'll get <b>0</b> for the ${esc(stageOf(r.puzzle.slot).name)}, and Skipper will show you the answer.</p>
     <div class="row"><button class="btn alt" id="guNo">Keep trying</button><button class="btn" id="guYes">Give up</button></div>`);
   $('#guNo').onclick = closeModal;
   $('#guYes').onclick = async () => {
@@ -486,9 +485,9 @@ async function loadBest(box, r) {
     if (!box.isConnected) return;
     const p = r.reveal.puzzle;
     box.innerHTML = `<div class="fact best"><span class="n">${b.score >= 100 ? '👑' : '🐐'}</span>
-      <div class="w"><b>${esc(b.name)}</b> ≈ ${esc(val(p, b.value))}<small>Type “${esc(b.input)}” · ${esc(offText(p, b.value))}</small></div>
+      <div class="w"><b>${esc(b.name)}</b> ≈ ${esc(val(p, b.value))}<small>Type “${esc(b.input)}” · ${esc(offText(p, b.value))} · ${b.by === 'player' ? 'found by a rider' : 'found by Skipper'}</small></div>
       <span class="s">${b.score}</span></div>
-      ${!r.play.gaveUp && r.play.score > b.score ? '<p class="beatgus">🎉 You beat Gus!</p>' : ''}`;
+      ${!r.play.gaveUp && r.play.guesses.length && r.play.guesses[r.play.guesses.length - 1].raw >= b.score ? '<p class="beatskipper">🎉 That is the best answer anyone has found!</p>' : ''}`;
   };
   if (bestCache.has(key)) return draw(bestCache.get(key));
   try {
@@ -497,17 +496,15 @@ async function loadBest(box, r) {
   } catch (e) {
     if (!box.isConnected) return;
     box.innerHTML = `<p class="empty">${esc(e.message)} <button class="link" type="button">Try again</button></p>`;
-    box.querySelector('button').onclick = () => { box.innerHTML = '<div class="shimmer">Gus is scouting…</div>'; loadBest(box, r); };
+    box.querySelector('button').onclick = () => { box.innerHTML = '<div class="shimmer">Skipper is scouting…</div>'; loadBest(box, r); };
   }
 }
 
 /* ═══════════ Summary ═══════════ */
-function panoSVG() {
-  return climbSVG('pano').replace('</svg>', `
-    <text class="camp" x="10" y="99">Base · 0 m</text>
-    <text class="camp" x="74" y="82">Treeline · 1,000 m</text>
-    <text class="camp" x="120" y="50">Glacier · 2,000 m</text>
-    <text class="camp" x="168" y="10">Summit · 3,000 m</text></svg>`);
+function panoHTML() {
+  return `<div class="pano"><div id="panoHost"></div>
+    <span class="camp" style="left:3%;top:90%">Base · 0 m</span><span class="camp" style="left:30%;top:58%">Treeline · 1,000 m</span>
+    <span class="camp" style="left:52%;top:30%">Glacier · 2,000 m</span><span class="camp" style="left:70%;top:2%">Summit · 3,000 m</span></div>`;
 }
 function summaryHTML(c) {
   const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
@@ -517,7 +514,7 @@ function summaryHTML(c) {
     : c.kind === 'daily' ? '<p class="beat">You\'re one of the first to finish today!</p>' : '';
   return `<div class="summary">
       <div class="daylabel rise">${c.kind === 'archive' ? 'Archive · ' : ''}Day #${c.number}</div>
-      ${panoSVG()}
+      ${panoHTML()}
       <div class="total rise" style="--d:2"><span id="sumTotal">0</span><small> / 300</small></div>
       <div class="altline rise" style="--d:3">⛰️ <span id="sumAlt">0 m</span> climbed</div>
       <h3 class="prompt rise" style="--d:4;margin-top:8px">${total >= 300 ? 'You reached the summit!' : v.t}</h3>
@@ -528,13 +525,13 @@ function summaryHTML(c) {
         ${c.kind === 'archive' ? '<a class="btn alt" href="#/archive">More days</a>' : ''}
       </div>
       ${c.kind === 'daily' ? '<div class="countdown">New mountain in <b class="cd">--:--:--</b></div>' : ''}
-      ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy Gus a snack</a>` : ''}
+      ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy Skipper a snack</a>` : ''}
     </div>`;
 }
 function wireSummary(c) {
   const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
   setTimeout(() => {
-    animateClimb(document.querySelector('svg.pano'), total / 300, { dur: 2200 });
+    createClimb($('#panoHost'), { w: 160, h: 72, big: true }).set(total / 300, { dur: 2200 });
     countUp($('#sumTotal'), total, { dur: 2200 });
     countUp($('#sumAlt'), total * METERS_PER_POINT, { dur: 2200, fmt: meters });
   }, 250);
@@ -546,7 +543,7 @@ function wireSummary(c) {
 /* ═══════════ Share ═══════════ */
 function shareText(c) {
   const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
-  const head = `Just Right #${c.number}${c.kind === 'archive' ? ' (archive)' : ''} ⛰️ ${total}/300 · ${meters(total * METERS_PER_POINT)}`;
+  const head = `Summit #${c.number}${c.kind === 'archive' ? ' (archive)' : ''} ⛰️ ${total}/300 · ${meters(total * METERS_PER_POINT)}`;
   const rows = c.rooms.map(r => {
     const p = r.play, g1 = p.guesses[0], g2 = p.guesses[1];
     let s = stageOf(r.puzzle.slot).emoji + ' ' + '❌'.repeat(p.rejects1 || 0);
@@ -587,6 +584,40 @@ const ICON = {
   lodge: '<svg viewBox="0 0 70 56"><path d="M0 56 C20 38 50 38 70 56Z" fill="#7fae95"/><rect x="24" y="30" width="22" height="14" rx="2" fill="#a5683f"/><path d="M20 31 L35 20 L50 31Z" fill="#6e3b2a"/><rect x="28" y="34" width="5" height="4" fill="#ffd77a"/><rect x="37" y="34" width="5" height="4" fill="#ffd77a"/><path d="M6 14 Q35 28 64 6" stroke="#2b3440" stroke-width="1.6" fill="none"/><rect x="30" y="12" width="10" height="8" rx="2" fill="#e4572e"/></svg>',
   fog: '<svg viewBox="0 0 70 56"><path d="M6 20 Q35 34 64 8" stroke="#2b3440" stroke-width="1.6" fill="none"/><ellipse cx="35" cy="24" rx="26" ry="11" fill="#dfe6ee"/><ellipse cx="24" cy="28" rx="14" ry="8" fill="#eef2f6"/><text x="35" y="50" text-anchor="middle" font-size="12" font-weight="700" fill="#e4572e">×0.8</text></svg>'
 };
+let skipperTimer = 0;
+/** Skipper's card: click the cable car to meet the operator. */
+function showSkipper(r) {
+  const play = r ? r.play : null;
+  const last = play && play.guesses.length ? play.guesses[play.guesses.length - 1] : null;
+  const mood = !play || play.state === 'g1' ? 'smile' : play.state === 'done' ? (play.gaveUp ? 'sad' : verdict(play.score).mood) : verdict(last ? last.raw : 50).mood;
+  const lines = {
+    smile: "Ready when you are. Name something and I'll take you there.",
+    happy: 'Right at the lodge! Best ride all week.',
+    wow: 'Whoa, so close I could smell the cocoa.',
+    neutral: 'Not bad. The lodge was a little farther along.',
+    sad: "Bumpy ride. We'll get the lodge next time.",
+    dizzy: "I'm seeing double. That was way out on the cable."
+  };
+  openModal(`<div class="skipper">
+      <div class="portrait"><canvas id="skipCv" width="44" height="44"></canvas></div>
+      <div class="sk-text"><h2>Skipper</h2>
+        <p class="sk-role">Cable car operator · Professional middle-finder</p>
+        <p class="sk-quote">“${lines[mood] || lines.smile}”</p>
+        <ul class="sk-facts"><li><b>Rides:</b> a few thousand, give or take a goat-load</li><li><b>Favorite spot:</b> the lodge, right in the middle</li>
+          <li><b>Hates:</b> people who say “a 5 km race”</li><li><b>Snack:</b> alpine clover</li></ul>
+        <div class="row"><button class="btn" id="skOk">Back to the ride</button></div></div></div>`);
+  const cv = $('#skipCv'), ctx = cv.getContext('2d');
+  let blink = false, ear = 0, n = 0;
+  const draw = () => { ctx.clearRect(0, 0, 44, 44); const img = skipperPortrait(mood, blink, ear); ctx.drawImage(img, 0, 0); };
+  cv.width = 46; cv.height = 46; draw();
+  clearInterval(skipperTimer);
+  skipperTimer = setInterval(() => {
+    if (!cv.isConnected) { clearInterval(skipperTimer); return; }
+    n++; blink = n % 14 === 0; ear = n % 9 === 0 ? 1 : 0; draw();
+  }, 220);
+  $('#skOk').onclick = closeModal;
+}
+
 function showHelp() {
   openModal(`<h2>How to ride</h2>
     <div class="steps">
@@ -619,7 +650,7 @@ function showAccount() {
   } else {
     const local = ['localhost', '127.0.0.1'].includes(location.hostname);
     openModal(`<h2>Account</h2><p>You're riding as a guest, so your scores live on this device. Sign in to keep your streak on every device. Nobody ever sees your name or email.</p>
-      <div class="row"><a class="btn" href="/api/auth/login?return=/summit.html">Sign in with Google</a>${local ? '<a class="btn alt sm" href="/api/auth/dev?return=/summit.html">Dev sign-in</a>' : ''}</div>`);
+      <div class="row"><a class="btn" href="/api/auth/login?return=/">Sign in with Google</a>${local ? '<a class="btn alt sm" href="/api/auth/dev?return=/">Dev sign-in</a>' : ''}</div>`);
   }
 }
 function showReport(r, guessId) {

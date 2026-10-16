@@ -1,6 +1,8 @@
 import { HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, puzzleNumber, sameItem, normalize, clampStr } from './util.js';
 import { estimate, generatePuzzles, suggestMiddle } from './ai.js';
 import { planSpecs, recentItems } from './plan.js';
+import { answerMeasurementProblem } from '../../public/js/measure.js';
+import { PROPS } from '../../public/js/props.js';
 import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS } from '../../public/js/score.js';
 
 const LIVE = `status IN ('approved','auto')`;
@@ -223,6 +225,8 @@ export async function guess(env, who, body) {
   if (sameItem(answer, p.small_item) || sameItem(answer, p.big_item)) {
     return { status: 'invalid', reason: 'That\'s one of the two ends. Find something in between!' };
   }
+  const measure = answerMeasurementProblem(answer, (PROPS[p.property] || {}).dim || 'count');
+  if (measure) return { status: 'invalid', reason: measure };
   if (attempt === 2 && prior[0] && sameItem(answer, prior[0].input)) {
     return { status: 'invalid', reason: 'Your second guess has to be something different.' };
   }
@@ -295,33 +299,51 @@ export async function giveUp(env, who, body) {
 }
 
 /**
- * The bear's pick: the closest answer the AI can find, scored by the same judge players get.
- * Only shown after you finish the room. Worked out once per puzzle, then cached on the puzzle.
+ * The best answer: the closest thing to the middle that anyone has found, AI or player, scored by the
+ * same judge players get. The AI searches in two rounds (the second homes in on the closest so far),
+ * and any player answer that does better replaces it, so the shown best answer is never beaten.
+ * Only shown after you finish the room. Cached on the puzzle.
  */
 export async function bestAnswer(env, who, puzzleId, mode) {
   const p = await getPuzzle(env, puzzleId);
   checkAccess(p, mode, who);
   const play = await getPlay(env, who.player.id, p.id, mode);
   if (!play || play.state !== 'done') throw new HttpError(403, 'Finish the room first!');
-  const shape = (input, name, value) => ({ input, name, value, score: scoreGuess(p.small_value, p.big_value, value) });
-  if (p.best_name) return shape(p.best_input, p.best_name, p.best_value);
+  const shape = (input, name, value, by) => ({ input, name, value, score: scoreGuess(p.small_value, p.big_value, value), by });
+  const dim = (PROPS[p.property] || {}).dim || 'count';
 
-  const target = middle(p.small_value, p.big_value);
-  const names = await suggestMiddle(env, { property: p.property, unitLabel: p.unit_label, target, small: p.small_item, big: p.big_item });
-  let best = null;
-  for (const n of names) {
-    if (sameItem(n, p.small_item) || sameItem(n, p.big_item)) continue;
-    let est;
-    try { est = await estimate(env, { property: p.property, unitLabel: p.unit_label, answer: n, avg: false, playerId: '' }); }
-    catch { continue; }
-    if (est.status !== 'ok' || !inRange(p.small_value, p.big_value, est.value)) continue;
-    const cand = shape(n, est.name, est.value);
-    if (!best || cand.score > best.score) best = cand;
-    if (best.score >= 99) break;
+  // Best answer any player has given for this puzzle.
+  const pg = await env.DB.prepare(`SELECT g.input, g.name, g.value FROM guesses g JOIN plays pl ON pl.id = g.play_id JOIN answers a ON a.key = g.answer_key
+      WHERE pl.puzzle_id = ? AND g.out_of_range = 0 AND a.status = 'ok' AND a.flagged = 0 ORDER BY g.raw_score DESC, g.id LIMIT 1`).bind(p.id).first();
+  const playerBest = pg ? shape(pg.input, pg.name, pg.value, 'player') : null;
+
+  let best = p.best_name ? shape(p.best_input, p.best_name, p.best_value, 'ai') : null;
+  if (!best) {
+    const target = middle(p.small_value, p.big_value);
+    const tried = new Set();
+    const judge = async names => {
+      const fresh = names.filter(n => !tried.has(normalize(n)) && !sameItem(n, p.small_item) && !sameItem(n, p.big_item) && !answerMeasurementProblem(n, dim));
+      fresh.forEach(n => tried.add(normalize(n)));
+      const out = [];
+      for (let i = 0; i < fresh.length; i += 4) {
+        const batch = await Promise.all(fresh.slice(i, i + 4).map(n =>
+          estimate(env, { property: p.property, unitLabel: p.unit_label, answer: n, avg: false, playerId: '' }).catch(() => null)));
+        batch.forEach((est, j) => { if (est && est.status === 'ok' && inRange(p.small_value, p.big_value, est.value)) out.push(shape(fresh[i + j], est.name, est.value, 'ai')); });
+      }
+      return out;
+    };
+    const pickBest = list => list.reduce((b, c) => (!b || c.score > b.score ? c : b), null);
+    const base = { property: p.property, unitLabel: p.unit_label, target, small: p.small_item, big: p.big_item };
+    try { best = pickBest(await judge(await suggestMiddle(env, base))); } catch { best = null; }
+    if (!best || best.score < 97) {
+      try { best = pickBest([best, ...(await judge(await suggestMiddle(env, { ...base, closest: best, count: 6 })))].filter(Boolean)); } catch { /* keep round one */ }
+    }
   }
-  if (!best) throw new HttpError(503, 'The bear could not think of one right now.');
-  await env.DB.prepare(`UPDATE puzzles SET best_input = ?, best_name = ?, best_value = ? WHERE id = ?`)
-    .bind(best.input, best.name, best.value, p.id).run();
+  if (playerBest && (!best || playerBest.score > best.score)) best = playerBest;
+  if (!best) throw new HttpError(503, 'Could not find one right now. Try again in a minute.');
+  if (best.name !== p.best_name || best.value !== p.best_value) {
+    await env.DB.prepare(`UPDATE puzzles SET best_input = ?, best_name = ?, best_value = ? WHERE id = ?`).bind(best.input, best.name, best.value, p.id).run();
+  }
   return best;
 }
 

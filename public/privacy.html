@@ -3,21 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy · Just Right</title>
+<title>Privacy · Summit</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Pixelify+Sans:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/summit.css">
+<script>(function () { var h = new Date().getHours(); document.documentElement.dataset.tod = h >= 5 && h < 10 ? 'morning' : h >= 10 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'evening' : 'night'; })();</script>
 </head>
 <body>
 <div class="app" style="max-width:760px">
-  <header class="top"><a class="brand" href="/"><span class="wordmark">Just <i>Right</i></span></a></header>
+  <header class="top"><a class="brand" href="/"><svg class="logo" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 16V13H1V12H2V11H3V10H4V9H5V8H6V9H7V10H8V9H9V8H10V7H11V6H12V7H13V9H14V11H15V13H16V16Z" fill="#2d6340"/><path d="M11 6H12V7H13V8H12V9H11V8H10V7H11Z" fill="#fff"/><path d="M0 3H4V4H0ZM4 2H11V3H4ZM11 1H16V2H11Z" fill="#3d4756"/><rect x="7" y="3" width="1" height="2" fill="#3d4756"/><rect x="5" y="5" width="5" height="4" fill="#d9482b"/><rect x="6" y="6" width="3" height="1" fill="#bfe3f5"/></svg><span class="wordmark">Summit</span></a></header>
   <section class="card">
     <h1 class="prompt" style="margin-top:0">Privacy policy</h1>
     <p class="sub">Last updated October 16, 2026</p>
 
-    <h2 class="section-title">What we store</h2>
+    <h2 class="h4">What we store</h2>
     <ul>
       <li><b>A random player ID</b> in a cookie, so the game remembers your guesses and stats on this device.</li>
       <li><b>Your guesses</b>: what you typed, how the judge read it, and your scores.</li>
@@ -26,10 +27,10 @@
       <li>Your notebook, unit choice, and similar settings stay in your browser's local storage and are never sent to us.</li>
     </ul>
 
-    <h2 class="section-title">What others see</h2>
+    <h2 class="h4">What others see</h2>
     <p>Nobody else sees your name or email. Other players only see anonymous totals, like score percentiles and popular answers. An answer appears in "top answers" only after several players have given it, or after an admin approves it.</p>
 
-    <h2 class="section-title">Services we use</h2>
+    <h2 class="h4">Services we use</h2>
     <ul>
       <li><b>Cloudflare</b> hosts the site and its database.</li>
       <li><b>Groq</b> (and, as a backup, <b>Google Gemini</b>) receives the text of new answers so the AI judge can estimate them. Only the answer text is sent, never your ID or email.</li>
@@ -38,7 +39,7 @@
     </ul>
     <p>There are no ads, no tracking scripts, and we never sell or share your data.</p>
 
-    <h2 class="section-title">Deleting your data</h2>
+    <h2 class="h4">Deleting your data</h2>
     <p>To have your data deleted, open an issue at <a href="https://github.com/will-k16/daily_games/issues">github.com/will-k16/daily_games</a> asking for removal. Don't post personal details there; we'll follow up. Clearing your browser's cookies also disconnects this device from its guest stats.</p>
 
     <div class="row"><a class="btn alt sm" href="/" style="display:inline-flex;align-items:center;text-decoration:none">← Back to the game</a></div>

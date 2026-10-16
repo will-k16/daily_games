@@ -15,7 +15,9 @@ export const PROPS = {
   calories:   { label: 'calories',    unit: 'kilocalories (food Calories)', desc: 'food energy of a typical serving or whole item', dim: 'energy', tier: 2, fits: 'foods, snacks, drinks, meals', more: ['more caloric', 'less caloric'] },
   area:       { label: 'area',        unit: 'square meters',         desc: 'area', dim: 'area', tier: 3, more: ['bigger', 'smaller'] },
   lifespan:   { label: 'lifespan',    unit: 'years',                 desc: 'typical lifespan', dim: 'time_y', tier: 3, fits: 'animals, plants, insects, and long-lived living things', more: ['longer-lived', 'shorter-lived'] },
-  depth:      { label: 'depth',       unit: 'meters',                desc: 'depth below the surface (deepest point)', dim: 'length', tier: 3, fits: 'lakes, pools, oceans, trenches, mines, wells, caves, canyons, holes', more: ['deeper', 'shallower'] },
+  // Retired (too few things have a depth); kept so old puzzles still display.
+  depth:      { retired: true, label: 'depth',       unit: 'meters',                desc: 'depth below the surface (deepest point)', dim: 'length', tier: 3, fits: 'lakes, pools, oceans, trenches, mines, wells, caves, canyons, holes', more: ['deeper', 'shallower'] },
+  build:      { label: 'build time',  unit: 'seconds',               desc: 'how long it typically takes to make or build one, from start to finish', dim: 'time', tier: 3, fits: 'things people make or build: meals, products, vehicles, ships, buildings, bridges, monuments, artworks', more: ['slower to build', 'quicker to build'] },
   power:      { label: 'power',       unit: 'watts',                 desc: 'typical power output or power use', dim: 'power', tier: 3, fits: 'appliances, devices, vehicles, engines, light bulbs, power plants', more: ['more powerful', 'less powerful'] },
   data:       { label: 'data size',   unit: 'bytes',                 desc: 'typical digital file or storage size', dim: 'data', tier: 3, fits: 'digital files: photos, songs, movies, video games, documents, apps, datasets', more: ['bigger', 'smaller'] },
   words:      { label: 'word count',  unit: 'words',                 desc: 'number of words in it', dim: 'count', tier: 3, fits: 'texts: books, poems, speeches, songs, documents, famous articles', more: ['wordier', 'shorter'] },
@@ -23,9 +25,9 @@ export const PROPS = {
 };
 
 export const ROOMS = [
-  { slot: 1, key: 'porridge', name: 'Porridge', emoji: '🥣', tier: 'Easy' },
-  { slot: 2, key: 'chairs',   name: 'Chairs',   emoji: '🪑', tier: 'Medium' },
-  { slot: 3, key: 'beds',     name: 'Beds',     emoji: '🛏️', tier: 'Hard' }
+  { slot: 1, key: 'foothills', name: 'Foothills', emoji: '🌲', tier: 'Easy' },
+  { slot: 2, key: 'ridge',     name: 'Ridge',     emoji: '🪨', tier: 'Medium' },
+  { slot: 3, key: 'peak',      name: 'Peak',      emoji: '🏔️', tier: 'Hard' }
 ];
 
 export function propLabel(p) { return (PROPS[p] && PROPS[p].label) || p; }

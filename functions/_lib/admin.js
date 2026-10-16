@@ -78,10 +78,10 @@ export async function generateDrafts(env, body) {
 export async function generateSlot(env, body) {
   const date = isDate(body.date) ? body.date : null;
   const slot = [1, 2, 3].includes(Number(body.slot)) ? Number(body.slot) : null;
-  if (!date || !slot) throw new HttpError(400, 'Pick a date and a room.');
+  if (!date || !slot) throw new HttpError(400, 'Pick a date and a stage.');
   const live = await env.DB.prepare(`SELECT z.id, (SELECT COUNT(*) FROM plays pl WHERE pl.puzzle_id = z.id) AS plays FROM puzzles z
       WHERE z.date = ? AND z.slot = ? AND z.status IN ('approved','auto')`).bind(date, slot).first();
-  if (live && live.plays > 0) throw new HttpError(409, 'People already played this room that day.');
+  if (live && live.plays > 0) throw new HttpError(409, 'People already played this stage that day.');
   const [p] = await generatePuzzles(env, await planSpecs(env, date, [slot]), { avoidItems: await recentItems(env), seed: Math.floor(Math.random() * 1000), fallback: false });
   if (!p) throw new HttpError(503, 'The AI is busy right now (free-tier limit). Wait a minute and click Generate again.');
   await insertDrafts(env, date, [slot], [p]);
@@ -107,7 +107,7 @@ export async function savePuzzle(env, body) {
   }
   const date = isDate(body.date) ? body.date : null;
   const slot = [1, 2, 3].includes(Number(body.slot)) ? Number(body.slot) : null;
-  if (!date || !slot) throw new HttpError(400, 'Pick a date and a room.');
+  if (!date || !slot) throw new HttpError(400, 'Pick a date and a stage.');
   const clean = cleanPuzzle({ ...body, tier: slot });
   if (!clean) throw new HttpError(400, 'Both items need names and positive values at least 20x apart, plus a property.');
   if (!PROPS[clean.property] && !clean.unitLabel) throw new HttpError(400, 'A custom property needs a unit.');
@@ -115,7 +115,7 @@ export async function savePuzzle(env, body) {
   if (status === 'approved' || status === 'auto') {
     const live = (await db.prepare(`SELECT z.id, (SELECT COUNT(*) FROM plays pl WHERE pl.puzzle_id = z.id) AS plays FROM puzzles z
         WHERE z.date = ? AND z.slot = ? AND z.status IN ('approved','auto') AND z.id != ?`).bind(date, slot, id || 0).all()).results;
-    if (live.some(l => l.plays > 0)) throw new HttpError(409, 'People already played a different puzzle in that room that day. Edit that one instead.');
+    if (live.some(l => l.plays > 0)) throw new HttpError(409, 'People already played a different puzzle in that stage that day. Edit that one instead.');
     if (live.length) await db.prepare(`UPDATE puzzles SET status = 'draft' WHERE id IN (${live.map(() => '?').join(',')})`).bind(...live.map(l => l.id)).run();
   }
 

@@ -1,4 +1,3 @@
-import { bear } from './sprites.js';
 import { fmt, nice } from './units.js';
 import { PROPS, ROOMS, propLabel } from './props.js';
 
@@ -22,7 +21,6 @@ function openModal(html) { $('#modalBody').innerHTML = html; $('#modal').hidden 
 function closeModal() { $('#modal').hidden = true; }
 $('#modalX').onclick = closeModal;
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
-$('#logo').innerHTML = bear('smile', { px: 0 });
 
 let tab = location.hash.slice(1) || 'dash';
 document.querySelectorAll('#atabs [data-t]').forEach(b => b.onclick = () => go(b.dataset.t));
@@ -51,8 +49,8 @@ async function dash(box) {
         <div class="kpi"><b>${d.signedIn}</b><span>Signed in</span></div>
         <div class="kpi"><b>${d.openComplaints}</b><span>Open complaints</span></div>
       </div>
-      <div class="section-title">Today's rooms</div>
-      <div class="tbl"><table><thead><tr><th>Room</th><th>Puzzle</th><th>Status</th><th>Finished</th><th>Avg</th><th>2nd guess</th></tr></thead>
+      <div class="section-title">Today's stages</div>
+      <div class="tbl"><table><thead><tr><th>Stage</th><th>Puzzle</th><th>Status</th><th>Finished</th><th>Avg</th><th>2nd guess</th></tr></thead>
       <tbody>${d.rooms.map(r => `<tr><td>${room(r.slot).emoji} ${room(r.slot).name}</td><td>${esc(r.small_item)} ↔ ${esc(r.big_item)}<br><span class="sub">${esc(propLabel(r.property))}</span></td>
         <td><span class="st ${r.status}">${r.status}</span></td><td>${r.plays}</td><td>${r.avg == null ? '–' : Math.round(r.avg)}</td><td>${r.plays ? Math.round(100 * (r.seconds || 0) / r.plays) + '%' : '–'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Not generated yet. It will be created on the first visit.</td></tr>'}</tbody></table></div>
       <div class="crowd" style="margin-top:6px">
@@ -79,7 +77,7 @@ async function cal(box) {
     const live = list.find(p => p.status === 'approved' || p.status === 'auto');
     const drafts = list.filter(p => p.status === 'draft');
     const show1 = live || drafts[drafts.length - 1];
-    const genBtn = `<button class="mini-btn" data-gen="${date}|${slot}" title="Ask the AI for a new draft for this room">✨ Generate</button>`;
+    const genBtn = `<button class="mini-btn" data-gen="${date}|${slot}" title="Ask the AI for a new draft for this stage">✨ Generate</button>`;
     if (!show1) {
       const rejected = list.filter(p => p.status === 'rejected').length;
       return `<td><span class="st empty">empty</span>${rejected ? ` <span class="sub">${rejected} rejected</span>` : ''}
@@ -100,7 +98,7 @@ async function cal(box) {
   };
   box.innerHTML = `
     <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Generate drafts</h2>
-      <p class="sub">The AI writes a tiered set (easy porridge, medium chairs, hard beds) for each day that has an empty room. Approve or edit them below. Days with nothing approved use their draft automatically, or the AI makes one on the spot.</p>
+      <p class="sub">The AI writes a tiered set (easy Foothills, medium Ridge, hard Peak) for each day that has an empty stage. Approve or edit them below. Days with nothing approved use their draft automatically, or the AI makes one on the spot.</p>
       <div class="row"><label class="sub">From <input type="date" id="gFrom" class="box" style="width:auto" value="${addDays(d.today, 1)}"></label>
         <label class="sub">Days <select id="gDays" class="box" style="width:auto">${[1, 3, 5, 7].map(n => `<option ${n === 3 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <button class="btn sm" id="gGo">Generate</button></div>
@@ -157,7 +155,7 @@ function editor(p) {
   openModal(`<h2>${p.id ? 'Edit puzzle' : 'New puzzle'}</h2>
     <div class="form">
       <label>Date (UTC)<input type="date" class="box" id="eDate" value="${esc(p.date || '')}"></label>
-      <label>Room<select class="box" id="eSlot">${ROOMS.map(r => `<option value="${r.slot}" ${r.slot === p.slot ? 'selected' : ''}>${r.emoji} ${r.name} (${r.tier})</option>`).join('')}</select></label>
+      <label>Stage<select class="box" id="eSlot">${ROOMS.map(r => `<option value="${r.slot}" ${r.slot === p.slot ? 'selected' : ''}>${r.emoji} ${r.name} (${r.tier})</option>`).join('')}</select></label>
       <label>Status<select class="box" id="eStatus">${['approved', 'draft', 'rejected'].concat(p.status === 'auto' ? ['auto'] : []).map(s => `<option ${s === (p.status || 'approved') ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
       <label>Property<select class="box" id="eProp">${props.map(k => `<option value="${k}" ${k === p.property ? 'selected' : ''}>${esc(PROPS[k].label)} (${esc(PROPS[k].unit)})</option>`).join('')}<option value="__custom" ${known ? '' : 'selected'}>custom…</option></select></label>
       <label class="cust" ${known ? 'hidden' : ''}>Custom property<input class="box" id="eCustom" value="${known ? '' : esc(p.property)}" placeholder="e.g. number of moons"></label>

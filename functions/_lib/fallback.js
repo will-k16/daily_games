@@ -18,5 +18,5 @@ export const FALLBACK = [
   { tier: 3, smallItem: 'a postage stamp', smallValue: 0.0005, bigItem: 'a tennis court', bigValue: 261, property: 'area', note: 'a pizza box, a door, a bedsheet' },
   { tier: 3, smallItem: 'a smartphone charger', smallValue: 20, bigItem: 'a commercial wind turbine', bigValue: 3000000, property: 'power', note: 'a microwave, a hair dryer, a car engine at idle' },
   { tier: 3, smallItem: 'a haiku', smallValue: 12, bigItem: 'the Harry Potter series', bigValue: 1084000, property: 'words', note: 'a newspaper article, a short story, a picture book' },
-  { tier: 3, smallItem: 'a bathtub', smallValue: 0.6, bigItem: 'the Mariana Trench', bigValue: 10935, property: 'depth', note: 'a swimming pool deep end, a mine shaft' }
+  { tier: 3, smallItem: 'a grilled cheese sandwich', smallValue: 360, bigItem: 'a cruise ship', bigValue: 63000000, property: 'build', note: 'a car on an assembly line, a house, a quilt' }
 ];

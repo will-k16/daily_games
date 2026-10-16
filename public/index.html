@@ -3,53 +3,56 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Just Right</title>
-<meta name="description" content="A daily game: name something that's juuust right between too small and too big.">
-<meta name="theme-color" content="#f2a93b">
+<title>Summit</title>
+<meta name="description" content="A daily game: ride the cable car to the thing that's juuust right between too small and too big.">
+<meta name="theme-color" content="#d9482b">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Pixelify+Sans:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/summit.css">
 <script>
-  // Set the time-of-day theme before first paint.
-  (function () { var h = new Date().getHours(); document.documentElement.dataset.tod = h >= 5 && h < 10 ? 'morning' : h < 17 && h >= 10 ? 'day' : h >= 17 && h < 20 ? 'evening' : 'night'; })();
+  (function () { var h = new Date().getHours(); document.documentElement.dataset.tod = h >= 5 && h < 10 ? 'morning' : h >= 10 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'evening' : 'night'; })();
 </script>
 </head>
 <body>
 <div class="app">
   <header class="top">
-    <a class="brand" href="#/" aria-label="Just Right home">
-      <span id="logo"></span>
-      <span class="wordmark">Just <i>Right</i></span>
+    <a class="brand" href="#/" aria-label="Summit home">
+      <svg class="logo" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
+        <path d="M0 16V13H1V12H2V11H3V10H4V9H5V8H6V9H7V10H8V9H9V8H10V7H11V6H12V7H13V9H14V11H15V13H16V16Z" fill="#2d6340"/>
+        <path d="M11 6H12V7H13V8H12V9H11V8H10V7H11Z" fill="#ffffff"/>
+        <path d="M0 3H4V4H0ZM4 2H11V3H4ZM11 1H16V2H11Z" fill="#3d4756"/>
+        <g class="logo-cab"><rect x="7" y="3" width="1" height="2" fill="#3d4756"/><rect x="5" y="5" width="5" height="4" fill="#d9482b"/><rect x="6" y="6" width="3" height="1" fill="#bfe3f5"/><rect x="5" y="8" width="5" height="1" fill="#a8331c"/></g>
+      </svg>
+      <span class="wordmark">Summit</span>
     </a>
-    <nav class="tools" id="tools">
-      <button class="tbtn admin" id="unlBtn" hidden title="Unlimited (admin only)">∞<span class="lbl">Unlimited</span></button>
-      <a class="tbtn admin" id="admBtn" href="/admin.html" hidden>Admin</a>
-      <button class="tbtn" id="padBtn" title="Field notebook"><span data-icon="pad"></span><span class="lbl">Notebook</span></button>
-      <a class="tbtn" id="archBtn" href="#/archive" title="Archive"><span data-icon="calendar"></span><span class="lbl">Archive</span></a>
-      <button class="tbtn" id="statsBtn" title="Your stats"><span data-icon="stats"></span><span class="lbl">Stats</span></button>
-      <button class="tbtn" id="helpBtn" title="How to play"><span data-icon="help"></span></button>
+    <nav class="tools">
+      <button class="tbtn" id="unlBtn" hidden title="Unlimited (admin)">∞</button>
+      <a class="tbtn" id="admBtn" href="/admin.html" hidden title="Admin"><svg viewBox="0 0 20 20"><rect x="7" y="7" width="6" height="6"/><path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.5 4.5l2 2M13.5 13.5l2 2M4.5 15.5l2-2M13.5 6.5l2-2"/></svg><span class="lbl">Admin</span></a>
+      <button class="tbtn" id="padBtn" title="Field notebook"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/><path d="M7 7h6M7 10h6M7 13h4"/></svg><span class="lbl">Notebook</span></button>
+      <a class="tbtn" href="#/archive" title="Archive"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="13"/><path d="M3 8h14M7 2v4M13 2v4"/></svg><span class="lbl">Archive</span></a>
+      <button class="tbtn" id="statsBtn" title="Stats"><svg viewBox="0 0 20 20"><path d="M4 17V11M10 17V5M16 17V8"/></svg><span class="lbl">Stats</span></button>
+      <button class="tbtn" id="helpBtn" title="How to play"><svg viewBox="0 0 20 20"><path d="M7 6V4h6v5h-3v3M10 15v2"/></svg></button>
       <button class="tbtn" id="unitBtn" title="Switch units">US</button>
-      <button class="tbtn" id="acctBtn" title="Account"><span data-icon="user"></span></button>
+      <button class="tbtn" id="acctBtn" title="Account"><svg viewBox="0 0 20 20"><rect x="7" y="3" width="6" height="6"/><path d="M3 18v-3h14v3"/></svg></button>
     </nav>
   </header>
 
   <div class="layout">
-    <main id="main"><div class="loading" id="boot">Warming up the porridge…</div></main>
+    <main id="main"><div class="loading"><div class="spinner-cab"></div>Warming up the cable car…</div></main>
     <aside class="pad" id="pad" aria-label="Field notebook"></aside>
   </div>
-  <footer class="sub" style="text-align:center;margin-top:28px"><a href="/privacy.html">Privacy</a></footer>
+  <footer class="foot"><a href="/privacy.html">Privacy</a></footer>
 </div>
 
 <div class="modal" id="modal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true">
-    <button class="x" id="modalX" aria-label="Close"></button>
+    <button class="x" id="modalX" aria-label="Close">✕</button>
     <div id="modalBody"></div>
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-
-<script type="module" src="/js/main.js"></script>
+<script type="module" src="/js/summit.js"></script>
 </body>
 </html>

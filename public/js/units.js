@@ -93,7 +93,7 @@ export function fmt(prop, v, unitLabel, system) {
       if (v < 1) return nice(v * 1000) + ' mL'; if (v < 1000) return nice(v) + ' L'; return nice(v / 1000) + ' m³';
     }
     case 'speed': return imp ? nice(v * 2.23694) + ' mph' : nice(v * 3.6) + ' km/h';
-    case 'duration': return dur(v);
+    case 'duration': case 'build': return dur(v);
     case 'age': case 'lifespan': return dur(v * 31557600);
     case 'population': case 'capacity': return nice(v) + ' people';
     case 'price': return '$' + nice(v);

@@ -1,6 +1,6 @@
-# Just Right: build spec
+# Summit: build spec
 
-This is the single source of truth for rebuilding **Threshold** as a standalone, free-to-host web game called **Just Right**. It records three things: how the old Apps Script version worked, what makes games like it popular, and every decision made for the new version.
+This is the single source of truth for rebuilding **Threshold** as a standalone, free-to-host web game called **Summit**. It records three things: how the old Apps Script version worked, what makes games like it popular, and every decision made for the new version.
 
 ---
 
@@ -65,10 +65,10 @@ Pitfalls to avoid: bare higher/lower feedback (it becomes binary search), ambigu
 - **Admin** = Google accounts listed in `ADMIN_EMAILS` (`will.kolander@gmail.com`).
 
 ### 4.3 Daily structure
-- **3 puzzles per day**, ramping **easy → medium → hard**. They are the three acts of the Goldilocks story:
-  1. 🥣 **Porridge** (kitchen): easy
-  2. 🪑 **Chairs** (living room): medium
-  3. 🛏️ **Beds** (bedroom): hard
+- **3 puzzles per day**, ramping **easy → medium → hard**, as three stages of the climb:
+  1. 🌲 **Foothills**: easy
+  2. 🪨 **Ridge**: medium
+  3. 🏔️ **Peak**: hard
 - Daily score out of **300**.
 - Reset at **midnight UTC**. Puzzle number = days since launch + 1.
 - Difficulty comes from **all** of the following: property familiarity, range width (narrower is harder), obscurity of the two ends, and how few common things live near the middle.
@@ -122,7 +122,7 @@ Values are stored in one base unit per property:
 | calories | food energy | kcal | medium |
 | area | area | m² | hard |
 | lifespan | lifespan | years | hard |
-| depth | depth | m | hard |
+| build | build time | seconds | hard (replaced depth, which few things have) |
 | power | power | watts | hard |
 | data | data size | bytes | hard |
 | words | word count | words | hard |
@@ -153,7 +153,7 @@ Custom properties with their own unit label are allowed for admin-made puzzles.
 - Per day: total out of 300 and the day's percentile.
 - **Share text** (no spoilers), one row per room:
   ```
-  Just Right #12 🐻 213/300
+  Summit #12 🐻 213/300
   🥣 ❌❌🟩 98
   🪑 🟧→🟩 72
   🛏️ 🟥 43
@@ -189,19 +189,20 @@ A US/metric toggle. Values are formatted with sensible units (oz/lb/tons, in/ft/
 
 ---
 
-## 5. Design: "Just Right" (rebrand of Threshold)
+## 5. Design: "Summit"
 
-- **Concept:** Goldilocks: not too small, not too big. The two ends become **"Too small"** and **"Too big"** signs instead of A and B, and you find the one that's **juuust right**.
-- **Mascot and logo:** **a pixel bear cub** (Baby Bear) hosting in a cozy cottage. Its face reacts to every score (sad, neutral, happy, wow), with sparkles on a perfect.
-- **Vibe:** **cozy illustrated + pixel art.** Pixel sprites (bear, bowls, chairs, beds, window, sky) on warm, storybook backgrounds. Gingham tablecloth patterns and wooden hand-painted signs.
-- **Each room** shows a tiny item and a giant item (small and big bowl / chair / bed) with the item names on wooden signs. The middle spot holds a "?" that fills in on reveal.
-- **Score meter:** a **porridge thermometer** running from "too small" (cold, blue) to "too big" (hot, red), with a green "just right" band in the middle. The bear-head marker slides to where you landed.
-- **Daily progress:** a **honey jar** that fills with your daily total (out of 300). Room tabs show 🥣 🪑 🛏️ with scores.
-- **Time of day:** the scene and palette follow the player's local time (morning, day, evening, night). Night doubles as dark mode.
-- **Type:** a pixel font for headings and scores (Pixelify Sans) and a rounded body font (Nunito).
-- **Motion:** lots of animation, **no sound**: bobbing bear, rising steam, sliding marker, pixel confetti on great scores, a wobble on misses. Respects `prefers-reduced-motion`.
-- **Devices:** phone and desktop treated equally.
-- **Onboarding:** an illustrated 3-panel how-to on first visit (reopen with "?").
+- **Concept:** a cable car between two mountain stations. The bottom station is the **too small** thing, the top station the **too big** thing, and the lodge in the middle of the cable is **juuust right** (the middle by ratio). Your answer is where the cabin rides to.
+- **Mascot:** **Skipper**, a goat in a red beanie and scarf who operates the cable car. Click the cabin to see Skipper's card (pixel portrait, mood line, fun facts). Skipper's face in the cabin window reacts to scores.
+- **Look:** **pixel art**, drawn on a 320×166 grid and scaled up crisp. Dithered skies, seeded procedural mountain ranges with lit/shadow faces and snowcaps, pixel pines, detailed log-cabin stations and a lodge (shingled roof, snow, framed windows that glow at night, balcony, smoking chimney, flag). Flat UI colors, chunky outlines, hard drop shadows, wooden station signs.
+- **Stages:** 🌲 Foothills (easy, green), 🪨 Ridge (medium, rocky with snowcaps), 🏔️ Peak (hard, snowy with falling snow).
+- **The fog:** after the first guess, fog rolls over the cable and the cabin rides into it, so the score shows but not the direction. Keeping or taking the second ride clears the fog and the cabin rides to the real spot.
+- **Score meters:** 10-block meter for the first guess; on reveal, a 31-cell gauge from too small to too big, shaded by score, with cabin markers that slide in.
+- **Daily progress:** every point climbs 10 m; 300 points reaches the 3,000 m summit. A pixel climber walks up a switchback trail in the header, and the end-of-day panorama shows camps at 1,000 / 2,000 / 3,000 m.
+- **Time of day:** morning, day, evening and night palettes for the sky, mountains and UI. Night has stars, a moon and glowing windows.
+- **Type:** Pixelify Sans for headings, Silkscreen for numbers, Nunito for reading.
+- **Motion (no sound):** pointer parallax across 4 layers, drifting clouds, flapping birds, chimney smoke, twinkling stars, falling snow, pendulum-physics cabin swing, jolt on off-the-cable answers, fireworks at the lodge on 90+, count-ups and staggered reveals. Respects `prefers-reduced-motion`.
+- **Best answer:** after each stage, the best answer anyone has found (Skipper's AI search or a player's guess, whichever is closer). It can be matched but never beaten.
+- **No measurements:** puzzle ends never contain numbers or units ("a 5-kilometer race" is rejected), and answers like "a 5 km race" or "a gallon of milk" (for volume) are refused without using a guess.
 
 ---
 

@@ -1,6 +1,6 @@
-# Just Right 🐻
+# Summit ⛰️
 
-A daily game. Each day has three rooms: Porridge (easy), Chairs (medium) and Beds (hard). Each room shows something **too small**, something **too big**, and a property like weight. Players name something that's **juuust right**: the middle *by ratio*, √(small × big).
+A daily game. Each day has three stages: Foothills (easy), Ridge (medium) and Peak (hard). Each shows something **too small** (the bottom cable-car station), something **too big** (the top station), and a property like weight. Players name something that's **juuust right**: the middle *by ratio*, √(small × big).
 
 - Full design and rules: [SPEC.md](SPEC.md)
 - Old Google Apps Script version: [legacy/](legacy/)

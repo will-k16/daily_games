@@ -51,7 +51,7 @@ export async function planSpecs(env, date, slots) {
   const dist = r => (date && r.date ? Math.abs((new Date(r.date) - new Date(date)) / 86400000) : 1);
   const sameDay = new Set(near.filter(r => date && r.date === date && !slots.includes(r.slot)).map(r => r.property));
   const chosen = new Set();
-  const keys = Object.keys(PROPS);
+  const keys = Object.keys(PROPS).filter(k => !PROPS[k].retired);
 
   return slots.map(slot => {
     const options = keys.filter(k => !sameDay.has(k) && !chosen.has(k)).map(k => {
