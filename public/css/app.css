@@ -344,7 +344,10 @@ textarea.box { min-height: 90px; resize: vertical; }
 .aday .num { font-family: var(--font-px); font-size: 20px; }
 .aday .d { color: var(--muted); font-size: 14px; }
 .aday .s { font-family: var(--font-px); display: flex; gap: 8px; }
-.aday .s span { min-width: 30px; text-align: center; }
+.aday .s span { min-width: 34px; text-align: center; }
+.aday .s .sq { padding: 2px 4px; border: 2px solid var(--ink); border-radius: 5px; color: #2a1810; }
+.aday .s .sq.green { background: #78c46b; } .aday .s .sq.yellow { background: #f5d547; }
+.aday .s .sq.orange { background: #f39a3c; } .aday .s .sq.red { background: #e5604f; color: #fff; }
 .badge { display: inline-block; font-family: var(--font-px); font-size: 12px; padding: 1px 8px; border-radius: 6px; background: var(--ink); color: var(--panel); vertical-align: middle; }
 
 /* ── Toast, confetti ── */

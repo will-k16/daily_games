@@ -55,7 +55,9 @@ function verdict(s) {
   if (s > 0) return { t: 'Way off!', face: 'dizzy', d: 'The bear fell off the chair.' };
   return { t: 'Yikes!', face: 'dizzy', d: 'Nowhere near just right.' };
 }
-const square = s => s >= 90 ? '🟩' : s >= 60 ? '🟨' : s >= 30 ? '🟧' : '🟥';
+// Same bands as the share squares: 🟩 90+, 🟨 60+, 🟧 30+, 🟥 below.
+const tier = s => s >= 90 ? 'green' : s >= 60 ? 'yellow' : s >= 30 ? 'orange' : 'red';
+const square = s => ({ green: '🟩', yellow: '🟨', orange: '🟧', red: '🟥' })[tier(s)];
 const VERB = { 1: 'Serve it', 2: 'Sit on it', 3: 'Sleep on it' };
 const ITEM = { 1: 'bowl', 2: 'chair', 3: 'bed' };
 
@@ -596,7 +598,7 @@ async function renderArchiveList() {
     const cells = [1, 2, 3].map(sl => {
       const s = day.slots.find(x => x.slot === sl);
       const v = s ? (s.daily != null ? s.daily : s.archive) : null;
-      return `<span title="${roomOf(sl).name}">${v == null ? '·' : v}</span>`;
+      return `<span class="${v == null ? '' : 'sq ' + tier(v)}" title="${roomOf(sl).name}">${v == null ? '·' : v}</span>`;
     }).join('');
     const dateStr = new Date(day.date + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     return `<a class="aday" href="#/archive/${day.date}"><span class="num">#${day.number}</span><span class="d">${esc(dateStr)}</span><span class="s">${cells}</span></a>`;
