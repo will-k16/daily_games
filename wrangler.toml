@@ -10,7 +10,7 @@ migrations_dir = "migrations"
 
 [vars]
 # First puzzle day (YYYY-MM-DD, UTC). Puzzle #1 is this date.
-LAUNCH_DATE = "2026-10-16"
+LAUNCH_DATE = "2026-10-08"
 # Comma-separated Google emails that can open /admin.html
 ADMIN_EMAILS = "will.kolander@gmail.com"
 # Optional "buy me a coffee" style link. Leave empty to hide.
