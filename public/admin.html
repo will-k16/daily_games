@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Just Right Admin</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Pixelify+Sans:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+<script>(function () { var h = new Date().getHours(); document.documentElement.dataset.tod = h >= 5 && h < 10 ? 'morning' : h < 17 && h >= 10 ? 'day' : h >= 17 && h < 20 ? 'evening' : 'night'; })();</script>
+</head>
+<body>
+<div class="app" style="max-width:1100px">
+  <header class="top">
+    <a class="brand" href="/"><span id="logo"></span><span class="wordmark">Just <i>Right</i></span></a>
+    <nav class="tools">
+      <a class="tbtn" href="/#/unlimited">∞ Unlimited</a>
+      <a class="tbtn" href="/">← Game</a>
+    </nav>
+  </header>
+  <nav class="atabs" id="atabs">
+    <button class="tbtn" data-t="dash">Dashboard</button>
+    <button class="tbtn" data-t="cal">Calendar</button>
+    <button class="tbtn" data-t="comp">Complaints <span id="compN"></span></button>
+    <button class="tbtn" data-t="ans">Answers</button>
+  </nav>
+  <main id="admin"><div class="loading">Checking the keys to the cottage…</div></main>
+</div>
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" style="max-width:640px">
+    <button class="x" id="modalX" aria-label="Close">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/js/admin.js"></script>
+</body>
+</html>

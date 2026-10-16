@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threshold</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4EFE4; --card:#FFFDF8; --ink:#1E2830; --muted:#66717A; --line:#DCD2C0;
+  --grid:rgba(30,40,48,.055); --brass:#B8852B; --brass-ink:#7A5715; --brass-soft:#F2E3C1;
+  --steel:#3A5463; --track:#E6DECD; --good:#2E7A57; --bad:#B4483A;
+  --shadow:0 1px 0 rgba(30,40,48,.05),0 14px 30px -18px rgba(30,40,48,.35);
+  --serif:'Fraunces',Georgia,serif; --sans:'IBM Plex Sans',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#12171B; --card:#1A2026; --ink:#ECE5D7; --muted:#9AA3AA; --line:#2D373F;
+    --grid:rgba(255,255,255,.035); --brass:#D9A54A; --brass-ink:#F0C877; --brass-soft:#3A3020;
+    --steel:#8FB0C2; --track:#262E35; --good:#5DBB8E; --bad:#E58072; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#12171B; --card:#1A2026; --ink:#ECE5D7; --muted:#9AA3AA; --line:#2D373F;
+  --grid:rgba(255,255,255,.035); --brass:#D9A54A; --brass-ink:#F0C877; --brass-soft:#3A3020;
+  --steel:#8FB0C2; --track:#262E35; --good:#5DBB8E; --bad:#E58072; --shadow:none;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{margin:0;overflow-x:hidden}
+body{
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;
+  color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;min-height:100vh;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px 48px}
+
+/* Header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 0 14px;border-bottom:1.5px solid var(--ink)}
+.brand{display:flex;align-items:center;gap:10px}
+.brand svg{width:34px;height:34px}
+.word{font-family:var(--serif);font-weight:700;font-size:26px;letter-spacing:-.01em}
+.tools{display:flex;gap:6px;align-items:center}
+.icon{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:grid;place-items:center;font-weight:600}
+.icon:hover{border-color:var(--ink)}
+.icon svg{width:18px;height:18px}
+.pill{height:38px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-family:var(--mono);font-size:13px}
+.pill:hover{border-color:var(--ink)}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin:16px 0 0;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;width:max-content;max-width:100%}
+.tabs button{border:0;background:transparent;padding:7px 14px;border-radius:9px;font-size:14px;font-weight:500;color:var(--muted)}
+.tabs button.on{background:var(--ink);color:var(--card)}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:24px;margin-top:18px}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.q{font-family:var(--serif);font-weight:500;font-size:clamp(24px,5vw,32px);line-height:1.2;margin:10px 0 4px;letter-spacing:-.01em}
+.q em{font-style:normal;color:var(--brass-ink);border-bottom:2px solid var(--brass)}
+.beam-wrap{margin:8px -8px 0}
+.beam{width:100%;height:auto;display:block}
+.arm-g{transform-box:view-box;transform-origin:300px 92px;transition:transform 1.4s cubic-bezier(.3,1.5,.5,1)}
+.arm-g.idle{animation:sway 4.5s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(-2.5deg)}50%{transform:rotate(2.5deg)}}
+.beam .arm{fill:var(--ink)}
+.beam .tick{stroke:var(--card);stroke-width:2}
+.beam .blk{fill:var(--steel)}
+.beam .blk-t{fill:var(--card);font:600 15px var(--mono);text-anchor:middle}
+.beam .fulcrum{fill:var(--brass)}
+.beam .base{fill:var(--ink)}
+.beam .pivot{fill:var(--card);stroke:var(--ink);stroke-width:3}
+.beam .qtok{fill:var(--card);stroke:var(--brass);stroke-width:2.5;stroke-dasharray:5 4}
+.beam .qtok-t{fill:var(--brass-ink);font:700 17px var(--mono);text-anchor:middle}
+.beam .you{fill:var(--brass);stroke:var(--ink);stroke-width:2.5}
+.beam .notch{fill:var(--brass)}
+.ends{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+.end{border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-weight:600;display:flex;gap:10px;align-items:flex-start;line-height:1.3;min-width:0;overflow-wrap:anywhere}
+.end.right{flex-direction:row-reverse;text-align:right}
+.tag{flex:none;width:24px;height:24px;border-radius:6px;background:var(--steel);color:var(--card);display:grid;place-items:center;font:600 12px var(--mono)}
+.guess{display:flex;gap:8px;margin-top:20px}
+.guess input{flex:1;min-width:0;height:52px;border:1.5px solid var(--ink);border-radius:12px;padding:0 16px;font-size:18px;background:var(--card)}
+.guess input:focus{outline:3px solid var(--brass-soft);outline-offset:1px}
+.primary{height:52px;padding:0 20px;border:0;border-radius:12px;background:var(--ink);color:var(--card);font-weight:600;white-space:nowrap}
+.primary:hover{background:var(--brass);color:#1E2830}
+.primary:disabled{opacity:.55;cursor:wait}
+.ghost{height:42px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:transparent;font-weight:500}
+.ghost:hover{border-color:var(--ink)}
+.fine{font-size:13px;color:var(--muted);margin:12px 0 0}
+.msg:empty{display:none}
+.msg{margin-top:12px}
+.err{padding:10px 14px;border-radius:10px;background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad);font-weight:500}
+.vague{padding:14px;border-radius:12px;background:var(--brass-soft)}
+.vague p{margin:0 0 10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{border:1px solid var(--brass);background:var(--card);border-radius:999px;padding:5px 12px;font-size:14px}
+.chip:hover{background:var(--brass);color:#1E2830}
+
+/* Reveal */
+.scoreline{display:flex;align-items:center;gap:16px;margin-top:6px}
+.big{font-family:var(--serif);font-weight:700;font-size:64px;line-height:1;letter-spacing:-.03em}
+.verdict{font-family:var(--serif);font-size:22px;font-weight:500}
+.sub{font-size:13px;color:var(--muted);font-family:var(--mono)}
+.est{font-size:17px;margin:14px 0 0}
+.slider{position:relative;margin:22px 0 0;padding:52px 0 40px}
+.track{position:relative;height:16px;border-radius:8px;border:1px solid var(--line)}
+.dot{position:absolute;top:50%;width:7px;height:7px;border-radius:50%;background:var(--steel);opacity:.35;transform:translate(-50%,-50%)}
+.pmark{position:absolute;top:-10px;bottom:-10px;width:4px;border-radius:2px;background:var(--brass-ink);transform:translateX(-50%)}
+.ymark{position:absolute;top:50%;width:24px;height:24px;border-radius:50%;background:var(--ink);border:4px solid var(--brass);transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(0,0,0,.25);transition:left 1.2s cubic-bezier(.3,1.3,.5,1)}
+.plabel,.ylabel{position:absolute;font-size:12px;line-height:1.25;white-space:nowrap;transform:translateX(-50%)}
+.plabel{top:0;text-align:center;color:var(--brass-ink)}
+.plabel b,.ylabel b{font-family:var(--mono);font-size:13px}
+.ylabel{bottom:0;text-align:center}
+.plabel.l,.ylabel.l{transform:none;text-align:left}
+.plabel.r,.ylabel.r{transform:translateX(-100%);text-align:right}
+.endsrow{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;border-top:1px dashed var(--line);padding-top:10px}
+.endsrow div{min-width:0;overflow-wrap:anywhere}
+.endsrow .r{text-align:right}
+.endsrow span{display:block;font-family:var(--mono);color:var(--muted)}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.fact{font-size:13px;padding:5px 10px;border-radius:8px;background:var(--paper);border:1px solid var(--line)}
+.rank{margin-top:14px;font-size:15px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;align-items:center}
+.countdown{margin-top:16px;font-size:13px;color:var(--muted)}
+.countdown b{font-family:var(--mono);color:var(--ink);font-size:15px}
+.loading{padding:40px 0;text-align:center;color:var(--muted);font-family:var(--mono);font-size:13px}
+
+/* Modal */
+.modal{position:fixed;inset:0;background:rgba(15,20,24,.5);display:grid;place-items:center;padding:16px;z-index:50}
+.modal[hidden]{display:none}
+.modal-card{position:relative;background:var(--card);border-radius:var(--r);border:1px solid var(--line);max-width:460px;width:100%;max-height:88vh;overflow:auto;padding:24px}
+.modal-card h2{font-family:var(--serif);font-weight:600;margin:0 0 12px;font-size:24px}
+.x{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:transparent;font-size:18px}
+.steps{padding-left:20px;margin:0}
+.steps li{margin-bottom:8px}
+.statgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center}
+.statgrid b{display:block;font-family:var(--serif);font-size:28px;line-height:1.1}
+.statgrid span{font-size:11px;color:var(--muted)}
+.bars{margin-top:16px}
+.bar{display:grid;grid-template-columns:56px 1fr;gap:8px;align-items:center;font-size:12px;font-family:var(--mono);margin-bottom:4px}
+.bar i{display:block;height:18px;border-radius:4px;background:var(--steel);color:var(--card);font-style:normal;text-align:right;padding-right:6px;min-width:22px;line-height:18px}
+.copybox{width:100%;height:110px;font-family:var(--mono);font-size:14px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--paper)}
+
+/* Toast */
+#toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--card);padding:10px 16px;border-radius:10px;font-size:14px;transition:.25s;z-index:80;pointer-events:none;max-width:calc(100% - 32px)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* Scratchpad drawer */
+#scrim{position:fixed;inset:0;background:rgba(15,20,24,.35);opacity:0;pointer-events:none;transition:.25s;z-index:30}
+#scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100%;width:min(400px,100%);background:var(--card);border-left:1.5px solid var(--ink);z-index:40;transform:translateX(102%);transition:transform .3s ease;display:flex;flex-direction:column}
+.drawer.open{transform:none}
+@media (max-width:640px){
+  .drawer{top:auto;bottom:0;left:0;width:100%;height:86vh;border-left:0;border-top:1.5px solid var(--ink);border-radius:16px 16px 0 0;transform:translateY(102%)}
+}
+.dhead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dhead h3{margin:0;font-family:var(--serif);font-weight:600;font-size:20px}
+.dbody{flex:1;overflow:auto;padding:14px 16px 24px}
+.dlabel{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+.calc{border:1.5px solid var(--ink);border-radius:12px;overflow:hidden}
+.calc input{width:100%;border:0;padding:12px;font-family:var(--mono);font-size:17px;background:var(--card)}
+.calc input:focus{outline:none}
+.preview{font-family:var(--mono);font-size:13px;color:var(--muted);padding:0 12px 10px;min-height:20px}
+.preview.bad{color:var(--bad)}
+.keys{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+.keys button{height:40px;border-radius:8px;border:1px solid var(--line);background:var(--paper);font-family:var(--mono);font-size:15px}
+.keys button:hover{border-color:var(--ink)}
+.keys .eq{background:var(--ink);color:var(--card);border-color:var(--ink);grid-column:span 2}
+.keys .op{color:var(--brass-ink);font-weight:600}
+.vals{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
+.val{position:relative;border:1px solid var(--steel);border-radius:10px;background:var(--paper);padding:6px 22px 6px 8px;text-align:left;min-width:0}
+.val b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.val span{display:block;font-family:var(--mono);font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.val .del{position:absolute;top:2px;right:2px;width:18px;height:18px;border:0;background:transparent;color:var(--muted);font-size:14px;line-height:1;padding:0}
+.saverow{display:flex;gap:6px;margin-top:8px}
+.saverow input{flex:1;min-width:0;height:36px;border:1px solid var(--line);border-radius:8px;padding:0 10px;background:var(--card)}
+.saverow button{height:36px}
+.hist{font-family:var(--mono);font-size:13px;max-height:140px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.hist div{padding:5px 10px;border-bottom:1px solid var(--line);cursor:pointer;overflow-wrap:anywhere}
+.hist div:last-child{border-bottom:0}
+.hist div:hover{background:var(--paper)}
+.notes{width:100%;min-height:120px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--card);resize:vertical}
+.empty{font-size:13px;color:var(--muted)}
+
+/* Admin */
+.subtabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:18px}
+.subtabs button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 14px;font-size:14px}
+.subtabs button.on{background:var(--steel);color:var(--card);border-color:var(--steel)}
+.card h2{font-family:var(--serif);font-weight:600;font-size:20px;margin:0 0 12px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;white-space:nowrap}
+th{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--paper)}
+tr.today td{background:var(--brass-soft)}
+td input,td select{height:30px;border:1px solid var(--line);border-radius:6px;padding:0 6px;background:var(--card);max-width:200px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-family:var(--mono);min-width:0}
+.form input,.form select{height:38px;border:1px solid var(--line);border-radius:8px;padding:0 10px;background:var(--card);font-family:var(--sans);font-size:15px;color:var(--ink);min-width:0}
+.form .full{grid-column:1/-1}
+@media (max-width:560px){.form{grid-template-columns:1fr}}
+.prev{font-size:13px;color:var(--muted);margin-top:8px}
+.sug{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:8px}
+.sug .t{font-weight:600}
+.sug .m{font-size:13px;color:var(--muted)}
+.mini{height:30px;padding:0 10px;font-size:13px;border-radius:8px;border:1px solid var(--line);background:var(--card)}
+.mini:hover{border-color:var(--ink)}
+.mini.danger{color:var(--bad)}
+.switch{position:relative;display:inline-block;width:40px;height:22px}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;background:var(--track);border-radius:999px;transition:.2s}
+.switch span:before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:var(--card);border-radius:50%;transition:.2s}
+.switch input:checked+span{background:var(--good)}
+.switch input:checked+span:before{transform:translateX(18px)}
+.switch input:disabled+span{opacity:.5}
+
+@media (max-width:480px){
+  .card{padding:18px}
+  .guess{flex-direction:column}
+  .primary{width:100%}
+  .big{font-size:54px}
+  .word{font-size:22px}
+}
+@media (prefers-reduced-motion:reduce){
+  .arm-g,.ymark{transition:none}
+  .arm-g.idle{animation:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <rect x="4" y="15" width="32" height="4" rx="2" fill="currentColor" transform="rotate(-8 20 17)"/>
+        <path d="M20 18 L13 33 H27 Z" fill="#B8852B"/>
+        <circle cx="20" cy="17" r="2.6" style="fill:var(--card)" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+      <span class="word">Threshold</span>
+    </div>
+    <div class="tools">
+      <button class="pill" id="unitBtn" title="Switch units">US</button>
+      <button class="icon" id="helpBtn" aria-label="How to play">?</button>
+      <button class="icon" id="statsBtn" aria-label="Stats">
+        <svg viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="5" width="4" height="13" rx="1"/><rect x="14" y="2" width="4" height="16" rx="1"/></svg>
+      </button>
+      <button class="icon" id="padBtn" aria-label="Scratchpad">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="2" width="13" height="16" rx="2"/><path d="M6.5 5.5h7M7 10h0M10 10h0M13 10h0M7 13.5h0M10 13.5h0M13 13.5h0" stroke-linecap="round" stroke-width="2.2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" hidden>
+    <button data-view="daily" class="on">Daily</button>
+    <button data-view="unlimited" id="tabUnl" hidden>Unlimited</button>
+    <button data-view="admin" id="tabAdm" hidden>Admin</button>
+  </nav>
+
+  <main>
+    <section id="view-daily"><div class="loading">Setting up the scale…</div></section>
+    <section id="view-unlimited" hidden></section>
+    <section id="view-admin" hidden></section>
+  </main>
+</div>
+
+<div id="scrim"></div>
+<aside class="drawer" id="pad" aria-hidden="true">
+  <div class="dhead"><h3>Scratchpad</h3><button class="x" style="position:static" id="padClose" aria-label="Close">×</button></div>
+  <div class="dbody">
+    <div class="calc">
+      <input id="expr" autocomplete="off" spellcheck="false" placeholder="e.g. cat*150  or  cat = 9">
+      <div class="preview" id="preview"></div>
+    </div>
+    <div class="keys" id="keys"></div>
+    <div class="dlabel">Saved values · tap to use</div>
+    <div class="vals" id="vals"></div>
+    <div class="saverow">
+      <input id="saveName" placeholder="Name (e.g. horse)" maxlength="24">
+      <button class="ghost" id="saveBtn">Save result</button>
+    </div>
+    <div class="dlabel">History</div>
+    <div class="hist" id="hist"></div>
+    <div class="dlabel">Notes</div>
+    <textarea class="notes" id="notes" placeholder="Jot down guesses, estimates, reasoning…"></textarea>
+  </div>
+</aside>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <button class="x" id="modalX" aria-label="Close">×</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ═══════════════ Setup ═══════════════ */
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const S = {
+  cid: store.get('th.cid', null) || (() => { const id = 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36); store.set('th.cid', id); return id; })(),
+  units: store.get('th.units', 'imperial'),
+  data: null, stats: null, view: 'daily',
+  daily: { mode: 'daily' }, unl: { mode: 'unlimited' }
+};
+
+function call(fn, ...args){
+  return new Promise((res, rej) => {
+    if (!window.google || !google.script) return rej(new Error('Open this through the Apps Script web app link.'));
+    google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args);
+  });
+}
+function friendly(e){ return String((e && e.message) || e || 'Something went wrong.').replace(/^(Exception|Error):\s*/, ''); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const mmss = s => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60; return (h ? h + ':' + String(m).padStart(2,'0') : m) + ':' + String(x).padStart(2,'0'); };
+
+/* ═══════════════ Units & formatting ═══════════════ */
+const LABEL = { weight:'weight', length:'length', height:'height', distance:'distance', area:'area', volume:'volume', age:'age', lifespan:'lifespan', duration:'duration', speed:'top speed', population:'population', price:'price', calories:'calories' };
+const BASE = { weight:'kg', length:'m', height:'m', distance:'m', area:'m²', volume:'L', age:'years', lifespan:'years', duration:'seconds', speed:'m/s', population:'people', price:'USD', calories:'kcal' };
+const MORE = { weight:['heavier','lighter'], length:['longer','shorter'], height:['taller','shorter'], distance:['farther','shorter'], area:['bigger','smaller'], volume:['bigger','smaller'], age:['older','younger'], lifespan:['longer-lived','shorter-lived'], duration:['longer','shorter'], speed:['faster','slower'], population:['more populous','less populous'], price:['pricier','cheaper'], calories:['more caloric','less caloric'] };
+const label = p => LABEL[p.property] || p.property;
+
+function sig(n){
+  if (!isFinite(n)) return '—';
+  if (n === 0) return '0';
+  if (Math.abs(n) < 0.001) return n.toExponential(1);
+  return Number(n.toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 6 });
+}
+function nice(n){
+  const a = Math.abs(n);
+  if (a >= 1e12) return sig(n/1e12) + ' trillion';
+  if (a >= 1e9) return sig(n/1e9) + ' billion';
+  if (a >= 1e6) return sig(n/1e6) + ' million';
+  return sig(n);
+}
+function dur(s){
+  if (s < 1) return nice(s*1000) + ' ms';
+  if (s < 60) return nice(s) + ' sec';
+  if (s < 3600) return nice(s/60) + ' min';
+  if (s < 86400) return nice(s/3600) + ' hr';
+  if (s < 31557600) return nice(s/86400) + ' days';
+  return nice(s/31557600) + ' years';
+}
+function fmt(prop, v, unitLabel){
+  const imp = S.units === 'imperial';
+  switch (prop){
+    case 'weight': {
+      if (imp){ const lb = v*2.20462; if (lb < 1) return nice(lb*16) + ' oz'; if (lb < 4000) return nice(lb) + ' lb'; return nice(lb/2000) + ' tons'; }
+      if (v < 0.001) return nice(v*1e6) + ' mg'; if (v < 1) return nice(v*1000) + ' g'; if (v < 1000) return nice(v) + ' kg'; return nice(v/1000) + ' tonnes';
+    }
+    case 'length': case 'height': case 'distance': {
+      if (imp){ const ft = v*3.28084; if (ft < 1) return nice(ft*12) + ' in'; if (ft < 5280) return nice(ft) + ' ft'; return nice(ft/5280) + ' mi'; }
+      if (v < 0.01) return nice(v*1000) + ' mm'; if (v < 1) return nice(v*100) + ' cm'; if (v < 1000) return nice(v) + ' m'; return nice(v/1000) + ' km';
+    }
+    case 'area': {
+      if (imp){ const sf = v*10.7639; if (sf < 43560) return nice(sf) + ' sq ft'; const ac = sf/43560; if (ac < 640) return nice(ac) + ' acres'; return nice(ac/640) + ' sq mi'; }
+      if (v < 1e4) return nice(v) + ' m²'; if (v < 1e6) return nice(v/1e4) + ' hectares'; return nice(v/1e6) + ' km²';
+    }
+    case 'volume': {
+      if (imp){ const oz = v*33.814; if (oz < 128) return nice(oz) + ' fl oz'; return nice(oz/128) + ' gallons'; }
+      if (v < 1) return nice(v*1000) + ' mL'; if (v < 1000) return nice(v) + ' L'; return nice(v/1000) + ' m³';
+    }
+    case 'speed': return imp ? nice(v*2.23694) + ' mph' : nice(v*3.6) + ' km/h';
+    case 'duration': return dur(v);
+    case 'age': case 'lifespan': return dur(v*31557600);
+    case 'population': return nice(v) + ' people';
+    case 'price': return '$' + nice(v);
+    case 'calories': return nice(v) + ' Cal';
+    default: return nice(v) + (unitLabel ? ' ' + unitLabel : '');
+  }
+}
+
+/* ═══════════════ Scoring (mirror of server) ═══════════════ */
+function scoreFor(A, B, g){
+  const a = Math.min(A,B), b = Math.max(A,B);
+  if (!(a > 0 && b > 0 && g > 0)) return 0;
+  const mid = Math.sqrt(a*b), err = Math.abs(Math.log(g/mid)), half = Math.log(b/mid);
+  const rel = half > 0 ? 100*(1 - err/half) : 0;
+  const L15 = Math.log(1.5), L3 = Math.log(3), L30 = Math.log(30);
+  const cap = err <= L15 ? 100 : err <= L3 ? 100 - 50*(err-L15)/(L3-L15) : Math.max(0, 50 - 50*(err-L3)/(L30-L3));
+  return Math.max(0, Math.round(Math.min(rel, cap)));
+}
+function posOf(p, v){ const la = Math.log(p.valueA), lb = Math.log(p.valueB); return (Math.log(v) - la)/(lb - la); }
+function verdict(s){ return s >= 100 ? 'Perfect balance' : s >= 90 ? 'Nearly level' : s >= 75 ? 'Slight tilt' : s >= 50 ? 'Leaning' : s >= 25 ? 'Tipping' : 'Toppled'; }
+
+/* ═══════════════ Beam ═══════════════ */
+function beamSVG(state){
+  // state: { idle:true } or { tilt:deg, pos:0..1 }
+  let ticks = '';
+  for (let i = 1; i < 10; i++){ const x = 30 + i*54; ticks += `<line class="tick" x1="${x}" y1="90" x2="${x}" y2="95"/>`; }
+  const token = state.idle
+    ? `<circle class="qtok" cx="300" cy="64" r="17"/><text class="qtok-t" x="300" y="70">?</text>`
+    : `<path class="notch" d="M293 86 L307 86 L300 79 Z"/><circle class="you" cx="${(55 + 490*clamp(state.pos,0,1)).toFixed(1)}" cy="72" r="15"/>`;
+  return `<svg class="beam" viewBox="0 0 600 160" role="img" aria-label="Balance beam">
+    <g class="arm-g ${state.idle ? 'idle' : ''}" ${state.idle ? '' : `data-tilt="${state.tilt}"`}>
+      <rect class="arm" x="30" y="88" width="540" height="9" rx="4.5"/>
+      ${ticks}
+      <rect class="blk" x="40" y="50" width="46" height="38" rx="7"/><text class="blk-t" x="63" y="75">A</text>
+      <rect class="blk" x="514" y="50" width="46" height="38" rx="7"/><text class="blk-t" x="537" y="75">B</text>
+      ${token}
+    </g>
+    <path class="fulcrum" d="M300 98 L270 148 L330 148 Z"/>
+    <rect class="base" x="232" y="148" width="136" height="7" rx="3.5"/>
+    <circle class="pivot" cx="300" cy="92" r="6"/>
+  </svg>`;
+}
+function settleBeams(root){
+  root.querySelectorAll('.arm-g[data-tilt]').forEach(g => {
+    const t = Number(g.dataset.tilt) || 0;
+    requestAnimationFrame(() => setTimeout(() => { g.style.transform = `rotate(${t}deg)`; }, 80));
+  });
+  root.querySelectorAll('.ymark[data-left]').forEach(m => {
+    requestAnimationFrame(() => setTimeout(() => { m.style.left = m.dataset.left; }, 80));
+  });
+}
+
+/* ═══════════════ Game view (shared by daily + unlimited) ═══════════════ */
+function viewEl(mode){ return mode === 'daily' ? $('#view-daily') : $('#view-unlimited'); }
+function dateLabel(d){ try{ return new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' }); }catch(e){ return d; } }
+
+function renderGame(g){
+  const el = viewEl(g.mode);
+  if (!g.puzzle){ el.innerHTML = `<div class="loading">Setting up the scale…</div>`; return; }
+  if (g.reveal) return renderReveal(g);
+  const p = g.puzzle;
+  const kick = g.mode === 'daily' ? `Puzzle #${S.data.number} · ${dateLabel(S.data.date)}` : 'Unlimited · practice';
+  el.innerHTML = `
+    <div class="card">
+      <div class="kicker"><span>${esc(kick)}</span><span class="clock">⏱ ${mmss(elapsed(g))}</span></div>
+      <h1 class="q">Name something whose <em>${esc(label(p))}</em> sits right between…</h1>
+      <div class="beam-wrap">${beamSVG({ idle:true })}</div>
+      <div class="ends">
+        <div class="end"><span class="tag">A</span><span>${esc(p.itemA)}</span></div>
+        <div class="end right"><span class="tag">B</span><span>${esc(p.itemB)}</span></div>
+      </div>
+      <form class="guess" autocomplete="off">
+        <input name="a" maxlength="80" placeholder="Name something real…" aria-label="Your answer">
+        <button class="primary" type="submit">Place it</button>
+      </form>
+      <div class="msg"></div>
+      <p class="fine">One guess. "Middle" is measured by ratio — halfway between 1 and 100 is 10, not 50. Open the scratchpad to work it out.</p>
+    </div>`;
+  const form = el.querySelector('form');
+  form.addEventListener('submit', ev => { ev.preventDefault(); const a = form.a.value.trim(); if (a) submit(g, a, false); });
+  if (window.innerWidth > 640) form.a.focus();
+}
+
+function elapsed(g){
+  if (!g.start){
+    if (g.mode === 'daily'){
+      const k = 'th.start.' + S.data.date;
+      g.start = store.get(k, null) || Date.now();
+      store.set(k, g.start);
+    } else g.start = Date.now();
+  }
+  return Math.round((Date.now() - g.start)/1000);
+}
+
+async function submit(g, answer, avg){
+  const el = viewEl(g.mode);
+  const btn = el.querySelector('.primary'), input = el.querySelector('input[name=a]'), msg = el.querySelector('.msg');
+  g.lastAnswer = answer;
+  btn.disabled = true; btn.textContent = 'Weighing…'; input.disabled = true; msg.innerHTML = '';
+  try{
+    const secs = elapsed(g);
+    const res = g.mode === 'daily'
+      ? await call('submitDaily', S.cid, answer, !!avg, secs)
+      : await call('submitUnlimited', S.cid, g.puzzle.id, answer, !!avg, secs);
+    if (res.status === 'ok' || res.status === 'already'){
+      g.reveal = res.reveal; if (res.stats) S.stats = res.stats;
+      renderGame(g); return;
+    }
+    if (res.status === 'vague'){
+      msg.innerHTML = `<div class="vague"><p><b>That one varies a lot.</b> Want to be more specific?</p>
+        <div class="chips">${(res.suggestions || []).map(s => `<button type="button" class="chip">${esc(s)}</button>`).join('')}</div>
+        <button type="button" class="ghost avg">Use the average for “${esc(answer)}”</button></div>`;
+      msg.querySelectorAll('.chip').forEach(c => c.onclick = () => { input.value = c.textContent; submit(g, c.textContent, false); });
+      msg.querySelector('.avg').onclick = () => submit(g, answer, true);
+    } else {
+      msg.innerHTML = `<div class="err">${esc(res.reason || "Couldn't use that. Try something real and specific.")}</div>`;
+    }
+  }catch(e){
+    msg.innerHTML = `<div class="err">${esc(friendly(e))}</div>`;
+  }finally{
+    if (!g.reveal){ btn.disabled = false; btn.textContent = 'Place it'; input.disabled = false; input.focus(); input.select(); }
+  }
+}
+
+function renderReveal(g){
+  const el = viewEl(g.mode), r = g.reveal, p = r.puzzle;
+  const mid = Math.sqrt(p.valueA * p.valueB);
+  const pos = posOf(p, r.value), cpos = clamp(pos, 0, 1);
+  const tilt = clamp((cpos - 0.5) * 2 * 12, -12, 12);
+  const kick = g.mode === 'daily' ? `Puzzle #${S.data.number} · ${dateLabel(S.data.date)}` : 'Unlimited · practice';
+
+  // Gradient that shows what every spot on the beam would have scored
+  const stops = [];
+  for (let i = 0; i <= 40; i++){
+    const t = i/40, v = Math.exp(Math.log(p.valueA) + t*(Math.log(p.valueB) - Math.log(p.valueA)));
+    const s = scoreFor(p.valueA, p.valueB, v);
+    stops.push(`color-mix(in srgb, var(--brass) ${s}%, var(--track)) ${(t*100).toFixed(1)}%`);
+  }
+  const edge = x => x < 0.14 ? 'l' : x > 0.86 ? 'r' : '';
+  const dots = (r.others || []).map(v => `<span class="dot" style="left:${(clamp(posOf(p, v),0,1)*100).toFixed(2)}%"></span>`).join('');
+  const off = offText(p, r.value, mid);
+  const outside = pos < 0 || pos > 1;
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="kicker"><span>${esc(kick)}</span><span>${esc(label(p))}</span></div>
+      <div class="beam-wrap">${beamSVG({ tilt, pos: cpos })}</div>
+      <div class="scoreline">
+        <div class="big">${r.score}</div>
+        <div><div class="verdict">${verdict(r.score)}</div><div class="sub">out of 100</div></div>
+      </div>
+      <p class="est">Average ${esc(label(p))} of <b>${esc(r.name)}</b> is about <b>${esc(fmt(p.property, r.value, p.unitLabel))}</b>.</p>
+      <div class="slider">
+        <div class="plabel" style="left:50%">Perfect middle<br><b>~${esc(fmt(p.property, mid, p.unitLabel))}</b></div>
+        <div class="track" style="background:linear-gradient(90deg, ${stops.join(',')})">
+          ${dots}
+          <span class="pmark" style="left:50%"></span>
+          <span class="ymark" style="left:50%" data-left="${(cpos*100).toFixed(2)}%"></span>
+        </div>
+        <div class="ylabel ${edge(cpos)}" style="left:${(cpos*100).toFixed(2)}%">${outside ? (pos < 0 ? '← past A' : 'past B →') : 'You'} · <b>${r.score}</b></div>
+      </div>
+      <div class="endsrow">
+        <div><b>A · ${esc(p.itemA)}</b><span>~${esc(fmt(p.property, p.valueA, p.unitLabel))}</span></div>
+        <div class="r"><b>B · ${esc(p.itemB)}</b><span>~${esc(fmt(p.property, p.valueB, p.unitLabel))}</span></div>
+      </div>
+      <div class="facts">
+        <span class="fact">${esc(off)}</span>
+        <span class="fact">⏱ ${mmss(r.seconds)}</span>
+        <span class="fact">You said “${esc(r.answer)}”</span>
+      </div>
+      ${g.mode === 'daily'
+        ? `<div class="rank">${r.rank.total > 1 ? `You beat <b>${r.rank.beat}%</b> of today's ${r.rank.total} players.` : `You're the first to play today.`}</div>
+           <div class="row"><button class="primary share">Share result</button><button class="ghost stats">Stats</button></div>
+           <div class="countdown">Next puzzle in <b class="cd">--:--:--</b></div>`
+        : `<div class="rank">Unlimited: <b>${S.stats ? S.stats.unlimited.played : 0}</b> played · average <b>${S.stats ? S.stats.unlimited.avg : 0}</b></div>
+           <div class="row"><button class="primary next">Next puzzle →</button><button class="ghost share">Share</button></div>`}
+    </div>`;
+  el.querySelector('.share').onclick = () => share(g);
+  const st = el.querySelector('.stats'); if (st) st.onclick = showStats;
+  const nx = el.querySelector('.next'); if (nx) nx.onclick = () => loadUnlimited(true);
+  settleBeams(el);
+  tick();
+}
+
+function offText(p, v, mid){
+  const words = MORE[p.property] || ['more','less'];
+  if (Math.abs(Math.log(v/mid)) < 0.01) return 'Dead center!';
+  if (v > mid){ const f = v/mid; return f < 2 ? `${Math.round((f-1)*100)}% ${words[0]} than the perfect middle` : `${f < 10 ? f.toFixed(1) : nice(f)}× ${words[0]} than the perfect middle`; }
+  const f = mid/v; return f < 2 ? `${Math.round((1 - v/mid)*100)}% ${words[1]} than the perfect middle` : `${f < 10 ? f.toFixed(1) : nice(f)}× ${words[1]} than the perfect middle`;
+}
+
+function share(g){
+  const r = g.reveal, p = r.puzzle;
+  const pos = posOf(p, r.value);
+  const yi = Math.round(clamp(pos, 0, 1) * 8);
+  let cells = '';
+  for (let i = 0; i < 9; i++) cells += (i === yi && i === 4) ? '🎯' : i === yi ? '⚫' : i === 4 ? '🟨' : '⬜';
+  const head = g.mode === 'daily' ? `Threshold #${S.data.number} ⚖️ ${r.score}/100` : `Threshold (practice) ⚖️ ${r.score}/100`;
+  const text = `${head}\nA ${cells} B\n⏱ ${mmss(r.seconds)}` + (S.data.url ? `\n${S.data.url}` : '');
+  copyText(text);
+}
+function copyText(text){
+  const done = () => toast('Copied to clipboard');
+  const manual = () => {
+    openModal(`<h2>Share</h2><p class="fine" style="margin-top:0">Copy this and paste it anywhere.</p><textarea class="copybox" readonly>${esc(text)}</textarea>`);
+    const ta = $('#modalBody textarea'); ta.focus(); ta.select();
+  };
+  const legacy = () => {
+    try{
+      const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove();
+      ok ? done() : manual();
+    }catch(e){ manual(); }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, legacy);
+  else legacy();
+}
+
+/* ═══════════════ Clock + countdown ═══════════════ */
+function tick(){
+  [S.daily, S.unl].forEach(g => {
+    if (g.puzzle && !g.reveal){ const c = viewEl(g.mode).querySelector('.clock'); if (c) c.textContent = '⏱ ' + mmss(elapsed(g)); }
+  });
+  const cd = $('#view-daily .cd');
+  if (cd){
+    const now = new Date();
+    const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+    const ms = next - now.getTime();
+    if (ms <= 1000){ cd.textContent = 'ready — reload'; if (!S.reloading){ S.reloading = true; setTimeout(boot, 2500); } }
+    else { const s = Math.floor(ms/1000); cd.textContent = [Math.floor(s/3600), Math.floor(s%3600/60), s%60].map(n => String(n).padStart(2,'0')).join(':'); }
+  }
+}
+setInterval(tick, 1000);
+
+/* ═══════════════ Modals ═══════════════ */
+function openModal(html){ $('#modalBody').innerHTML = html; $('#modal').hidden = false; }
+function closeModal(){ $('#modal').hidden = true; }
+$('#modalX').onclick = closeModal;
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeModal(); closePad(); } });
+
+function showHelp(){
+  openModal(`<h2>How to play</h2>
+    <ol class="steps">
+      <li>Each day you get two real things, <b>A</b> and <b>B</b>, and one property — weight, height, speed, price, and so on.</li>
+      <li>Name one real thing whose value sits <b>right in the middle</b>. You get one guess.</li>
+      <li>The middle is measured by <b>ratio</b>: between 1 and 100, the middle is 10. Between 10 and 1,000,000, it's 3,162.</li>
+      <li>If your answer is vague (like “dog”), you can get more specific or use the average.</li>
+      <li>Use the <b>scratchpad</b> to save estimates and do the math.</li>
+    </ol>
+    <h2 style="font-size:18px;margin-top:18px">Scoring</h2>
+    <p style="margin:0">100 at the exact middle, 0 at either end. Once you're more than 1.5× off, extra points start dropping — and being 3× or more off caps you at 50. The colored beam on the results shows what every spot would have scored.</p>
+    <p class="fine">A new puzzle arrives every day at midnight UTC (7 pm Central).</p>`);
+}
+function showStats(){
+  const s = S.stats || { played:0, avg:0, best:0, streak:0, maxStreak:0, dist:[0,0,0,0,0,0], unlimited:{played:0,avg:0} };
+  const max = Math.max(1, ...s.dist);
+  const names = ['0–19','20–39','40–59','60–79','80–99','100'];
+  openModal(`<h2>Your stats</h2>
+    <div class="statgrid">
+      <div><b>${s.played}</b><span>Played</span></div>
+      <div><b>${s.avg}</b><span>Avg score</span></div>
+      <div><b>${s.best}</b><span>Best</span></div>
+      <div><b>${s.streak}</b><span>Streak</span></div>
+      <div><b>${s.maxStreak}</b><span>Max streak</span></div>
+    </div>
+    <div class="bars">${s.dist.map((n,i) => `<div class="bar"><span>${names[i]}</span><i style="width:${Math.max(8, n/max*100)}%">${n}</i></div>`).join('')}</div>
+    ${S.data && S.data.canUnlimited ? `<p class="fine">Unlimited: ${s.unlimited.played} played · average ${s.unlimited.avg}</p>` : ''}`);
+}
+$('#helpBtn').onclick = showHelp;
+$('#statsBtn').onclick = showStats;
+
+/* ═══════════════ Units toggle ═══════════════ */
+function paintUnits(){ $('#unitBtn').textContent = S.units === 'imperial' ? 'US' : 'Metric'; }
+$('#unitBtn').onclick = () => {
+  S.units = S.units === 'imperial' ? 'metric' : 'imperial'; store.set('th.units', S.units); paintUnits();
+  if (S.daily.reveal) renderGame(S.daily);
+  if (S.unl.reveal) renderGame(S.unl);
+  if (S.view === 'admin') renderAdmin(S.adminTab);
+  renderPad();
+};
+paintUnits();
+
+/* ═══════════════ Tabs ═══════════════ */
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => switchView(b.dataset.view));
+function switchView(v){
+  S.view = v;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  ['daily','unlimited','admin'].forEach(n => $('#view-' + n).hidden = n !== v);
+  if (v === 'unlimited' && !S.unl.puzzle) loadUnlimited(false);
+  if (v === 'admin') renderAdmin(S.adminTab || 'users');
+}
+
+/* ═══════════════ Boot ═══════════════ */
+async function boot(){
+  S.reloading = false;
+  try{
+    const d = await call('init', S.cid);
+    S.data = d; S.stats = d.stats;
+    S.daily = { mode:'daily', puzzle: d.puzzle, reveal: d.reveal };
+    if (d.canUnlimited || d.isAdmin){
+      $('#tabs').hidden = false;
+      $('#tabUnl').hidden = !d.canUnlimited;
+      $('#tabAdm').hidden = !d.isAdmin;
+    }
+    renderGame(S.daily);
+    if (!store.get('th.seenHelp', false)){ store.set('th.seenHelp', true); showHelp(); }
+  }catch(e){
+    $('#view-daily').innerHTML = `<div class="card"><div class="err">${esc(friendly(e))}</div></div>`;
+  }
+}
+
+async function loadUnlimited(force){
+  if (S.unl.loading) return;
+  S.unl = { mode:'unlimited', loading:true };
+  $('#view-unlimited').innerHTML = `<div class="loading">Building a new puzzle…</div>`;
+  try{
+    const p = await call('newUnlimited', S.cid);
+    S.unl = { mode:'unlimited', puzzle: p };
+    renderGame(S.unl);
+  }catch(e){
+    S.unl = { mode:'unlimited' };
+    $('#view-unlimited').innerHTML = `<div class="card"><div class="err">${esc(friendly(e))}</div><div class="row"><button class="ghost" id="retryU">Try again</button></div></div>`;
+    $('#retryU').onclick = () => loadUnlimited(true);
+  }
+}
+
+/* ═══════════════ Scratchpad ═══════════════ */
+const pad = Object.assign({ vals: [], hist: [], notes: '', last: null }, store.get('th.pad', {}));
+const savePad = () => store.set('th.pad', pad);
+const FN = { sqrt: Math.sqrt, cbrt: Math.cbrt, ln: Math.log, log: Math.log10, abs: Math.abs };
+const idOf = name => name.trim().replace(/\s+/g, '_');
+
+function calc(src){
+  src = String(src).replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/,/g,'');
+  const vars = {}; pad.vals.forEach(v => vars[idOf(v.name).toLowerCase()] = v.value);
+  const toks = []; let i = 0;
+  while (i < src.length){
+    const c = src[i], rest = src.slice(i); let m;
+    if (/\s/.test(c)){ i++; continue; }
+    if ((m = /^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/i.exec(rest))){ toks.push({ t:'n', v: parseFloat(m[0]) }); i += m[0].length; continue; }
+    if ((m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(rest))){ toks.push({ t:'id', v: m[0] }); i += m[0].length; continue; }
+    if ('+-*/^()√%'.includes(c)){ toks.push({ t:c }); i++; continue; }
+    throw new Error(`Can't read “${c}”`);
+  }
+  const out = [];
+  toks.forEach(tk => {
+    const p = out[out.length - 1];
+    const pEnd = p && (p.t === 'n' || p.t === ')' || p.t === '%' || (p.t === 'id' && !FN[p.v.toLowerCase()]));
+    const nStart = tk.t === 'n' || tk.t === 'id' || tk.t === '(' || tk.t === '√';
+    if (pEnd && nStart) out.push({ t:'*' });
+    out.push(tk);
+  });
+  let k = 0;
+  const eat = t => (out[k] && out[k].t === t) ? (k++, true) : false;
+  const expr = () => { let v = term(); for(;;){ if (eat('+')) v += term(); else if (eat('-')) v -= term(); else return v; } };
+  const term = () => { let v = unary(); for(;;){ if (eat('*')) v *= unary(); else if (eat('/')) v /= unary(); else return v; } };
+  const unary = () => eat('-') ? -unary() : eat('+') ? unary() : power();
+  const power = () => { const b = postfix(); return eat('^') ? Math.pow(b, unary()) : b; };
+  const postfix = () => { let v = primary(); while (eat('%')) v /= 100; return v; };
+  const primary = () => {
+    const tk = out[k]; if (!tk) throw new Error('Incomplete');
+    if (tk.t === 'n'){ k++; return tk.v; }
+    if (tk.t === '√'){ k++; return Math.sqrt(unary()); }
+    if (tk.t === '('){ k++; const v = expr(); if (!eat(')')) throw new Error('Missing )'); return v; }
+    if (tk.t === 'id'){
+      k++; const n = tk.v.toLowerCase();
+      if (FN[n] && out[k] && out[k].t === '('){ k++; const v = expr(); if (!eat(')')) throw new Error('Missing )'); return FN[n](v); }
+      if (n === 'pi') return Math.PI;
+      if (vars[n] !== undefined) return vars[n];
+      throw new Error(`No saved value “${tk.v}”`);
+    }
+    throw new Error(`Unexpected ${tk.t}`);
+  };
+  const v = expr();
+  if (k < out.length) throw new Error(`Unexpected ${out[k].t}`);
+  if (!isFinite(v)) throw new Error('Not a number');
+  return v;
+}
+function num(v){
+  if (!isFinite(v)) return '—';
+  const a = Math.abs(v);
+  if (a !== 0 && (a >= 1e15 || a < 1e-6)) return v.toExponential(4);
+  return Number(v.toPrecision(10)).toLocaleString('en-US', { maximumFractionDigits: 6 });
+}
+
+function renderPad(){
+  $('#vals').innerHTML = pad.vals.length
+    ? pad.vals.map((v, i) => `<button class="val" data-i="${i}" title="Insert ${esc(v.name)}"><b>${esc(v.name)}</b><span>${num(v.value)}</span><span class="del" data-del="${i}" role="button" aria-label="Delete">×</span></button>`).join('')
+    : `<div class="empty">Type <code>horse = 1100</code> and press Enter, or save a result below.</div>`;
+  $('#hist').innerHTML = pad.hist.length
+    ? pad.hist.slice().reverse().map(h => `<div data-v="${h.v}">${esc(h.e)} = <b>${num(h.v)}</b></div>`).join('')
+    : `<div class="empty" style="cursor:default">Nothing yet.</div>`;
+  $('#notes').value = pad.notes;
+}
+function insertAtCursor(txt){
+  const e = $('#expr'); const s = e.selectionStart ?? e.value.length, en = e.selectionEnd ?? e.value.length;
+  e.value = e.value.slice(0, s) + txt + e.value.slice(en);
+  e.focus(); const p = s + txt.length; e.setSelectionRange(p, p); livePreview();
+}
+function livePreview(){
+  const e = $('#expr').value.trim(), pv = $('#preview');
+  pv.classList.remove('bad');
+  if (!e){ pv.textContent = ''; return; }
+  const m = e.match(/^([A-Za-z][A-Za-z0-9 _]{0,23})\s*=\s*(.+)$/);
+  try{
+    const v = calc(m ? m[2] : e);
+    pv.textContent = m ? `save ${m[1].trim()} = ${num(v)}  (Enter)` : '= ' + num(v);
+  }catch(err){ pv.textContent = err.message; pv.classList.add('bad'); }
+}
+function saveVal(name, value){
+  name = name.trim().slice(0, 24);
+  if (!name || !/^[A-Za-z]/.test(name)){ toast('Names must start with a letter'); return false; }
+  if (FN[idOf(name).toLowerCase()] || idOf(name).toLowerCase() === 'pi'){ toast('That name is reserved'); return false; }
+  const i = pad.vals.findIndex(v => idOf(v.name).toLowerCase() === idOf(name).toLowerCase());
+  if (i >= 0) pad.vals[i].value = value; else pad.vals.push({ name, value });
+  savePad(); renderPad(); return true;
+}
+function commit(){
+  const e = $('#expr'), src = e.value.trim();
+  if (!src) return;
+  const m = src.match(/^([A-Za-z][A-Za-z0-9 _]{0,23})\s*=\s*(.+)$/);
+  try{
+    if (m){
+      const v = calc(m[2]);
+      if (saveVal(m[1], v)){ pad.hist.push({ e: `${m[1].trim()} =`, v }); pad.last = v; e.value = ''; toast(`Saved ${m[1].trim()}`); }
+    } else {
+      const v = calc(src);
+      pad.hist.push({ e: src, v }); pad.last = v;
+      e.value = String(Number(v.toPrecision(10)));
+    }
+    pad.hist = pad.hist.slice(-30); savePad(); renderPad(); livePreview();
+  }catch(err){ $('#preview').textContent = err.message; $('#preview').classList.add('bad'); }
+}
+
+const KEYS = ['7','8','9','÷','(', '4','5','6','×',')', '1','2','3','−','^', '0','.','e','+','√', 'C','⌫','%','='];
+$('#keys').innerHTML = KEYS.map(k => `<button type="button" class="${'÷×−+^√%()'.includes(k) ? 'op' : ''}${k === '=' ? ' eq' : ''}" data-k="${k}" ${k === 'e' ? 'title="×10 to the power (1e6 = 1,000,000)"' : ''}>${k === 'e' ? 'E' : k}</button>`).join('');
+$('#keys').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  const k = b.dataset.k, e = $('#expr');
+  if (k === '=') return commit();
+  if (k === 'C'){ e.value = ''; livePreview(); e.focus(); return; }
+  if (k === '⌫'){ const s = e.selectionStart ?? e.value.length; if (s > 0){ e.value = e.value.slice(0, s-1) + e.value.slice(s); e.setSelectionRange(s-1, s-1); } livePreview(); e.focus(); return; }
+  insertAtCursor(k);
+});
+$('#expr').addEventListener('input', livePreview);
+$('#expr').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); commit(); } });
+$('#vals').addEventListener('click', ev => {
+  const del = ev.target.closest('[data-del]');
+  if (del){ ev.stopPropagation(); pad.vals.splice(Number(del.dataset.del), 1); savePad(); renderPad(); livePreview(); return; }
+  const b = ev.target.closest('.val'); if (b) insertAtCursor(idOf(pad.vals[Number(b.dataset.i)].name));
+});
+$('#hist').addEventListener('click', ev => { const d = ev.target.closest('[data-v]'); if (d) insertAtCursor(String(Number(Number(d.dataset.v).toPrecision(10)))); });
+$('#saveBtn').onclick = () => {
+  const name = $('#saveName').value;
+  let v = pad.last;
+  const cur = $('#expr').value.trim();
+  if (cur){ try{ v = calc(cur); }catch(e){} }
+  if (v == null || !isFinite(v)){ toast('Calculate something first'); return; }
+  if (saveVal(name, v)){ $('#saveName').value = ''; toast('Saved ' + name.trim()); }
+};
+$('#notes').addEventListener('input', () => { pad.notes = $('#notes').value; savePad(); });
+function openPad(){ $('#pad').classList.add('open'); $('#pad').setAttribute('aria-hidden','false'); $('#scrim').classList.add('on'); setTimeout(() => $('#expr').focus(), 250); }
+function closePad(){ $('#pad').classList.remove('open'); $('#pad').setAttribute('aria-hidden','true'); $('#scrim').classList.remove('on'); }
+$('#padBtn').onclick = openPad; $('#padClose').onclick = closePad; $('#scrim').onclick = closePad;
+renderPad();
+
+/* ═══════════════ Admin ═══════════════ */
+const PROP_KEYS = Object.keys(LABEL);
+function utcToday(){ return new Date().toISOString().slice(0,10); }
+function shortTime(iso){ if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); }
+
+function renderAdmin(tab){
+  S.adminTab = tab;
+  const el = $('#view-admin');
+  const tabs = [['users','Users'],['puzzles','Puzzles'],['guesses','Guesses'],['cache','Cached answers']];
+  el.innerHTML = `<div class="subtabs">${tabs.map(([k,n]) => `<button data-t="${k}" class="${k === tab ? 'on' : ''}">${n}</button>`).join('')}</div><div id="adminBox"></div>`;
+  el.querySelectorAll('.subtabs button').forEach(b => b.onclick = () => renderAdmin(b.dataset.t));
+  ({ users: adminUsers, puzzles: adminPuzzles, guesses: adminGuesses, cache: adminCache })[tab]($('#adminBox'));
+}
+
+async function adminUsers(box){
+  box.innerHTML = `<div class="loading">Loading players…</div>`;
+  try{
+    const list = await call('adminGetUsers', S.cid);
+    box.innerHTML = `<div class="card"><h2>Players (${list.length})</h2><div class="tbl"><table>
+      <thead><tr><th>Player</th><th>First seen</th><th>Last seen</th><th>Visits</th><th>Dailies</th><th>Unlimited</th></tr></thead>
+      <tbody>${list.map(u => `<tr><td>${esc(u.email)}${u.isAdmin ? ' <span class="sub">admin</span>' : ''}</td><td>${shortTime(u.firstSeen)}</td><td>${shortTime(u.lastSeen)}</td><td>${u.visits}</td><td>${u.dailies}</td>
+        <td><label class="switch"><input type="checkbox" data-email="${esc(u.email)}" ${u.unlimited ? 'checked' : ''} ${u.isAdmin ? 'disabled' : ''}><span></span></label></td></tr>`).join('')}</tbody></table></div></div>`;
+    box.querySelectorAll('input[data-email]').forEach(cb => cb.onchange = async () => {
+      try{ await call('adminSetUnlimited', S.cid, cb.dataset.email, cb.checked); toast((cb.checked ? 'Unlimited on for ' : 'Unlimited off for ') + cb.dataset.email); }
+      catch(e){ cb.checked = !cb.checked; toast(friendly(e)); }
+    });
+  }catch(e){ box.innerHTML = `<div class="card"><div class="err">${esc(friendly(e))}</div></div>`; }
+}
+
+async function adminPuzzles(box){
+  box.innerHTML = `
+    <div class="card"><h2>Generate ideas</h2>
+      <div class="row" style="margin-top:0">
+        <select id="genProp" class="mini" style="height:38px"><option value="">Any property</option>${PROP_KEYS.map(k => `<option value="${k}">${LABEL[k]}</option>`).join('')}</select>
+        <select id="genN" class="mini" style="height:38px">${[3,5,8,10].map(n => `<option ${n===5?'selected':''}>${n}</option>`).join('')}</select>
+        <button class="primary" id="genBtn" style="height:38px">Generate</button>
+      </div>
+      <div id="sugs"></div>
+    </div>
+    <div class="card" id="editorCard"><h2 id="edTitle">Add a puzzle</h2>
+      <div class="form">
+        <label>Date (UTC)<input type="date" id="peDate"></label>
+        <label>Property<select id="peProp">${PROP_KEYS.map(k => `<option value="${k}">${LABEL[k]}</option>`).join('')}<option value="__custom">custom…</option></select></label>
+        <label class="cust" hidden>Custom property<input id="peCustom" placeholder="e.g. number of moons"></label>
+        <label class="cust" hidden>Unit<input id="peUnit" placeholder="e.g. moons"></label>
+        <label>Item A<input id="peA" placeholder="an adult house cat"></label>
+        <label>Value A <span class="bu"></span><input id="peVA" type="number" step="any"></label>
+        <label>Item B<input id="peB" placeholder="a blue whale"></label>
+        <label>Value B <span class="bu"></span><input id="peVB" type="number" step="any"></label>
+        <label class="full">Note (admin only)<input id="peNote"></label>
+      </div>
+      <div class="prev" id="pePrev"></div>
+      <div class="row"><button class="primary" id="peSave" style="height:42px">Save puzzle</button><button class="ghost" id="peClear">Clear</button></div>
+      <input type="hidden" id="peOrig">
+    </div>
+    <div class="card"><h2>Schedule</h2><div id="sched"><div class="loading">Loading…</div></div></div>`;
+
+  const f = id => $('#' + id);
+  const isCustom = () => f('peProp').value === '__custom';
+  const curProp = () => isCustom() ? f('peCustom').value.trim().toLowerCase() : f('peProp').value;
+  const updateEditor = () => {
+    box.querySelectorAll('.cust').forEach(x => x.hidden = !isCustom());
+    box.querySelectorAll('.bu').forEach(x => x.textContent = isCustom() ? `(${f('peUnit').value || 'unit'})` : `(${BASE[f('peProp').value]})`);
+    const a = Number(f('peVA').value), b = Number(f('peVB').value), pr = curProp(), u = f('peUnit').value;
+    f('pePrev').textContent = (a > 0 && b > 0)
+      ? `A ≈ ${fmt(pr, a, u)} · B ≈ ${fmt(pr, b, u)} · perfect middle ≈ ${fmt(pr, Math.sqrt(a*b), u)} · ratio ${nice(Math.max(a,b)/Math.min(a,b))}×`
+      : 'Values are entered in the base unit shown. The preview converts them.';
+  };
+  ['peProp','peVA','peVB','peUnit','peCustom'].forEach(id => f(id).addEventListener('input', updateEditor));
+  const fill = p => {
+    const known = !p.property || PROP_KEYS.includes(p.property);
+    f('peDate').value = p.date || nextFree(); f('peOrig').value = p.originalDate || '';
+    f('peProp').value = known ? (p.property || 'weight') : '__custom'; f('peCustom').value = known ? '' : (p.property || ''); f('peUnit').value = p.unitLabel || '';
+    f('peA').value = p.itemA || ''; f('peVA').value = p.valueA || ''; f('peB').value = p.itemB || ''; f('peVB').value = p.valueB || ''; f('peNote').value = p.note || '';
+    f('edTitle').textContent = p.originalDate ? `Edit puzzle for ${p.originalDate}` : 'Add a puzzle';
+    updateEditor();
+  };
+  const clear = () => fill({});
+  let puzzles = [];
+  const nextFree = () => { const used = new Set(puzzles.map(p => p.date)); let d = new Date(utcToday() + 'T00:00:00Z'); while (used.has(d.toISOString().slice(0,10))) d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0,10); };
+  const drawSched = () => {
+    const today = utcToday();
+    f('sched').innerHTML = puzzles.length ? `<div class="tbl"><table>
+      <thead><tr><th>Date</th><th>A</th><th>B</th><th>Property</th><th>Middle</th><th>Status</th><th>Plays</th><th></th></tr></thead>
+      <tbody>${puzzles.map((p, i) => `<tr class="${p.date === today ? 'today' : ''}">
+        <td>${p.date}</td><td>${esc(p.itemA)}<br><span class="sub">${esc(fmt(p.property, p.valueA, p.unitLabel))}</span></td>
+        <td>${esc(p.itemB)}<br><span class="sub">${esc(fmt(p.property, p.valueB, p.unitLabel))}</span></td>
+        <td>${esc(LABEL[p.property] || p.property)}</td><td>${esc(fmt(p.property, Math.sqrt(p.valueA*p.valueB), p.unitLabel))}</td>
+        <td>${esc(p.status)}</td><td>${p.plays}</td>
+        <td><button class="mini" data-edit="${i}">Edit</button> <button class="mini danger" data-delp="${i}">Delete</button></td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="empty">No puzzles yet. Days without one get an automatic AI puzzle.</div>`;
+    f('sched').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { const p = puzzles[b.dataset.edit]; fill(Object.assign({}, p, { originalDate: p.date })); f('editorCard').scrollIntoView({ behavior:'smooth' }); });
+    f('sched').querySelectorAll('[data-delp]').forEach(b => b.onclick = async () => {
+      const p = puzzles[b.dataset.delp];
+      if (!confirm(`Delete the puzzle for ${p.date}?` + (p.plays ? ` ${p.plays} people already played it.` : ''))) return;
+      try{ puzzles = await call('adminDeletePuzzle', S.cid, p.date); drawSched(); toast('Deleted'); }catch(e){ toast(friendly(e)); }
+    });
+  };
+  f('peClear').onclick = clear;
+  f('peSave').onclick = async () => {
+    const orig = f('peOrig').value;
+    const existing = puzzles.find(p => p.date === (orig || f('peDate').value));
+    if (existing && existing.plays && !confirm(`${existing.plays} people already played this puzzle. Their scores won't change. Save anyway?`)) return;
+    const obj = { originalDate: orig, date: f('peDate').value, property: curProp(), unitLabel: isCustom() ? f('peUnit').value.trim() : '',
+      itemA: f('peA').value.trim(), valueA: Number(f('peVA').value), itemB: f('peB').value.trim(), valueB: Number(f('peVB').value), note: f('peNote').value.trim() };
+    f('peSave').disabled = true;
+    try{ puzzles = await call('adminSavePuzzle', S.cid, obj); drawSched(); clear(); toast('Saved'); }
+    catch(e){ toast(friendly(e)); }
+    finally{ f('peSave').disabled = false; }
+  };
+  f('genBtn').onclick = async () => {
+    f('genBtn').disabled = true; f('genBtn').textContent = 'Thinking…';
+    f('sugs').innerHTML = '';
+    try{
+      const list = await call('adminGenerate', S.cid, f('genProp').value, Number(f('genN').value));
+      if (!list.length){ f('sugs').innerHTML = `<p class="empty">Nothing usable came back. Try again.</p>`; return; }
+      f('sugs').innerHTML = list.map((p, i) => `<div class="sug">
+        <div class="t">${esc(p.itemA)} ↔ ${esc(p.itemB)} <span class="sub">· ${esc(LABEL[p.property] || p.property)}</span></div>
+        <div class="m">${esc(fmt(p.property, p.valueA, p.unitLabel))} ↔ ${esc(fmt(p.property, p.valueB, p.unitLabel))} · middle ≈ ${esc(fmt(p.property, Math.sqrt(p.valueA*p.valueB), p.unitLabel))}${p.note ? ' · ' + esc(p.note) : ''}</div>
+        <div class="row" style="margin-top:8px"><button class="mini" data-q="${i}">Schedule next open day</button><button class="mini" data-e="${i}">Edit first</button></div></div>`).join('');
+      f('sugs').querySelectorAll('[data-q]').forEach(b => b.onclick = async () => {
+        const p = list[b.dataset.q];
+        b.disabled = true;
+        try{ puzzles = await call('adminSavePuzzle', S.cid, Object.assign({}, p, { date: nextFree(), originalDate: '' })); drawSched(); b.closest('.sug').remove(); toast('Scheduled'); }
+        catch(e){ b.disabled = false; toast(friendly(e)); }
+      });
+      f('sugs').querySelectorAll('[data-e]').forEach(b => b.onclick = () => { fill(Object.assign({}, list[b.dataset.e], { date: nextFree() })); f('editorCard').scrollIntoView({ behavior:'smooth' }); });
+    }catch(e){ f('sugs').innerHTML = `<div class="err">${esc(friendly(e))}</div>`; }
+    finally{ f('genBtn').disabled = false; f('genBtn').textContent = 'Generate'; }
+  };
+  try{ puzzles = await call('adminGetPuzzles', S.cid); drawSched(); clear(); }
+  catch(e){ f('sched').innerHTML = `<div class="err">${esc(friendly(e))}</div>`; }
+}
+
+async function adminGuesses(box){
+  box.innerHTML = `<div class="card"><h2>Guesses</h2>
+    <div class="row" style="margin-top:0"><input type="date" id="gDate" class="mini" style="height:38px" value="${utcToday()}"><button class="ghost" id="gLoad">Load</button></div>
+    <div id="gList" style="margin-top:12px"></div></div>`;
+  const load = async () => {
+    $('#gList').innerHTML = `<div class="loading">Loading…</div>`;
+    try{
+      const list = await call('adminGetGuesses', S.cid, $('#gDate').value);
+      const daily = list.filter(g => g.mode === 'daily');
+      const avg = daily.length ? Math.round(daily.reduce((s,g) => s + g.score, 0) / daily.length) : 0;
+      $('#gList').innerHTML = list.length ? `<p class="fine" style="margin-top:0">${daily.length} daily · ${list.length - daily.length} unlimited · daily average ${avg}</p><div class="tbl"><table>
+        <thead><tr><th>Time</th><th>Player</th><th>Mode</th><th>Puzzle</th><th>Answer</th><th>Judged as</th><th>Value</th><th>Score</th><th>Took</th></tr></thead>
+        <tbody>${list.map(g => `<tr><td>${shortTime(g.timestamp)}</td><td>${esc(g.email)}</td><td>${g.mode}</td><td>${esc(g.itemA)} ↔ ${esc(g.itemB)}</td><td>${esc(g.answer)}</td><td>${esc(g.resolvedName)}</td><td>${esc(fmt(g.property, g.value, ''))}</td><td><b>${g.score}</b></td><td>${mmss(g.seconds)}</td></tr>`).join('')}</tbody></table></div>`
+        : `<div class="empty">No guesses on that day.</div>`;
+    }catch(e){ $('#gList').innerHTML = `<div class="err">${esc(friendly(e))}</div>`; }
+  };
+  $('#gLoad').onclick = load; $('#gDate').onchange = load; load();
+}
+
+async function adminCache(box){
+  box.innerHTML = `<div class="card"><h2>Cached answers</h2>
+    <p class="fine" style="margin-top:0">Every answer the AI judged is saved so the same answer always gets the same value. Fix a wrong one here — it affects future guesses only. Values are in base units (weight in kg, length in m, etc.).</p>
+    <div class="row" style="margin-top:8px"><input id="cQ" class="mini" style="height:38px;flex:1;min-width:0" placeholder="Search (e.g. horse)"><button class="ghost" id="cGo">Search</button></div>
+    <div id="cList" style="margin-top:12px"></div></div>`;
+  const load = async () => {
+    $('#cList').innerHTML = `<div class="loading">Loading…</div>`;
+    try{
+      const list = await call('adminSearchCache', S.cid, $('#cQ').value);
+      $('#cList').innerHTML = list.length ? `<div class="tbl"><table>
+        <thead><tr><th>Answer</th><th>Property</th><th>Status</th><th>Judged as</th><th>Value (base)</th><th>Shows as</th><th></th></tr></thead>
+        <tbody>${list.map((c, i) => `<tr><td>${esc(c.answer)}${c.key.endsWith('|avg') ? ' <span class="sub">avg</span>' : ''}</td><td>${esc(LABEL[c.property] || c.property)}</td>
+          <td><select data-s="${i}">${['ok','vague','invalid'].map(s => `<option ${s === c.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+          <td><input data-n="${i}" value="${esc(c.name)}"></td><td><input data-v="${i}" type="number" step="any" value="${c.value}" style="width:120px"></td>
+          <td class="sub">${c.value > 0 ? esc(fmt(c.property, c.value, '')) : '—'}</td>
+          <td><button class="mini" data-save="${i}">Save</button> <button class="mini danger" data-del="${i}">Delete</button></td></tr>`).join('')}</tbody></table></div>`
+        : `<div class="empty">No cached answers match.</div>`;
+      $('#cList').querySelectorAll('[data-save]').forEach(b => b.onclick = async () => {
+        const i = b.dataset.save, c = list[i], row = b.closest('tr');
+        try{ await call('adminSaveCache', S.cid, c.key, row.querySelector(`[data-n="${i}"]`).value, row.querySelector(`[data-v="${i}"]`).value, row.querySelector(`[data-s="${i}"]`).value); toast('Saved'); load(); }
+        catch(e){ toast(friendly(e)); }
+      });
+      $('#cList').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+        const c = list[b.dataset.del];
+        if (!confirm(`Delete the cached value for “${c.answer}”? The AI will judge it fresh next time.`)) return;
+        try{ await call('adminDeleteCache', S.cid, c.key); toast('Deleted'); load(); }catch(e){ toast(friendly(e)); }
+      });
+    }catch(e){ $('#cList').innerHTML = `<div class="err">${esc(friendly(e))}</div>`; }
+  };
+  $('#cGo').onclick = load; $('#cQ').addEventListener('keydown', e => { if (e.key === 'Enter') load(); }); load();
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "just-right", "runtimeExecutable": "npx", "runtimeArgs": ["wrangler", "pages", "dev", "--port", "8788"], "port": 8788 }
+  ]
+}

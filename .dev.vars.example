@@ -1,0 +1,13 @@
+# Copy to .dev.vars for local development. Never commit .dev.vars.
+
+# Fake AI judge so you can play offline without any API keys.
+MOCK_AI=1
+
+# Lets you sign in as this email on localhost without Google (dev only).
+DEV_LOGIN_EMAIL=will.kolander@gmail.com
+
+# Real keys (optional locally; required in production)
+# GROQ_API_KEY=gsk_...
+# GEMINI_API_KEY=...
+# GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+# GOOGLE_CLIENT_SECRET=...

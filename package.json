@@ -1,0 +1,15 @@
+{
+  "name": "just-right",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev --port 8788",
+    "db:local": "wrangler d1 migrations apply just-right --local",
+    "db:remote": "wrangler d1 migrations apply just-right --remote",
+    "deploy": "wrangler pages deploy",
+    "test": "node --test tests/"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}

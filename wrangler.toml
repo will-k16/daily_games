@@ -1,0 +1,18 @@
+name = "just-right"
+pages_build_output_dir = "public"
+compatibility_date = "2024-09-23"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "just-right"
+# Replace with the id printed by: npx wrangler d1 create just-right
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[vars]
+# First puzzle day (YYYY-MM-DD, UTC). Puzzle #1 is this date.
+LAUNCH_DATE = "2026-10-16"
+# Comma-separated Google emails that can open /admin.html
+ADMIN_EMAILS = "will.kolander@gmail.com"
+# Optional "buy me a coffee" style link. Leave empty to hide.
+TIP_URL = ""
