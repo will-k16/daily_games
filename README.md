@@ -54,7 +54,7 @@ npm test                             # scoring + unit tests
    - Settings → Bindings → add **D1 database**, variable name `DB` → `just-right`. (The binding in `wrangler.toml` is used too.)
 4. **Get a free Groq key** at https://console.groq.com/keys. Optionally also get a Gemini key at https://aistudio.google.com as a backup.
 5. **Set up Google sign-in.** Go to https://console.cloud.google.com → APIs & Services → Credentials → Create OAuth client ID (Web application).
-   - Authorized redirect URI: `https://<your-project>.pages.dev/api/auth/callback`
+   - Authorized redirect URI: `https://summit-daily.pages.dev/api/auth/callback`
 6. **Add secrets** in Pages → Settings → Variables and Secrets (Production), or with the CLI:
    ```bash
    npx wrangler pages secret put GROQ_API_KEY
