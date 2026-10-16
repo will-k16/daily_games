@@ -68,9 +68,16 @@ export async function estimate(env, { property, unitLabel, answer, avg, playerId
   }
 
   const info = propInfo(property, unitLabel);
-  const ai = env.MOCK_AI === '1'
+  let ai = env.MOCK_AI === '1'
     ? mockEstimate(answer, avg)
     : await callAI(env, estimatePrompt(info, answer, avg), EST_SCHEMA, 'estimate', playerId);
+
+  // The model only knows what it was trained on. Before calling something "not real", let it search
+  // the web (new games, books, shows and products are often missing from its memory).
+  if (ai.status === 'invalid' && !ai.offensive && env.MOCK_AI !== '1') {
+    const found = await searchEstimate(env, info, answer, avg, playerId).catch(e => { console.error('search judge failed', e.message); return null; });
+    if (found && (found.status === 'ok' || found.status === 'vague')) ai = found;
+  }
 
   const out = {
     key,
@@ -269,6 +276,33 @@ async function callAI(env, prompt, schema, kind, playerId, temperature = 0) {
     }
   }
   throw new HttpError(503, busy ? 'The judge is busy right now. Try again in a minute.' : 'The judge is unavailable right now. Try again shortly.');
+}
+
+/**
+ * Second opinion with Groq's built-in browser search (gpt-oss models only). Structured output isn't
+ * allowed together with browsing, so the model writes the JSON in its reply and we parse it.
+ */
+async function searchEstimate(env, info, answer, avg, playerId) {
+  const key = env.GROQ_API_KEY || '';
+  if (!key) return null;
+  const prompt = estimatePrompt(info, answer, avg) + '\n\n' + [
+    'You may not recognize this answer from memory: it could be a recent or niche video game, book, show, song, product, place or event.',
+    'Search the web to find out what it is before deciding. Only use "invalid" if it is still not a real thing after searching, or the property truly does not apply.',
+    'Reply with ONE JSON object and nothing else, shaped exactly like: ' + schemaText(EST_SCHEMA)
+  ].join('\n');
+  const t = Date.now();
+  try {
+    const out = await fetchJson('https://api.groq.com/openai/v1/chat/completions', { authorization: 'Bearer ' + key }, {
+      model: 'openai/gpt-oss-120b', temperature: 0, reasoning_effort: 'low', max_completion_tokens: 4000,
+      tools: [{ type: 'browser_search' }], tool_choice: 'required',
+      messages: [{ role: 'user', content: prompt }]
+    }, j => (j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '');
+    await log(env, 'estimate-search', 'groq', 1, Date.now() - t, '', playerId);
+    return out;
+  } catch (e) {
+    await log(env, 'estimate-search', 'groq', 0, Date.now() - t, e.message, playerId);
+    throw e;
+  }
 }
 
 function log(env, kind, provider, ok, ms, error, playerId) {

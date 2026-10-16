@@ -144,7 +144,7 @@ main { min-width: 0; max-width: 860px; width: 100%; margin: 0 auto; }
 .btn.sm { height: 44px; font-size: 16px; padding: 0 14px; box-shadow: 0 4px 0 var(--shadow); }
 .btn .ripple { position: absolute; background: rgba(255, 255, 255, .45); transform: scale(0); animation: ripple .5s steps(5); pointer-events: none; }
 @keyframes ripple { to { transform: scale(4); opacity: 0; } }
-.btn.loading::before { content: ''; width: 12px; height: 12px; background: #fff; animation: blinkSq .5s steps(2) infinite; }
+.btn.busy::before { content: ''; width: 12px; height: 12px; background: #fff; animation: blinkSq .5s steps(2) infinite; }
 @keyframes blinkSq { 50% { opacity: .2; } }
 .link { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; font-size: 14px; font-weight: 700; }
 .link:hover { color: var(--ink); }

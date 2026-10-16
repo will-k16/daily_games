@@ -406,10 +406,13 @@ const scrollTop = () => window.scrollTo({ top: 0, behavior: reduced() ? 'auto' :
 async function submitGuess(r, answer, avg) {
   const form = $('#guessForm'), msg = $('#msg');
   const btn = form.querySelector('button'), input = form.a;
-  btn.disabled = true; btn.classList.add('loading'); input.disabled = true; msg.innerHTML = '';
+  btn.disabled = true; btn.classList.add('busy'); input.disabled = true; msg.innerHTML = '';
   let rerendered = false;
+  // New answers are judged by the AI; unfamiliar ones get looked up online, which can take a few seconds.
+  const slow = setTimeout(() => { if (msg.isConnected && !msg.innerHTML) msg.innerHTML = '<div class="note">🔎 Skipper is looking that up…</div>'; }, 2500);
   try {
     const res = await api('guess', { puzzleId: r.puzzle.id, mode: r.mode || 'daily', answer, avg: !!avg });
+    clearTimeout(slow); if (msg.isConnected) msg.innerHTML = '';
     if (res.play) Object.assign(r, { play: res.play, reveal: res.reveal, complaints: res.complaints || {} });
     if (res.status === 'accepted' || res.status === 'stale') { rerendered = true; afterChange(r, res.play.state === 'done' ? 'final' : 'first'); return; }
     if (res.status === 'out_of_range') {
@@ -430,9 +433,11 @@ async function submitGuess(r, answer, avg) {
     }
     msg.innerHTML = `<div class="note bad">${esc(res.reason || 'Couldn\'t use that. Try something real and specific.')}</div>`;
   } catch (e) {
+    clearTimeout(slow);
     msg.innerHTML = `<div class="note bad">${esc(e.message)}</div>`;
   } finally {
-    if (!rerendered) { btn.disabled = false; btn.classList.remove('loading'); input.disabled = false; input.focus(); input.select(); }
+    clearTimeout(slow);
+    if (!rerendered) { btn.disabled = false; btn.classList.remove('busy'); input.disabled = false; input.focus(); input.select(); }
   }
 }
 
