@@ -5,8 +5,7 @@ compatibility_date = "2024-09-23"
 [[d1_databases]]
 binding = "DB"
 database_name = "just-right"
-# Replace with the id printed by: npx wrangler d1 create just-right
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "db9dce42-dcba-4640-bee7-bdb21a26d318"
 migrations_dir = "migrations"
 
 [vars]
