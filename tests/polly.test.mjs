@@ -132,9 +132,8 @@ test('server check: each rule fails on its own', () => {
   const fails = (patch, re) => { const r = checkCandidate({ ...GOOD, ...patch }, PAGE); assert.ok(!r.ok, JSON.stringify(patch)); assert.match(r.reasons.join(' '), re); };
   fails({ evidence: '45% say early, 30% say late (made up)' }, /evidence snippet/);                    // 1
   fails({ left_raw: 46 }, /left number \(46\)/);                                                        // 2
-  fails({ unsure_raw: 24 }, /unsure number/);                                                           // 2
   fails({ original_wording: 'Do you prefer mornings or evenings?' }, /original wording/);                        // 3
-  fails({ evidence: 'Overall, 45% of Americans say early, 30% say late', unsure_raw: null }, /add up to 75/);  // 4
+  fails({ left_raw: 80, right_raw: 30, evidence: 'Overall, 80% say early, 30% say late' }, /more than 100/);       // 4
   fails({ population: 'Republicans' }, /subgroup/);                                                     // 5
   // Long labels or a long short question pass, marked for trimming before approval.
   const long = checkCandidate({ ...GOOD, left_label: 'Ten minutes early', short: 'x'.repeat(91) }, PAGE);
@@ -200,4 +199,17 @@ test('Polly shop: defaults, prices and namespaced keys', () => {
   assert.equal(pollyItemKey('hat', 'crown'), 'polly:hat:crown');
   assert.equal(POLLY_WARDROBE.crest[0].c, '#f2c230');
   assert.equal(POLLY_WARDROBE.fountain.find(f => f.id === 'golden').price, 100);
+});
+
+test('everyone who picked neither side counts as unsure, so a source is never dropped over the total', () => {
+  const page = 'Do you prefer toilet paper to be hung over or under the roll? Over 59 % Under 14 % No preference 21 % Not sure 6 %';
+  const r = checkCandidate({ ...GOOD, original_wording: 'Do you prefer toilet paper to be hung over or under the roll?', left_label: 'Over', right_label: 'Under',
+    left_raw: 59, right_raw: 14, unsure_raw: 6, evidence: 'Over 59 % Under 14 % No preference 21 % Not sure 6 %' }, page);
+  assert.ok(r.ok, r.reasons.join(' '));
+  assert.equal(r.q.unsure_raw, 27);
+  assert.equal(r.q.real, 81);
+  // The evidence leaves the other groups out: unsure is whatever's left of 100.
+  const s = checkCandidate({ ...GOOD, unsure_raw: null, evidence: 'Overall, 45% of Americans say early, 30% say late' }, PAGE + ' Overall, 45% of Americans say early, 30% say late');
+  assert.ok(s.ok, s.reasons.join(' '));
+  assert.equal(s.q.unsure_raw, 25);
 });

@@ -93,8 +93,8 @@ function extractPrompt(source, url, date, text) {
     '- Side labels are the poll\'s own options, shortened to 14 characters or fewer, never loaded words ("Approve" / "Disapprove", not "Supports" / "Opposes" if the poll said approve).',
     '- "short": a plain question of 90 characters or fewer that means exactly what the poll asked.',
     '- "original_wording": the exact question wording as written on the page (copy it character for character).',
-    '- "evidence": an exact snippet copied from the page that contains the numbers for both sides (and the unsure share, if any). Copy it exactly.',
-    '- "left_raw", "right_raw", "unsure_raw": the percentages exactly as written on the page (unsure_raw null if the page gives none).',
+    '- "evidence": an exact snippet copied from the page that contains the numbers for both sides and for every other answer group (no preference, don\'t know, not sure, refused, other). Copy it exactly.',
+    '- "left_raw", "right_raw": the two sides\' percentages exactly as written on the page. "unsure_raw": everyone who picked neither side, added up (e.g. "No preference 21%" + "Not sure 6%" = 27); null if the page gives none.',
     '- "population": who was asked, as the page says it (e.g. "US adults").',
     '- "poll_end_date": the last day the poll was in the field, as YYYY-MM-DD, only if the page states an exact day; otherwise null.',
     '- "sample_size": the number of people asked, only if the page states it; otherwise null.',
@@ -184,6 +184,21 @@ const STATES = /\b(alabama|alaska|arizona|arkansas|california|colorado|connectic
 /** True unless the population is clearly a slice of the country. A blank population passes. */
 export const isUsAdults = p => { const s = squish(p).replace(/\bages? 18 ?(and older|\+|or older)/g, ''); return !SUBGROUP.test(s) && !STATES.test(s); };
 
+/**
+ * The share that picked neither side. Prefer the evidence's own percentages: every one besides the two sides
+ * ("No preference 21 %, Not sure 6 %" → 27). If those don't bring the total to about 100, it's 100 minus both sides.
+ */
+export function unsureFrom(q) {
+  const round1 = n => Math.round(n * 10) / 10;
+  const pcts = [...String(q.evidence || '').matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map(m => Number(m[1]));
+  const rest = pcts.slice();
+  for (const v of [q.left_raw, q.right_raw]) { const i = rest.indexOf(v); if (i >= 0) rest.splice(i, 1); }
+  const others = rest.reduce((a, b) => a + b, 0);
+  if (rest.length && Math.abs(q.left_raw + q.right_raw + others - 100) <= 3) return round1(others);
+  const gap = round1(100 - q.left_raw - q.right_raw);
+  return gap > 0 ? gap : null;
+}
+
 /** Most of the wording's words are on the page (the AI often fixes punctuation or drops a word). */
 function wordingOnPage(wording, page) {
   const w = squish(wording);
@@ -222,17 +237,19 @@ export function checkCandidate(raw, pageText) {
   const page = squish(pageText), reasons = [];
   // 1. The evidence snippet is on the page.
   if (!q.evidence || !page.includes(squish(q.evidence))) reasons.push('The evidence snippet isn\'t on the page.');
-  // 2. Every raw number is written inside the evidence.
+  // 2. Both sides' numbers are written inside the evidence.
   const inEvidence = numbersIn(q.evidence);
-  [['left', q.left_raw], ['right', q.right_raw], ['unsure', q.unsure_raw]].forEach(([k, v]) => {
-    if (v == null) { if (k !== 'unsure') reasons.push(`No ${k} number.`); return; }
-    if (!inEvidence.includes(v)) reasons.push(`The ${k} number (${v}) isn't in the evidence.`);
+  [['left', q.left_raw], ['right', q.right_raw]].forEach(([k, v]) => {
+    if (v == null) reasons.push(`No ${k} number.`);
+    else if (!inEvidence.includes(v)) reasons.push(`The ${k} number (${v}) isn't in the evidence.`);
   });
   // 3. The original wording is (mostly) on the page.
   if (!wordingOnPage(q.original_wording, page)) reasons.push('The original wording isn\'t on the page.');
-  // 4. The numbers add up to about 100 (some polls also list "refused" or "other", so there's some slack).
-  const sum = (q.left_raw || 0) + (q.right_raw || 0) + (q.unsure_raw || 0);
-  if (!(sum >= 90 && sum <= 110)) reasons.push(`The numbers add up to ${Math.round(sum * 10) / 10}, not about 100.`);
+  // 4. Everyone who didn't pick a side ("no preference", "don't know", "refused", "other"…) counts as unsure.
+  if (q.left_raw != null && q.right_raw != null) {
+    if (q.left_raw + q.right_raw > 105) reasons.push(`The two sides add up to ${Math.round((q.left_raw + q.right_raw) * 10) / 10}, more than 100.`);
+    else q.unsure_raw = unsureFrom(q);
+  }
   // 5. A national sample, not a slice of the country.
   if (!isUsAdults(q.population)) reasons.push(`The population is "${q.population}", a subgroup rather than the whole country.`);
   if (q.real == null) reasons.push('Couldn\'t work out the split.');

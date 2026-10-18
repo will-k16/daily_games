@@ -80,7 +80,7 @@ export async function extract(env, body) {
 }
 
 /**
- * Turns admin input into stored fields. `entry` keeps its auto-checked / admin-pasted mark only while the raw
+ * Turns admin input into stored fields. `entry` keeps its auto-checked / admin-pasted mark only while both sides'
  * numbers are still written in the evidence; an edit that breaks that makes it admin-entered.
  */
 function fieldsFrom(body, sources, fallbackEntry = 'admin-entered') {
@@ -89,7 +89,7 @@ function fieldsFrom(body, sources, fallbackEntry = 'admin-entered') {
   let entry = ENTRIES.includes(body.entry) ? body.entry : fallbackEntry;
   if (entry !== 'admin-entered') {
     const ev = numbersIn(c.evidence);
-    if (![c.left_raw, c.right_raw].every(v => v != null && ev.includes(v)) || (c.unsure_raw != null && !ev.includes(c.unsure_raw))) entry = 'admin-entered';
+    if (![c.left_raw, c.right_raw].every(v => v != null && ev.includes(v))) entry = 'admin-entered';
   }
   return {
     topic: TOPICS.includes(c.topic) ? c.topic : 'life', short: c.short, left_label: c.left_label, right_label: c.right_label,
