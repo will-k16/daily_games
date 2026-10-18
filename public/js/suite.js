@@ -21,7 +21,7 @@ const SIMILAR = [
   { name: 'Chainle', url: 'https://chainle.io', pitch: 'The daily word chain.', by: 'the younger brother of Krillion’s maker' },
   { name: 'FactMap', url: 'https://factmap.world', pitch: 'A daily game on the world map.', by: '' },
   { name: 'NYT Games', url: 'https://www.nytco.com/games', pitch: 'Wordle, Connections, Spelling Bee and more.', by: 'The New York Times' },
-  { name: 'Sortle', url: 'https://dailysortle.com', pitch: 'Sort the dictionary to find the five-letter word.', by: '' }
+  { name: 'Sortie!', url: 'https://dailysortie.com', pitch: 'The daily flight challenge: answer prompts to fly as far as you can.', by: '' }
 ];
 
 function renderSimilar() {
