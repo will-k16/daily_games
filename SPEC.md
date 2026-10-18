@@ -98,10 +98,10 @@ Pitfalls to avoid: bare higher/lower feedback (it becomes binary search), ambigu
 - Outside the range → 0 (and rejected anyway, see above).
 - `e = max(0, err − P)`
 - Position factor: `pos = max(0, 1 − e / (half − P))`, which reaches 0 at the ends. Narrow ranges are naturally harsher.
-- Precision factor (a bell curve with a gentle tail): `prec = 1 / (1 + (e / K)²)`, where `K = ln 3 − P`. That gives 50% at 3× off.
+- Precision factor (a bell curve with a gentle tail): `prec = 1 / (1 + (e / K)²)`, where `K = ln 12 − P`. That gives 50% at 12× off. (It was `ln 3 − P` until 2026-10-18; Will found 3× off scoring ~400 too harsh.)
 - `score = 100` if `e = 0` (within 1.05×), otherwise `floor(100 · pos · prec)`, so every distance gives a distinct, continuous score.
-- Scores are out of **1,000** per stage (the formula below gives 0–100; the game multiplies by 10). Sample values on a very wide range (10¹²×): 1.05× → 100, 1.1× → 99, 1.5× → 87, 2× → 69, 3× → 46, 10× → 14, 30× → 6.
-- On a narrow range (30×): 1.1× → 96, 1.5× → 70, 2× → 44, 3× → 18.
+- Scores are out of **1,000** per stage (the formula below gives 0–100; the game multiplies by 10). Sample values (out of 1,000) on a very wide range (10¹²×): 1.05× → 1000, 1.1× → 996, 1.5× → 953, 2× → 890, 3× → 779, 10× → 450, 30× → 261.
+- On a narrow range (30×): 1.1× → 971, 1.5× → 767, 2× → 570, 3× → 307.
 - Second guess: `round(raw × 0.8)`.
 
 ### 4.6 Puzzle creation

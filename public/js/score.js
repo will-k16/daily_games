@@ -2,7 +2,7 @@
 
 export const MAX_SCORE = 1000;                   // each stage is worth 1000 (= meters climbed)
 export const PERFECT = Math.log(1.05);           // within 1.05x of the middle = 1000
-const K = Math.log(3) - PERFECT;                 // 3x off = half credit (on a wide range)
+const K = Math.log(12) - PERFECT;                // gentle: 3x off keeps ~70–80% (wide range), 12x off half the precision credit
 export const SECOND_GUESS_MULT = 0.8;
 export const MAX_REJECTS = 3;                    // out-of-range tries per guess before it counts as 0
 
