@@ -26,10 +26,12 @@ export async function dashboard(env) {
       WHERE z.date = ? AND pl.mode = 'daily' AND pl.state = 'done'`).bind(date).all()).results;
   const hist = new Array(11).fill(0);
   dist.forEach(r => hist[Math.min(10, Math.floor(r.score / 100))]++);
-  const errors = (await db.prepare(`SELECT provider, kind, error, created_at FROM ai_log WHERE ok = 0 ORDER BY id DESC LIMIT 8`).all()).results;
+  // "Too many requests" just means the judge moved on to the next provider, so it's counted, not listed.
+  const errors = (await db.prepare(`SELECT provider, kind, error, created_at FROM ai_log WHERE ok = 0 AND error NOT LIKE '429%' ORDER BY id DESC LIMIT 8`).all()).results;
+  const limited = await db.prepare(`SELECT COUNT(*) AS n FROM ai_log WHERE ok = 0 AND error LIKE '429%' AND created_at >= ?`).bind(since).first();
   return {
     date, players: players.n, signedIn: signed.n, todayPlayers: todayPlayers.n,
-    rooms: rooms.results, ai: ai.results, errors, openComplaints: complaints.n, hist, week: week.results
+    rooms: rooms.results, ai: ai.results, errors, rateLimited: limited.n, openComplaints: complaints.n, hist, week: week.results
   };
 }
 

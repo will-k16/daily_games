@@ -61,6 +61,7 @@ async function dash(box) {
     <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">AI judge (last 24h)</h2>
       <div class="tbl"><table><thead><tr><th>Provider</th><th>Kind</th><th>OK</th><th>Failed</th><th>Avg ms</th></tr></thead>
       <tbody>${d.ai.map(a => `<tr><td>${esc(a.provider)}</td><td>${esc(a.kind)}</td><td>${a.ok}</td><td>${a.fail}</td><td>${Math.round(a.ms)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No AI calls yet.</td></tr>'}</tbody></table></div>
+      ${d.rateLimited ? `<p class="sub">⏳ ${d.rateLimited} rate-limit ${d.rateLimited === 1 ? 'hit' : 'hits'} in the last 24h. Nothing to fix: the judge switched to its backup each time.</p>` : ''}
       ${d.errors.length ? `<div class="section-title">Recent errors</div>${d.errors.map(e => `<p class="sub"><b>${esc(e.provider)}/${esc(e.kind)}</b> ${esc(e.created_at)}: ${esc(e.error)}</p>`).join('')}` : ''}
     </section>`;
 }

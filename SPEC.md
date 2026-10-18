@@ -53,7 +53,7 @@ Pitfalls to avoid: bare higher/lower feedback (it becomes binary search), ambigu
 ### 4.1 Platform (everything free)
 - **Cloudflare Pages** (static site) + **Pages Functions** (API) + **D1** (SQLite).
   - Free tier: 100,000 function requests/day, 5 million D1 row reads/day, 100,000 row writes/day, 5 GB storage. Static asset requests are free and unlimited.
-- **AI judge:** every new answer is looked up on the web first: Gemini 2.5 Flash with Google Search (primary, 500 free searches/day), then Groq gpt-oss with browser search (backup; free tier ≈ 2 searches/minute). If the web-backed verdict is "not real" or has no number, a plain (no-search) second opinion gets a chance. Caching answers means repeat answers never hit the AI; AI "not real" verdicts are re-checked after 3 days. Each player is limited per day (80 AI calls) to protect the quota.
+- **AI judge:** every new answer is looked up on the web first: Gemini with Google Search when `GEMINI_SEARCH=on` (needs billing), then Groq gpt-oss with browser search (free tier ≈ 2 searches/minute). Gemini 3.5 Flash-Lite (no search, ~0.5 s) is the plain judge. If the web-backed verdict is "not real" or has no number, a plain (no-search) second opinion gets a chance. Caching answers means repeat answers never hit the AI; AI "not real" verdicts are re-checked after 3 days. Each player is limited per day (80 AI calls) to protect the quota.
 - **Code:** a git repo pushed to GitHub, with Cloudflare Pages deploying on every push. Free `*.pages.dev` subdomain.
 - No build step: plain HTML/CSS/ES modules on the front end and plain JS functions on the back end.
 
@@ -225,5 +225,5 @@ A US/metric toggle. Values are formatted with sensible units (oz/lb/tons, in/ft/
 
 ## 7. Configuration
 - `wrangler.toml` vars: `LAUNCH_DATE`, `ADMIN_EMAILS`, `TIP_URL`.
-- Secrets: `GEMINI_API_KEY` (recommended), `GROQ_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, optional `GROQ_MODEL`, `GEMINI_MODEL` (plain calls), `GEMINI_SEARCH_MODEL` (the web-search judge, default `gemini-2.5-flash`), `JUDGE=groq` (put Groq's search first).
+- Secrets: `GEMINI_API_KEY` (recommended), `GROQ_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, optional `GROQ_MODEL`, `GEMINI_MODEL` (plain calls), `GEMINI_SEARCH=on` (use Gemini's Google Search; needs billing), `GEMINI_SEARCH_MODEL` (default `gemini-3.5-flash-lite`), `JUDGE=groq` (put Groq first).
 - Local dev only (`.dev.vars`): `MOCK_AI=1` (fake judge for offline testing), `DEV_LOGIN_EMAIL` (localhost-only sign-in without Google).

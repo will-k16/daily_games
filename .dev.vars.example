@@ -7,7 +7,8 @@ MOCK_AI=1
 DEV_LOGIN_EMAIL=will.kolander@gmail.com
 
 # Real keys (optional locally; required in production)
-# GEMINI_API_KEY=...      # main judge: Gemini 2.5 Flash + Google Search
+# GEMINI_API_KEY=...      # fast backup judge (Gemini 3.5 Flash-Lite)
+# GEMINI_SEARCH=on        # also use Gemini's Google Search (needs billing)
 # GROQ_API_KEY=gsk_...    # backup judge
 # JUDGE=groq              # put Groq first instead
 # GOOGLE_CLIENT_ID=...apps.googleusercontent.com

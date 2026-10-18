@@ -300,13 +300,14 @@ function keys(env) {
 let geminiSearchOffUntil = 0;
 
 /**
- * The web-search judges to try, in order. JUDGE=groq in the settings puts Groq first; otherwise
- * Gemini (real Google results) goes first whenever there's a Gemini key and search is available.
+ * The web-search judges to try, in order. Gemini's Google Search only runs when GEMINI_SEARCH=on
+ * (it needs billing on the Google project); then it goes first unless JUDGE=groq.
  */
 function searchJudges(env) {
   const { groqKey, geminiKey } = keys(env);
   const list = [];
-  if (geminiKey && Date.now() > geminiSearchOffUntil) list.push(['gemini', async p => {
+  const geminiSearchOn = /^(1|on|true|yes)$/i.test(String(env.GEMINI_SEARCH || ''));
+  if (geminiKey && geminiSearchOn && Date.now() > geminiSearchOffUntil) list.push(['gemini', async p => {
     try { return await geminiSearch(p, geminiKey, env.GEMINI_SEARCH_MODEL || DEFAULT_GEMINI_SEARCH_MODEL); }
     catch (e) { if (/429|quota|billing/i.test(e.message)) geminiSearchOffUntil = Date.now() + 10 * 60000; throw e; }
   }]);
