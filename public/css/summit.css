@@ -37,6 +37,12 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 /* ── Header ── */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 0; flex-wrap: wrap; }
+.brandrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wkbadge { display: inline-grid; place-items: center; width: 34px; height: 34px; background: var(--ink); color: var(--panel); border-radius: 4px; font-family: var(--font-num); font-size: 13px; text-decoration: none; letter-spacing: -.5px; box-shadow: 0 3px 0 var(--shadow); }
+.wkbadge:hover { background: var(--accent); color: #fff; }
+.allgames { font-family: var(--font-px); font-size: 14px; color: var(--muted); text-decoration: none; }
+.allgames:hover { color: var(--ink); text-decoration: underline; }
+.wkb { display: inline-block; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .logo { width: 44px; height: 44px; image-rendering: pixelated; }
 .logo-cab { animation: logoRide 4s steps(8) infinite; }
@@ -304,11 +310,12 @@ textarea.box { width: 100%; min-height: 90px; padding: 10px 12px; border-radius:
 @media (max-width: 520px) { .skipper { grid-template-columns: 1fr; justify-items: center; } }
 
 /* Wardrobe */
+#bucksIco { display: inline-flex; font-size: 16px; color: var(--good); }
 .cnum { font-family: var(--font-num); font-size: 13px; }
 .cnum:empty { display: none; }
 @media (max-width: 560px) { #wardBtn { gap: 1px; font-size: 13px; } #wardBtn .cnum { font-size: 10px; letter-spacing: -.5px; } }
-.clovers { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; font-weight: 800; }
-.clovers b { font-family: var(--font-num); color: var(--good); }
+.bucksline { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; font-weight: 800; }
+.bucksline b { font-family: var(--font-num); color: var(--good); }
 .wtop { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
 .portrait.sm { width: 112px; height: 112px; }
 .portrait.sm canvas { width: 104px; height: 104px; }

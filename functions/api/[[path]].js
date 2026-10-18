@@ -1,10 +1,18 @@
-import { HttpError, json } from '../_lib/util.js';
+import { HttpError, json, safeJson } from '../_lib/util.js';
 import { identify, googleStart, googleCallback, devLogin, logout, register, passwordLogin, setPassword } from '../_lib/auth.js';
-import * as wardrobe from '../_lib/wardrobe.js';
+import * as bucks from '../_lib/bucks.js';
 import * as game from '../_lib/game.js';
+import * as venn from '../_lib/venn.js';
+import * as suite from '../_lib/suite.js';
 import * as admin from '../_lib/admin.js';
+import * as vennAdmin from '../_lib/venn-admin.js';
 
 const ROUTES = {
+  // Suite
+  'GET suite/today': (c) => suite.today(c.env, c.who),
+  'GET suite/share': (c) => suite.share(c.env, c.who, c.url.host),
+
+  // Summit
   'GET today': (c) => game.today(c.env, c.who, c.waitUntil),
   'GET room': (c) => game.room(c.env, c.who, c.q.get('id'), c.q.get('mode') || 'daily'),
   'POST guess': (c) => game.guess(c.env, c.who, c.body, c.waitUntil),
@@ -12,9 +20,9 @@ const ROUTES = {
   'POST giveup': (c) => game.giveUp(c.env, c.who, c.body),
   'GET best': (c) => game.bestAnswer(c.env, c.who, c.q.get('id'), c.q.get('mode') || 'daily', c.waitUntil),
   'POST auth/password': (c) => setPassword(c.env, c.who, c.body),
-  'GET skipper': (c) => wardrobe.get(c.env, c.who),
-  'POST skipper/buy': (c) => wardrobe.buy(c.env, c.who, c.body),
-  'POST skipper/wear': (c) => wardrobe.wear(c.env, c.who, c.body),
+  'GET skipper': (c) => bucks.get(c.env, c.who, 'skipper'),
+  'POST skipper/buy': (c) => bucks.buy(c.env, c.who, c.body, 'skipper'),
+  'POST skipper/wear': (c) => bucks.wear(c.env, c.who, c.body, 'skipper'),
   'POST complaint': (c) => game.complain(c.env, c.who, c.body),
   'POST notifications/seen': (c) => game.markSeen(c.env, c.who, c.body),
   'GET stats': (c) => game.stats(c.env, c.who),
@@ -22,8 +30,28 @@ const ROUTES = {
   'GET archive/day': (c) => game.archiveDay(c.env, c.who, c.q.get('date')),
   'POST unlimited/new': (c) => game.newUnlimited(c.env, c.who),
 
+  // Venn
+  'GET venn/today': (c) => venn.today(c.env, c.who),
+  'POST venn/start': (c) => venn.start(c.env, c.who, c.body),
+  'POST venn/answer': (c) => venn.answer(c.env, c.who, c.body),
+  'POST venn/confirm': (c) => venn.confirm(c.env, c.who, c.body),
+  'POST venn/pause': (c) => venn.pause(c.env, c.who, c.body),
+  'POST venn/resume': (c) => venn.resume(c.env, c.who, c.body),
+  'POST venn/done': (c) => venn.done(c.env, c.who, c.body),
+  'GET venn/results': (c) => venn.resultsFor(c.env, c.who, c.q.get('id'), c.q.get('mode')),
+  'POST venn/complaint': (c) => venn.complain(c.env, c.who, c.body),
+  'GET venn/stats': (c) => venn.stats(c.env, c.who),
+  'GET venn/archive': (c) => venn.archiveList(c.env, c.who),
+  'GET venn/archive/day': (c) => venn.archiveDay(c.env, c.who, c.q.get('date')),
+  'POST venn/unlimited/new': (c) => venn.newUnlimited(c.env, c.who),
+  'GET mel': (c) => bucks.get(c.env, c.who, 'mel'),
+  'POST mel/buy': (c) => bucks.buy(c.env, c.who, c.body, 'mel'),
+  'POST mel/wear': (c) => bucks.wear(c.env, c.who, c.body, 'mel'),
+
+  // Admin: suite + Summit
+  'GET admin/suite': (c) => admin.suite(c.env, c.who),
+  'POST admin/bucks': (c) => admin.grantBucks(c.env, c.who, c.body),
   'GET admin/dashboard': (c) => admin.dashboard(c.env, c.who),
-  'POST admin/clovers': (c) => admin.grantClovers(c.env, c.who, c.body),
   'GET admin/calendar': (c) => admin.calendar(c.env, c.q),
   'POST admin/generate': (c) => admin.generateDrafts(c.env, c.body),
   'POST admin/generate-slot': (c) => admin.generateSlot(c.env, c.body),
@@ -34,8 +62,23 @@ const ROUTES = {
   'POST admin/complaints/resolve': (c) => admin.resolveComplaint(c.env, c.body),
   'GET admin/answers': (c) => admin.answers(c.env, c.q),
   'POST admin/answers': (c) => admin.saveAnswer(c.env, c.body),
-  'POST admin/answers/delete': (c) => admin.deleteAnswer(c.env, c.body)
+  'POST admin/answers/delete': (c) => admin.deleteAnswer(c.env, c.body),
+
+  // Admin: Venn
+  'GET admin/venn/calendar': (c) => vennAdmin.calendar(c.env, c.q),
+  'POST admin/venn/generate': (c) => vennAdmin.generate(c.env, c.body),
+  'POST admin/venn/puzzle': (c) => vennAdmin.savePuzzle(c.env, c.body),
+  'POST admin/venn/puzzle/delete': (c) => vennAdmin.deletePuzzle(c.env, c.body),
+  'GET admin/venn/complaints': (c) => vennAdmin.complaints(c.env, c.q),
+  'POST admin/venn/complaints/resolve': (c) => vennAdmin.resolveComplaint(c.env, c.body),
+  'GET admin/venn/judgments': (c) => vennAdmin.judgments(c.env, c.q),
+  'POST admin/venn/judgments': (c) => vennAdmin.saveJudgment(c.env, c.body),
+  'POST admin/venn/judgments/delete': (c) => vennAdmin.deleteJudgment(c.env, c.body)
 };
+
+// The pause sent with navigator.sendBeacon as the page hides arrives as text/plain (a beacon can't
+// set a JSON content type without a preflight). It's still checked for same origin.
+const BEACON_OK = new Set(['venn/pause']);
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -52,20 +95,23 @@ export async function onRequest(context) {
     if (path === 'auth/dev') return withCookies(await devLogin(request, env, who), who.setCookies);
     if (path === 'auth/logout' && request.method === 'POST') return await logout(request, env);
 
+    let body = {};
     if (request.method === 'POST') {
       // Basic CSRF guard: JSON bodies only, from this site.
       const origin = request.headers.get('origin');
       if (origin && origin !== url.origin) throw new HttpError(403, 'Bad origin.');
-      if (!(request.headers.get('content-type') || '').includes('application/json')) throw new HttpError(415, 'Send JSON.');
+      const type = request.headers.get('content-type') || '';
+      const beacon = BEACON_OK.has(path) && type.startsWith('text/plain');
+      if (!type.includes('application/json') && !beacon) throw new HttpError(415, 'Send JSON.');
+      body = beacon ? safeJson(await request.text(), {}) : await request.json().catch(() => ({}));
     }
-    const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
     if (path === 'auth/register' && request.method === 'POST') return withCookies(await register(request, env, who, body), who.setCookies);
     if (path === 'auth/signin' && request.method === 'POST') return withCookies(await passwordLogin(request, env, who, body), who.setCookies);
 
     const handler = ROUTES[request.method + ' ' + path];
     if (!handler) throw new HttpError(404, 'Not found');
     if (path.startsWith('admin/')) admin.requireAdmin(who);
-    const data = await handler({ env, who, q: url.searchParams, body, request, waitUntil });
+    const data = await handler({ env, who, q: url.searchParams, body, request, url, waitUntil });
     return withCookies(json(data), who.setCookies);
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;

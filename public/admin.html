@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Summit Admin</title>
+<title>Admin · WK Game Suite</title>
 <meta name="robots" content="noindex">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/suite-icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Pixelify+Sans:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
@@ -16,22 +16,26 @@
 <body>
 <div class="app" style="max-width:1100px">
   <header class="top">
-    <a class="brand" href="/"><svg class="logo" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 16V13H1V12H2V11H3V10H4V9H5V8H6V9H7V10H8V9H9V8H10V7H11V6H12V7H13V9H14V11H15V13H16V16Z" fill="#2d6340"/><path d="M11 6H12V7H13V8H12V9H11V8H10V7H11Z" fill="#fff"/><path d="M0 3H4V4H0ZM4 2H11V3H4ZM11 1H16V2H11Z" fill="#3d4756"/><rect x="7" y="3" width="1" height="2" fill="#3d4756"/><rect x="5" y="5" width="5" height="4" fill="#d9482b"/><rect x="6" y="6" width="3" height="1" fill="#bfe3f5"/></svg><span class="wordmark">Summit</span> <span class="badge">admin</span></a>
+    <div class="brandrow">
+      <a class="wkbadge" href="/" aria-label="WK Game Suite: all games">WK</a>
+      <a class="brand" href="/"><span class="wordmark">WK Game Suite</span> <span class="badge">admin</span></a>
+    </div>
     <nav class="tools">
-      <a class="tbtn" href="/#/unlimited">∞ Unlimited</a>
-      <a class="tbtn" href="/">← Game</a>
+      <a class="tbtn" href="/venn">Venn</a>
+      <a class="tbtn" href="/summit">Summit</a>
+      <a class="tbtn" href="/">← All games</a>
     </nav>
   </header>
   <nav class="atabs" id="atabs">
-    <button class="tbtn" data-t="dash">Dashboard</button>
-    <button class="tbtn" data-t="cal">Calendar</button>
-    <button class="tbtn" data-t="comp">Complaints <span id="compN"></span></button>
-    <button class="tbtn" data-t="ans">Answers</button>
+    <button class="tbtn" data-t="suite">Suite</button>
+    <button class="tbtn" data-t="summit">Summit <span id="sumN"></span></button>
+    <button class="tbtn" data-t="venn">Venn <span id="vennN"></span></button>
   </nav>
-  <main id="admin"><div class="loading">Checking the keys to the lodge…</div></main>
+  <nav class="atabs sub" id="subtabs"></nav>
+  <main id="admin"><div class="loading">Checking the keys…</div></main>
 </div>
 <div class="modal" id="modal" hidden>
-  <div class="modal-card" role="dialog" aria-modal="true" style="max-width:640px">
+  <div class="modal-card" role="dialog" aria-modal="true" style="max-width:680px">
     <button class="x" id="modalX" aria-label="Close">✕</button>
     <div id="modalBody"></div>
   </div>

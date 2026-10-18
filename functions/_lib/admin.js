@@ -3,10 +3,43 @@ import { generatePuzzles, cleanPuzzle } from './ai.js';
 import { rescoreAnswer, rescorePuzzle } from './game.js';
 import { planSpecs, recentItems } from './plan.js';
 import { PROPS } from '../../public/js/props.js';
-import { cloverBalance } from './wardrobe.js';
+import { bucksBalance } from './bucks.js';
 
 export function requireAdmin(who) {
   if (!who.isAdmin) throw new HttpError(403, 'Admins only.');
+}
+
+/** The Suite tab: real players per game, AI health across the suite, and the admin's WK Bucks. */
+export async function suite(env, who) {
+  const db = env.DB, date = todayUTC(), since = new Date(Date.now() - 86400000).toISOString();
+  // Every visit gets a guest ID (bots and link previews included), so "players" only counts people who
+  // started a stage or round. Everyone else is just a visit.
+  const [sEver, sToday, vEver, vToday, anyEver, signed, visits, ai, limited, sOpen, vOpen] = await Promise.all([
+    db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM plays WHERE mode IN ('daily','archive')`).first(),
+    db.prepare(`SELECT COUNT(DISTINCT pl.player_id) AS n FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id WHERE z.date = ? AND pl.mode = 'daily'`).bind(date).first(),
+    db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM venn_plays WHERE mode IN ('daily','archive')`).first(),
+    db.prepare(`SELECT COUNT(DISTINCT pl.player_id) AS n FROM venn_plays pl JOIN venn_puzzles z ON z.id = pl.puzzle_id WHERE z.date = ? AND pl.mode = 'daily'`).bind(date).first(),
+    db.prepare(`SELECT COUNT(*) AS n FROM (SELECT player_id FROM plays WHERE mode IN ('daily','archive') UNION SELECT player_id FROM venn_plays WHERE mode IN ('daily','archive'))`).first(),
+    db.prepare(`SELECT COUNT(*) AS n FROM players WHERE google_sub IS NOT NULL`).first(),
+    db.prepare(`SELECT COUNT(*) AS n FROM players`).first(),
+    db.prepare(`SELECT provider, kind, SUM(ok) AS ok, COUNT(*) - SUM(ok) AS fail, AVG(ms) AS ms FROM ai_log WHERE created_at >= ? GROUP BY provider, kind ORDER BY kind, provider`).bind(since).all(),
+    db.prepare(`SELECT COUNT(*) AS n FROM ai_log WHERE ok = 0 AND error LIKE '429%' AND created_at >= ?`).bind(since).first(),
+    db.prepare(`SELECT COUNT(*) AS n FROM complaints WHERE status = 'open'`).first(),
+    db.prepare(`SELECT COUNT(*) AS n FROM venn_complaints WHERE status = 'open'`).first()
+  ]);
+  // "Too many requests" just means the judge moved on to the next provider, so it's counted, not listed.
+  const errors = (await db.prepare(`SELECT provider, kind, error, created_at FROM ai_log WHERE ok = 0 AND error NOT LIKE '429%' AND created_at >= ? ORDER BY id DESC LIMIT 8`)
+    .bind(new Date(Date.now() - 3 * 86400000).toISOString()).all()).results;
+  return {
+    date,
+    games: [
+      { key: 'venn', name: 'Venn', ever: vEver.n, today: vToday.n, openComplaints: vOpen.n },
+      { key: 'summit', name: 'Summit', ever: sEver.n, today: sToday.n, openComplaints: sOpen.n }
+    ],
+    players: anyEver.n, visitsOnly: visits.n - anyEver.n, signedIn: signed.n,
+    ai: ai.results, errors, rateLimited: limited.n,
+    myBucks: who ? (await bucksBalance(env, who.player.id)).balance : null
+  };
 }
 
 export async function dashboard(env, who) {
@@ -39,22 +72,22 @@ export async function dashboard(env, who) {
   return {
     date, players: players.n, visitsOnly: visits.n - players.n, signedIn: signed.n, todayPlayers: todayPlayers.n,
     rooms: rooms.results, ai: ai.results, errors, rateLimited: limited.n, openComplaints: complaints.n, hist, week: days,
-    myClovers: who ? (await cloverBalance(env, who.player.id)).balance : null
+    myBucks: who ? (await bucksBalance(env, who.player.id)).balance : null
   };
 }
 
 /**
- * Gives (or takes back, with a negative amount) clovers to the admin's own account. A grant is stored as
+ * Gives (or takes back, with a negative amount) WK Bucks to the admin's own account. A grant is stored as
  * a "purchase" with a negative price, so the balance math (earned − spent) needs no special case.
  */
-export async function grantClovers(env, who, body) {
+export async function grantBucks(env, who, body) {
   const amount = Math.trunc(Number(body.amount));
   if (!amount || Math.abs(amount) > 1000000) throw new HttpError(400, 'Pick a whole number, like 500.');
-  const bal = await cloverBalance(env, who.player.id);
+  const bal = await bucksBalance(env, who.player.id);
   if (bal.balance + amount < 0) throw new HttpError(400, `You only have ${bal.balance} to take away.`);
   await env.DB.prepare(`INSERT INTO purchases (player_id, item, price, created_at) VALUES (?, ?, ?, ?)`)
     .bind(who.player.id, 'grant:' + Date.now() + ':' + Math.random().toString(36).slice(2, 7), -amount, nowISO()).run();
-  return { ok: true, clovers: await cloverBalance(env, who.player.id) };
+  return { ok: true, bucks: await bucksBalance(env, who.player.id) };
 }
 
 /* ───────────── Calendar ───────────── */

@@ -316,15 +316,19 @@ function searchJudges(env) {
   return list;
 }
 
-async function callAI(env, prompt, schema, kind, playerId, temperature = 0) {
+/**
+ * Plain (no web search) AI call: Gemini Flash-Lite first, then Groq. Returns the parsed JSON.
+ * `opts` ({ timeout, retries }) tightens the per-provider limits for calls a player is waiting on.
+ */
+export async function callAI(env, prompt, schema, kind, playerId, temperature = 0, opts = {}) {
   const { groqKey, geminiKey } = keys(env);
   if (!groqKey && !geminiKey) throw new HttpError(503, 'The judge isn\'t set up yet (no AI key).');
 
   let busy = false;
   const attempts = [];
   // Gemini Flash-Lite first: it's fast, free, and knows newer things than Groq's models.
-  if (geminiKey) attempts.push(['gemini', () => gemini(prompt, schema, geminiKey, env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, temperature)]);
-  if (groqKey) attempts.push(['groq', () => groqAny(env, prompt, schema, groqKey, temperature)]);
+  if (geminiKey) attempts.push(['gemini', () => gemini(prompt, schema, geminiKey, env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, temperature, opts)]);
+  if (groqKey) attempts.push(['groq', () => groqAny(env, prompt, schema, groqKey, temperature, opts)]);
   if (String(env.JUDGE || '').toLowerCase() === 'groq') attempts.reverse();
   for (const [name, fn] of attempts) {
     const t = Date.now();
@@ -380,18 +384,18 @@ async function groqSearch(prompt, key) {
   throw last;
 }
 
-function log(env, kind, provider, ok, ms, error, playerId) {
+export function log(env, kind, provider, ok, ms, error, playerId) {
   return env.DB.prepare(`INSERT INTO ai_log (kind, provider, ok, ms, error, player_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
     .bind(kind, provider, ok, ms, String(error || '').slice(0, 300), playerId || '', nowISO()).run().catch(() => {});
 }
 
 let knownGroqModel = null;
-async function groqAny(env, prompt, schema, key, temperature) {
+async function groqAny(env, prompt, schema, key, temperature, opts) {
   const order = [env.GROQ_MODEL, knownGroqModel, ...GROQ_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
   let last = null;
   for (const model of order) {
     try {
-      const out = await groq(prompt, schema, key, model, temperature);
+      const out = await groq(prompt, schema, key, model, temperature, opts);
       knownGroqModel = model;
       return out;
     } catch (e) {
@@ -402,16 +406,16 @@ async function groqAny(env, prompt, schema, key, temperature) {
   throw last || new Error('No Groq model available.');
 }
 
-async function groq(prompt, schema, key, model, temperature) {
-  try { return await groqOnce(prompt, schema, key, model, temperature, true); }
+async function groq(prompt, schema, key, model, temperature, opts) {
+  try { return await groqOnce(prompt, schema, key, model, temperature, true, opts); }
   catch (e) {
     // Groq's strict JSON check sometimes rejects good replies; ask again without it and parse it ourselves.
     if (!/json_validate_failed/.test(e.message)) throw e;
-    return groqOnce(prompt, schema, key, model, temperature, false);
+    return groqOnce(prompt, schema, key, model, temperature, false, opts);
   }
 }
 
-function groqOnce(prompt, schema, key, model, temperature, jsonMode) {
+function groqOnce(prompt, schema, key, model, temperature, jsonMode, opts) {
   return fetchJson('https://api.groq.com/openai/v1/chat/completions', { authorization: 'Bearer ' + key }, {
     model, temperature, max_tokens: 8000, ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
     // Reasoning models spend tokens thinking first; keep that short so the JSON always fits.
@@ -420,18 +424,18 @@ function groqOnce(prompt, schema, key, model, temperature, jsonMode) {
       { role: 'system', content: 'Reply with one JSON object and nothing else. It must match this shape exactly: ' + schemaText(schema) },
       { role: 'user', content: prompt }
     ]
-  }, j => (j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '');
+  }, j => (j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '', opts);
 }
 
-function gemini(prompt, schema, key, model, temperature) {
+function gemini(prompt, schema, key, model, temperature, opts) {
   return fetchJson('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent',
     { 'x-goog-api-key': key }, {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: { temperature, responseMimeType: 'application/json', responseSchema: schema }
-    }, j => ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join(''));
+    }, j => ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join(''), opts);
 }
 
-async function fetchJson(url, headers, body, pick, { timeout = 25000, retries = 3 } = {}) {
+export async function fetchJson(url, headers, body, pick, { timeout = 25000, retries = 3 } = {}) {
   let last = '';
   for (let attempt = 0; attempt < retries; attempt++) {
     let res, text;

@@ -39,3 +39,28 @@ export function logPos(a, b, g) {
   const la = Math.log(a), lb = Math.log(b);
   return (Math.log(g) - la) / (lb - la);
 }
+
+/* ───────────── Share text ───────────── */
+export const STAGE_EMOJI = { 1: '🌲', 2: '🪨', 3: '🏔️' };
+const tierOf = s => s >= 900 ? 'green' : s >= 600 ? 'yellow' : s >= 300 ? 'orange' : 'red';
+export const square = s => ({ green: '🟩', yellow: '🟨', orange: '🟧', red: '🟥' })[tierOf(s)];
+const meters = n => Math.round(n).toLocaleString('en-US') + ' m';
+
+/**
+ * Summit's share text. rooms: [{ puzzle: { slot }, play: { state, score, rejects1, rejects2, gaveUp, guesses } }].
+ * Only finished stages get a line. `link` is added as the last line when given.
+ */
+export function summitShareText({ number, rooms, archive = false }, link) {
+  const done = rooms.filter(r => r.play && r.play.state === 'done');
+  const total = done.reduce((s, r) => s + (r.play.score || 0), 0);
+  const head = `Summit #${number}${archive ? ' (archive)' : ''} ⛰️ ${meters(total)} / 3,000 m`;
+  const rows = done.map(r => {
+    const p = r.play, g1 = p.guesses[0], g2 = p.guesses[1];
+    let s = (STAGE_EMOJI[r.puzzle.slot] || STAGE_EMOJI[1]) + ' ' + '❌'.repeat(p.rejects1 || 0);
+    if (p.gaveUp) return s + (g1 ? square(g1.score) + '→' + '❌'.repeat(p.rejects2 || 0) : '') + '🏳️ 0';
+    if (g1) s += square(g1.score);
+    if (g2) s += '→' + '❌'.repeat(p.rejects2 || 0) + square(g2.score);
+    return s + ' ' + p.score;
+  });
+  return [head, ...rows, ...(link ? [link] : [])].join('\n');
+}

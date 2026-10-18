@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<title>Venn · WK Game Suite</title>
+<meta name="description" content="A daily game: 90 seconds to name everything that fits both circles.">
+<meta name="theme-color" content="#17402b">
+<link rel="icon" href="/venn/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Pixelify+Sans:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/venn.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brandrow">
+      <a class="wkbadge" href="/" aria-label="WK Game Suite: all games">WK</a>
+      <a class="brand" href="#/" aria-label="Venn home">
+        <svg class="logo" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
+          <rect x="0" y="0" width="16" height="1" fill="#7a5233"/>
+          <rect x="4" y="1" width="1" height="3" fill="#3f8a46"/><rect x="11" y="1" width="1" height="3" fill="#3f8a46"/>
+          <path d="M3 4H6V5H7V6H8V7H7V8H8V12H7V13H6V14H3V13H2V12H1V6H2V5H3Z" fill="#f2c230"/>
+          <path d="M10 4H13V5H14V6H15V12H14V13H13V14H10V13H9V12H8V8H9V6H8V5H9V4H10Z" fill="#3b82d6"/>
+          <path d="M8 7H9V8H8V12H7V8H8Z" fill="#4cb956"/>
+        </svg>
+        <span class="wordmark">Venn</span>
+      </a>
+      <a class="allgames" href="/">← All games</a>
+    </div>
+    <nav class="tools">
+      <button class="tbtn" id="unlBtn" hidden title="Unlimited (admin)">∞</button>
+      <a class="tbtn" id="admBtn" href="/admin#venn" hidden title="Admin"><svg viewBox="0 0 20 20"><rect x="7" y="7" width="6" height="6"/><path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.5 4.5l2 2M13.5 13.5l2 2M4.5 15.5l2-2M13.5 6.5l2-2"/></svg><span class="lbl">Admin</span></a>
+      <button class="tbtn" id="wardBtn" title="Mel's wardrobe"><span id="bucksIco" aria-hidden="true"></span><span id="bucksNum" class="cnum"></span><span class="lbl">Wardrobe</span></button>
+      <a class="tbtn" href="#/archive" title="Archive"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="13"/><path d="M3 8h14M7 2v4M13 2v4"/></svg><span class="lbl">Archive</span></a>
+      <button class="tbtn" id="statsBtn" title="Stats"><svg viewBox="0 0 20 20"><path d="M4 17V11M10 17V5M16 17V8"/></svg><span class="lbl">Stats</span></button>
+      <button class="tbtn" id="helpBtn" title="How to play"><svg viewBox="0 0 20 20"><path d="M7 6V4h6v5h-3v3M10 15v2"/></svg></button>
+      <button class="tbtn" id="acctBtn" title="Account"><svg viewBox="0 0 20 20"><rect x="7" y="3" width="6" height="6"/><path d="M3 18v-3h14v3"/></svg></button>
+    </nav>
+  </header>
+
+  <main id="main"><div class="loading"><div class="spin-ring"></div>Hanging the vines…</div></main>
+  <footer class="foot"><a href="/">WK Game Suite</a> · <a href="/privacy">Privacy</a></footer>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <button class="x" id="modalX" aria-label="Close">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/js/venn.js"></script>
+</body>
+</html>

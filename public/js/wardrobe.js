@@ -1,5 +1,5 @@
-// Skipper's wardrobe: everything a player can buy with clovers. Shared by browser + API.
-// Clovers come from climbing (see cloversFor); prices are in clovers. Price 0 = everyone has it.
+// Skipper's wardrobe: everything a player can buy with WK Bucks. Shared by browser + API.
+// Summit pays WK Bucks for climbing (see bucksFor); prices are in WK Bucks. Price 0 = everyone has it.
 
 export const SLOTS = [
   { key: 'fur', name: 'Fur' },
@@ -80,12 +80,12 @@ export function cleanName(s) {
 }
 
 /**
- * Clovers for one finished stage: 1 per 100 m on the daily (+5 for a perfect 1,000), half on the
- * archive, none for practice. Finishing all three daily stages adds DAY_BONUS. The API's SQL in
- * functions/_lib/wardrobe.js counts the same way.
+ * WK Bucks for one finished Summit stage: 1 per 100 m on the daily (+5 for a perfect 1,000), half on
+ * the archive, none for practice. Finishing all three daily stages adds DAY_BONUS. The API's SQL in
+ * functions/_lib/bucks.js counts the same way.
  */
 export const DAY_BONUS = 5;
-export function cloversFor(score, mode) {
+export function bucksFor(score, mode) {
   const s = Math.max(0, Number(score) || 0);
   if (mode === 'daily') return Math.floor(s / 100) + (s >= 1000 ? 5 : 0);
   if (mode === 'archive') return Math.floor(s / 200);

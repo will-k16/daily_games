@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { toNumber } from '../functions/_lib/ai.js';
-import { resolveLook, cleanName, cloversFor, DEFAULT_LOOK } from '../public/js/wardrobe.js';
+import { resolveLook, cleanName, bucksFor, DEFAULT_LOOK } from '../public/js/wardrobe.js';
 
 test('reads numbers the way models write them', () => {
   assert.equal(toNumber(1500), 1500);
@@ -16,13 +16,13 @@ test('reads numbers the way models write them', () => {
   assert.equal(toNumber(null), 0);
 });
 
-test('wardrobe looks and clovers', () => {
+test('wardrobe looks and WK Bucks per stage', () => {
   assert.deepEqual(resolveLook(null), DEFAULT_LOOK);
   assert.deepEqual(resolveLook({ fur: 'ginger', hat: 'nope', name: '  Billy <b> ' }), { ...DEFAULT_LOOK, fur: 'ginger', name: 'Billy b' });
   assert.equal(cleanName('<script>'), 'script');
   assert.equal(cleanName('!!!'), '');
-  assert.equal(cloversFor(999, 'daily'), 9);
-  assert.equal(cloversFor(1000, 'daily'), 15);
-  assert.equal(cloversFor(999, 'archive'), 4);
-  assert.equal(cloversFor(1000, 'unlimited'), 0);
+  assert.equal(bucksFor(999, 'daily'), 9);
+  assert.equal(bucksFor(1000, 'daily'), 15);
+  assert.equal(bucksFor(999, 'archive'), 4);
+  assert.equal(bucksFor(1000, 'unlimited'), 0);
 });

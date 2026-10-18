@@ -1,7 +1,7 @@
 import { HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, puzzleNumber, sameItem, normalize, clampStr } from './util.js';
 import { estimate, generatePuzzles, suggestMiddle } from './ai.js';
 import { planSpecs, recentItems } from './plan.js';
-import { lookOf, cloverBalance } from './wardrobe.js';
+import { lookOf, bucksBalance } from './bucks.js';
 import { answerMeasurementProblem } from '../../public/js/measure.js';
 import { PROPS } from '../../public/js/props.js';
 import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS, MAX_SCORE } from '../../public/js/score.js';
@@ -143,7 +143,7 @@ export async function today(env, who, waitUntil) {
     date, number: puzzleNumber(env, date), rooms,
     day: await daySummary(env, who, date, rooms),
     me: { signedIn: who.signedIn, email: who.email, isAdmin: who.isAdmin, hasPassword: who.hasPassword, skipper: lookOf(who.player) },
-    clovers: await cloverBalance(env, who.player.id),
+    bucks: await bucksBalance(env, who.player.id),
     notifications: await notifications(env, who),
     tipUrl: env.TIP_URL || '',
     nextReset: addDays(date, 1) + 'T00:00:00Z'
@@ -164,6 +164,21 @@ async function daySummary(env, who, date, rooms) {
     out.beat = others.length ? Math.round(100 * others.filter(t => t < total).length / others.length) : null;
   }
   return out;
+}
+
+/**
+ * Today's Summit status for the suite home page. Only reads what exists (never generates puzzles):
+ * { date, number, rooms (for the share text), done, of, total }.
+ */
+export async function dayStatus(env, who, date) {
+  const puzzles = (await env.DB.prepare(`SELECT * FROM puzzles WHERE date = ? AND ${LIVE} ORDER BY slot`).bind(date).all()).results;
+  const rooms = [];
+  for (const p of puzzles) {
+    const play = await getPlay(env, who.player.id, p.id, 'daily');
+    rooms.push({ puzzle: { slot: p.slot }, play: playView(play, play ? await guessesFor(env, play.id) : []) });
+  }
+  const done = rooms.filter(r => r.play.state === 'done');
+  return { date, number: puzzleNumber(env, date), rooms, done: done.length, of: 3, total: done.reduce((s, r) => s + (r.play.score || 0), 0) };
 }
 
 export async function archiveList(env, who) {

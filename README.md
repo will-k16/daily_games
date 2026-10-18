@@ -1,9 +1,18 @@
-# Summit ⛰️
+# WK Game Suite
 
-A daily game. Each day has three stages: Foothills (easy), Ridge (medium) and Peak (hard). Each shows something **too small** (the bottom cable-car station), something **too big** (the top station), and a property like weight. Players name something that's **juuust right**: the middle *by ratio*, √(small × big).
+Small daily games at **wk-game-suite.pages.dev**. One account, one currency (**WK Bucks**), one admin page.
 
-- Full design and rules: [SPEC.md](SPEC.md)
-- Old Google Apps Script version: [legacy/](legacy/)
+| Path | What |
+|---|---|
+| `/` | Home: every game, today's status and streaks, the WK streak, WK Bucks, countdown, combined share |
+| `/venn` | **Venn**: 90 seconds to name things that fit two circles (round 1), then all three (round 2). Mascot: Mel the chameleon. [VENN_SPEC.md](VENN_SPEC.md) |
+| `/summit` | **Summit**: name something whose value sits at the geometric middle of two ends. Mascot: Skipper the goat. [SPEC.md](SPEC.md) |
+| `/admin` | Suite admin (Suite / Summit / Venn tabs) |
+| `/privacy` | Privacy policy for the whole suite |
+
+- Build plan and every decision behind the suite: [docs/WK_GAME_SUITE_PLAN.md](docs/WK_GAME_SUITE_PLAN.md)
+- Old Google Apps Script version of Summit: [legacy/](legacy/)
+- The old addresses (`summit-daily.pages.dev`, `just-right.pages.dev`) 301 to `wk-game-suite.pages.dev/summit` (see `functions/_middleware.js`).
 
 ## Stack (all free tier)
 
@@ -12,7 +21,7 @@ A daily game. Each day has three stages: Foothills (easy), Ridge (medium) and Pe
 | Website | Cloudflare Pages | unlimited static requests |
 | API | Cloudflare Pages Functions (`functions/`) | 100,000 requests/day |
 | Database | Cloudflare D1 (SQLite) | 5M row reads/day, 100k writes/day, 5 GB |
-| AI judge | Groq + web search, Gemini 3.5 Flash-Lite (fast backup); optional Gemini + Google Search | free API tiers; answers are cached |
+| AI judges | Gemini 3.5 Flash-Lite, Groq as backup (Summit also uses Groq web search) | free API tiers; verdicts are cached |
 | Sign-in | Google OAuth, or email + password | free |
 
 There's no build step. `public/` is plain HTML/CSS/ES modules.
@@ -21,69 +30,65 @@ There's no build step. `public/` is plain HTML/CSS/ES modules.
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars      # MOCK_AI=1 plays offline with a fake judge
-npm run db:local                     # create the local database
+cp .dev.vars.example .dev.vars      # MOCK_AI=1 plays offline with fake judges
+npm run db:local                     # create/upgrade the local database
 npm run dev                          # http://localhost:8788
 ```
 
-With `MOCK_AI=1`, put a number in your answer to control the judge: `rock 820` is judged as 820 (in the puzzle's base unit). `dog` is "vague" and `unicorn` is "invalid".
-Open the account menu and click **Dev sign-in** to become admin locally, then go to `/admin.html`.
+With `MOCK_AI=1`:
+- **Summit:** put a number in your answer to control the judge: `rock 820` is judged as 820 (in the puzzle's base unit). `dog` is "vague" and `unicorn` is "invalid".
+- **Venn:** answers containing `yes` fit every circle, `close` fits 2 of 3, `typo` triggers "Did you mean", `fiction` / `rude` are refused. Answers from the puzzle's built-in list fit too. Puzzles come from the built-in bank.
+
+Open the account menu and click **Dev sign-in** to become admin locally, then go to `/admin`.
 
 ```bash
-npm test                             # scoring + unit tests
+npm test                             # scoring, Venn rules, fuzzy matching, WK Bucks ledger (on a local D1)
 ```
 
 ## Deploy (one time)
 
-1. **Push to GitHub.** Create an empty repo, then:
+1. **Google sign-in:** in the Google Cloud console (APIs & Services → Credentials → your OAuth client), add the redirect URI `https://wk-game-suite.pages.dev/api/auth/callback`. Keep the old ones until the old domains are only redirects.
+2. **Create the Pages project** `wk-game-suite` (dashboard → Workers & Pages → Create → Pages → Connect to Git, repo `will-k16/daily_games`, build command empty, output `public`), or:
    ```bash
-   git remote add origin https://github.com/<you>/just-right.git
-   git push -u origin main
+   npx wrangler pages project create wk-game-suite --production-branch main
    ```
-2. **Create the database:**
+3. **Bindings and secrets:** Settings → Bindings → D1 database, variable `DB` → `just-right`. Copy the secrets:
    ```bash
-   npx wrangler login
-   npx wrangler d1 create just-right
+   npx wrangler pages secret put GROQ_API_KEY --project-name wk-game-suite
+   npx wrangler pages secret put GEMINI_API_KEY --project-name wk-game-suite
+   npx wrangler pages secret put GOOGLE_CLIENT_ID --project-name wk-game-suite
+   npx wrangler pages secret put GOOGLE_CLIENT_SECRET --project-name wk-game-suite
    ```
-   Copy the printed `database_id` into `wrangler.toml`, then:
+   Vars live in `wrangler.toml`: `LAUNCH_DATE` (Summit #1), `VENN_LAUNCH_DATE` (Venn #1, the day Venn is deployed), `ADMIN_EMAILS`, `TIP_URL`.
+4. **Migrate the database before pushing code that needs it:**
    ```bash
    npm run db:remote
    ```
-3. **Create the Pages project.** In the Cloudflare dashboard go to Workers & Pages → Create → Pages → Connect to Git, and pick the repo.
-   - Build command: *(leave empty)*. Build output directory: `public`.
-   - Settings → Bindings → add **D1 database**, variable name `DB` → `just-right`. (The binding in `wrangler.toml` is used too.)
-4. **Get AI keys.** The judge searches the web for every new answer before it puts a number on it.
-   - **Gemini (recommended):** get a free key at https://aistudio.google.com/apikey. Gemini 3.5 Flash-Lite answers in about half a second and steps in whenever Groq's search is busy.
-   - **Google Search through Gemini (optional, needs billing):** turn on billing for the Google project (5,000 free searches a month, then $14 per 1,000), then set the variable `GEMINI_SEARCH=on`. Gemini's Google results then go first. Without billing, leave it off: every attempt just gets refused.
-   - **Groq (backup):** get a free key at https://console.groq.com/keys. Groq's free tier only allows about two web searches a minute, so on its own it often falls back to answering from memory. That's what used to cause wrong "not a real thing" calls.
-   - Want Groq first anyway? Set the variable `JUDGE=groq`.
-5. **Set up Google sign-in.** Go to https://console.cloud.google.com → APIs & Services → Credentials → Create OAuth client ID (Web application).
-   - Authorized redirect URI: `https://summit-daily.pages.dev/api/auth/callback`
-6. **Add secrets** in Pages → Settings → Variables and Secrets (Production), or with the CLI:
-   ```bash
-   npx wrangler pages secret put GROQ_API_KEY
-   npx wrangler pages secret put GEMINI_API_KEY        # recommended: the main web-search judge
-   npx wrangler pages secret put GOOGLE_CLIENT_ID
-   npx wrangler pages secret put GOOGLE_CLIENT_SECRET
-   ```
-7. In `wrangler.toml`, set `LAUNCH_DATE` (the day puzzle #1 goes live), `ADMIN_EMAILS`, and optionally `TIP_URL`. Then push. Every push to `main` redeploys.
+5. Push to `main`. Every push redeploys the new project and the two old ones (which now only redirect).
+
+AI keys: Gemini at https://aistudio.google.com/apikey (Flash-Lite answers in about half a second), Groq at https://console.groq.com/keys. Gemini's Google Search needs billing, so `GEMINI_SEARCH` stays unset; set `JUDGE=groq` to put Groq first.
 
 ## Running it day to day
 
-- `/admin.html` → **Calendar** → *Generate drafts* to get AI puzzles for upcoming days, then approve or edit them.
-  If a day has nothing approved, its draft is used. If there's no draft either, the AI makes one on the spot, and the built-in fallback bank covers AI outages.
-- **Complaints:** accept a complaint to fix the judged value. Every guess that used that answer is rescored, and the player gets a note on their next visit.
-- **Answers:** fix any judged value, and approve answers so they can appear in public "top answers". An answer shows publicly once 2+ players have given it, or once you approve it.
-- **Unlimited** (∞ in the header, admins only) gives endless practice puzzles for testing.
+- `/admin` → **Suite**: real players per game, your WK Bucks (grant or take back), AI calls/errors and rate-limit hits.
+- `/admin` → **Summit**: today's stages, calendar (generate / approve / edit / reject), complaints (fix a value and rescore), answers.
+- `/admin` → **Venn**: calendar of drafts (approve / edit / reject, edit par before release), complaints (accept = that answer counts for the puzzle and every play with it is rescored), judgment cache editor, and Venn Unlimited.
+- A day with nothing approved uses its draft; with no draft the AI makes one on the spot; if the AI is down, a built-in bank is used.
 
 ## Layout
 
 ```
-functions/api/[[path]].js   API router
-functions/_lib/             auth, game rules, AI judge, admin, fallback puzzles
-migrations/                 D1 schema
-public/                     the site (index.html, admin.html, css/, js/)
-public/js/score.js          scoring, shared by browser + server
-public/js/sprites.js        hand-placed pixel art
-public/js/pad.js            the field notebook (middle finder, notes, converter, calculator)
+functions/api/[[path]].js   API router (suite/*, Summit, venn/*, mel/*, admin/*)
+functions/_middleware.js    old domains → wk-game-suite.pages.dev/summit
+functions/_lib/             auth, bucks (WK Bucks ledger + shops), game (Summit), venn, venn-ai, venn-admin,
+                            fuzzy ("did you mean"), suite (home page + combined share), ai, admin, fallback banks
+migrations/                 D1 schema (0005 adds Venn and Mel)
+public/index.html           suite home (css/suite.css, js/suite.js)
+public/summit/index.html    Summit (js/summit.js, js/summit-scene.js, css/summit.css)
+public/venn/index.html      Venn (js/venn.js, js/venn-scene.js, js/mel.js, css/venn.css)
+public/js/bucks.js          the WK Bucks glyph
+public/js/venn-score.js     Venn scoring, par, payouts, share text (browser + server)
+public/js/score.js          Summit scoring and share text (browser + server)
+public/js/wardrobe.js       Skipper's catalog;  public/js/mel-wardrobe.js  Mel's catalog
+public/js/account.js        the shared account modal
 ```

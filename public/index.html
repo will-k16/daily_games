@@ -3,48 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Summit</title>
-<meta name="description" content="A daily game: ride the cable car to the thing that's juuust right between too small and too big.">
-<meta name="theme-color" content="#d9482b">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>WK Game Suite</title>
+<meta name="description" content="Small daily games: Venn and Summit. New puzzles every midnight UTC.">
+<meta name="theme-color" content="#f3eee2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1916" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/suite-icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Pixelify+Sans:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/summit.css">
-<script>
-  (function () { var h = new Date().getHours(); document.documentElement.dataset.tod = h >= 5 && h < 10 ? 'morning' : h >= 10 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'evening' : 'night'; })();
-</script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Pixelify+Sans:wght@500;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/suite.css">
 </head>
 <body>
-<div class="app">
-  <header class="top">
-    <a class="brand" href="#/" aria-label="Summit home">
-      <svg class="logo" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
-        <path d="M0 16V13H1V12H2V11H3V10H4V9H5V8H6V9H7V10H8V9H9V8H10V7H11V6H12V7H13V9H14V11H15V13H16V16Z" fill="#2d6340"/>
-        <path d="M11 6H12V7H13V8H12V9H11V8H10V7H11Z" fill="#ffffff"/>
-        <path d="M0 3H4V4H0ZM4 2H11V3H4ZM11 1H16V2H11Z" fill="#3d4756"/>
-        <g class="logo-cab"><rect x="7" y="3" width="1" height="2" fill="#3d4756"/><rect x="5" y="5" width="5" height="4" fill="#d9482b"/><rect x="6" y="6" width="3" height="1" fill="#bfe3f5"/><rect x="5" y="8" width="5" height="1" fill="#a8331c"/></g>
-      </svg>
-      <span class="wordmark">Summit</span>
-    </a>
-    <nav class="tools">
-      <button class="tbtn" id="unlBtn" hidden title="Unlimited (admin)">∞</button>
-      <a class="tbtn" id="admBtn" href="/admin.html" hidden title="Admin"><svg viewBox="0 0 20 20"><rect x="7" y="7" width="6" height="6"/><path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.5 4.5l2 2M13.5 13.5l2 2M4.5 15.5l2-2M13.5 6.5l2-2"/></svg><span class="lbl">Admin</span></a>
-      <button class="tbtn" id="wardBtn" title="Skipper's wardrobe"><span aria-hidden="true">🍀</span><span id="cloverNum" class="cnum"></span><span class="lbl">Wardrobe</span></button>
-      <button class="tbtn" id="padBtn" title="Field notebook"><svg viewBox="0 0 20 20"><rect x="4" y="2" width="12" height="16"/><path d="M7 7h6M7 10h6M7 13h4"/></svg><span class="lbl">Notebook</span></button>
-      <a class="tbtn" href="#/archive" title="Archive"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="13"/><path d="M3 8h14M7 2v4M13 2v4"/></svg><span class="lbl">Archive</span></a>
-      <button class="tbtn" id="statsBtn" title="Stats"><svg viewBox="0 0 20 20"><path d="M4 17V11M10 17V5M16 17V8"/></svg><span class="lbl">Stats</span></button>
-      <button class="tbtn" id="helpBtn" title="How to play"><svg viewBox="0 0 20 20"><path d="M7 6V4h6v5h-3v3M10 15v2"/></svg></button>
-      <button class="tbtn" id="unitBtn" title="Switch units">US</button>
-      <button class="tbtn" id="acctBtn" title="Account"><svg viewBox="0 0 20 20"><rect x="7" y="3" width="6" height="6"/><path d="M3 18v-3h14v3"/></svg></button>
-    </nav>
+<div class="sheet">
+  <header class="masthead">
+    <div class="bar">
+      <span class="pill" id="bucks" title="WK Bucks"></span>
+      <span class="pill" id="streak" title="Days in a row with at least one round of any game">WK streak <b>0</b></span>
+      <button class="pill acct" id="acct" type="button">Sign in</button>
+    </div>
+    <h1 class="title" id="title" aria-label="WK GAME SUITE">WK GAME SUITE</h1>
+    <p class="reset" id="reset">New puzzles in <b>--:--:--</b></p>
   </header>
 
-  <div class="layout">
-    <main id="main"><div class="loading"><div class="spinner-cab"></div>Warming up the cable car…</div></main>
-    <aside class="pad" id="pad" aria-label="Field notebook"></aside>
+  <main class="games" id="games"></main>
+
+  <div class="sharebar" id="sharebar" hidden>
+    <button class="btn" id="share" type="button">Share today</button>
   </div>
-  <footer class="foot"><a href="/privacy.html">Privacy</a></footer>
+
+  <footer class="foot"><a href="/privacy">Privacy</a><a href="/admin" id="adminLink" hidden>Admin</a></footer>
 </div>
 
 <div class="modal" id="modal" hidden>
@@ -54,6 +41,7 @@
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="/js/summit.js"></script>
+<canvas id="wipe" aria-hidden="true"></canvas>
+<script type="module" src="/js/suite.js"></script>
 </body>
 </html>

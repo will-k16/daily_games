@@ -1,4 +1,4 @@
-name = "summit-daily"
+name = "wk-game-suite"
 pages_build_output_dir = "public"
 compatibility_date = "2024-09-23"
 
@@ -9,9 +9,11 @@ database_id = "db9dce42-dcba-4640-bee7-bdb21a26d318"
 migrations_dir = "migrations"
 
 [vars]
-# First puzzle day (YYYY-MM-DD, UTC). Puzzle #1 is this date.
+# First Summit puzzle day (YYYY-MM-DD, UTC). Summit #1 is this date.
 LAUNCH_DATE = "2026-10-08"
-# Comma-separated Google emails that can open /admin.html
+# First Venn day (UTC): the day Venn is deployed. Venn #1 is this date.
+VENN_LAUNCH_DATE = "2026-10-18"
+# Comma-separated Google emails that can open /admin
 ADMIN_EMAILS = "will.kolander@gmail.com"
 # Optional "buy me a coffee" style link. Leave empty to hide.
 TIP_URL = ""

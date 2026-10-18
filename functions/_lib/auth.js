@@ -73,8 +73,8 @@ function redirect(location, cookies = []) {
 }
 
 const safeReturn = r => (typeof r === 'string' && r.startsWith('/') && !r.startsWith('//')) ? r : '/';
-// Sign-in always lands on a fresh page load of one of the game's home pages.
-const HOMES = ['/', '/summit.html', '/summit'];
+// Sign-in always lands on a fresh page load of the page it started from: the suite home or a game.
+const HOMES = ['/', '/summit', '/summit/', '/venn', '/venn/'];
 const homeFor = r => HOMES.includes(String(r || '').split(/[?#]/)[0]) ? String(r).split(/[?#]/)[0] : '/';
 
 export function googleStart(request, env) {
@@ -98,8 +98,9 @@ export async function googleCallback(request, env, who) {
   const url = new URL(request.url);
   const saved = safeJson(parseCookies(request)[OAUTH] || '', null);
   const clear = cookie(OAUTH, '', { maxAge: 0, secure: secureFor(url) });
+  const failed = homeFor(saved && saved.ret) + '?signin=failed';
   if (!saved || saved.state !== url.searchParams.get('state') || !url.searchParams.get('code')) {
-    return redirect('/?signin=failed', [clear]);
+    return redirect(failed, [clear]);
   }
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -112,13 +113,13 @@ export async function googleCallback(request, env, who) {
       grant_type: 'authorization_code'
     })
   });
-  if (!res.ok) return redirect('/?signin=failed', [clear]);
+  if (!res.ok) return redirect(failed, [clear]);
   const tok = await res.json();
   // The token came straight from Google over TLS, so decoding (not re-verifying) the payload is safe.
   const payload = safeJson(atob(String(tok.id_token || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/')), null);
   const okIss = payload && ['accounts.google.com', 'https://accounts.google.com'].includes(payload.iss);
   if (!payload || !okIss || payload.aud !== env.GOOGLE_CLIENT_ID || !payload.email_verified) {
-    return redirect('/?signin=failed', [clear]);
+    return redirect(failed, [clear]);
   }
   const cookies = await signIn(env, who, 'google:' + payload.sub, String(payload.email).toLowerCase(), secureFor(url));
   // Always land on a fresh home page so the whole app reloads signed in.
@@ -169,8 +170,13 @@ async function signIn(env, who, sub, email, secure) {
           (SELECT 1 FROM plays q WHERE q.player_id = ? AND q.puzzle_id = plays.puzzle_id AND q.mode = plays.mode)`)
           .bind(account.id, anon.id, account.id),
         db.prepare(`UPDATE complaints SET player_id = ? WHERE player_id = ?`).bind(account.id, anon.id),
+        db.prepare(`UPDATE venn_plays SET player_id = ? WHERE player_id = ? AND NOT EXISTS
+          (SELECT 1 FROM venn_plays q WHERE q.player_id = ? AND q.puzzle_id = venn_plays.puzzle_id AND q.mode = venn_plays.mode)`)
+          .bind(account.id, anon.id, account.id),
+        db.prepare(`UPDATE venn_complaints SET player_id = ? WHERE player_id = ?`).bind(account.id, anon.id),
         db.prepare(`UPDATE OR IGNORE purchases SET player_id = ? WHERE player_id = ?`).bind(account.id, anon.id),
-        db.prepare(`UPDATE players SET skipper = (SELECT skipper FROM players WHERE id = ?) WHERE id = ? AND skipper = '{}'`).bind(anon.id, account.id)
+        db.prepare(`UPDATE players SET skipper = (SELECT skipper FROM players WHERE id = ?) WHERE id = ? AND skipper = '{}'`).bind(anon.id, account.id),
+        db.prepare(`UPDATE players SET mel = (SELECT mel FROM players WHERE id = ?) WHERE id = ? AND mel = '{}'`).bind(anon.id, account.id)
       ]);
     }
   }

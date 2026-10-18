@@ -3,9 +3,11 @@ import { createScene, createClimb } from './summit-scene.js';
 import { skipperPortrait } from './pixel.js';
 import { fmt, nice } from './units.js';
 import { PROPS, propLabel } from './props.js';
-import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE } from './score.js';
+import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE, summitShareText } from './score.js';
 import * as pad from './pad.js';
-import { WARDROBE, SLOTS, DEFAULT_LOOK, itemKey, cloversFor, DAY_BONUS } from './wardrobe.js';
+import { WARDROBE, SLOTS, DEFAULT_LOOK, itemKey, bucksFor, DAY_BONUS } from './wardrobe.js';
+import { bucksIcon, bucksAmount } from './bucks.js';
+import { showAccount as accountModal, signInReturn } from './account.js';
 
 /* ═══════════ Basics ═══════════ */
 const $ = s => document.querySelector(s);
@@ -27,7 +29,7 @@ const SUMMIT_M = 3000;   // three stages × 1000; every point is a meter climbed
 
 const S = {
   units: store.get('jr.units', 'imperial'),
-  me: { signedIn: false, isAdmin: false, email: '', skipper: { ...DEFAULT_LOOK } }, clovers: null,
+  me: { signedIn: false, isAdmin: false, email: '', skipper: { ...DEFAULT_LOOK } }, bucks: null,
   today: null, ctx: null, roomIdx: 0, showSummary: false,
   scene: null, scenePid: null, shownTotal: 0, unl: null
 };
@@ -80,7 +82,6 @@ function verdict(s) {
   return { t: 'Lost in the clouds', mood: 'dizzy', d: 'Nowhere near the lodge.' };
 }
 const tier = s => s >= 900 ? 'green' : s >= 600 ? 'yellow' : s >= 300 ? 'orange' : 'red';
-const square = s => ({ green: '🟩', yellow: '🟨', orange: '🟧', red: '🟥' })[tier(s)];
 
 /* ═══════════ Time of day ═══════════ */
 function tod() { const h = new Date().getHours(); return h >= 5 && h < 10 ? 'morning' : h >= 10 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'evening' : 'night'; }
@@ -112,16 +113,11 @@ const firstOpen = rooms => { const i = rooms.findIndex(r => r.play.state !== 'do
 async function loadToday() {
   if (!S.ctx || S.ctx.kind !== 'daily') { dropScene(); $('#main').innerHTML = loadingHTML('Warming up the cable car…'); }
   const d = await api('today');
-  S.today = d; S.me = d.me; S.clovers = d.clovers; paintTools();
+  S.today = d; S.me = d.me; S.bucks = d.bucks; paintTools();
   setCtx({ kind: 'daily', date: d.date, number: d.number, rooms: d.rooms.map(r => ({ ...r, mode: 'daily' })), day: d.day });
   if (d.notifications && d.notifications.length) showNotifications(d.notifications);
   else if (!store.get('jr.summitHelp', false)) { store.set('jr.summitHelp', true); showHelp(); }
-  const sp = new URLSearchParams(location.search);
-  if (sp.get('signedin') === '1') { history.replaceState(null, '', location.pathname); toast(S.me.signedIn ? `Signed in as ${S.me.email}` : 'Sign-in didn\'t stick. Try once more.'); }
-  if (sp.get('signin') === 'failed') {
-    history.replaceState(null, '', location.pathname);
-    showAccount('Google sign-in didn\'t go through. You can use your email and a password instead.');
-  }
+  signInReturn(accountUI());
 }
 async function loadArchiveDay(date) {
   dropScene(); $('#main').innerHTML = loadingHTML('Dusting off an old trail map…');
@@ -485,7 +481,7 @@ function afterChange(r, event) {
 
 async function refreshDay() {
   try {
-    const d = await api('today'); S.today = d; S.clovers = d.clovers; paintTools();
+    const d = await api('today'); S.today = d; S.bucks = d.bucks; paintTools();
     if (S.ctx.kind === 'daily' && S.ctx.date === d.date) S.ctx.day = d.day;
   } catch { /* fine */ }
 }
@@ -524,12 +520,12 @@ async function loadBest(box, r, tries = 0) {
   }
 }
 
-function cloverLineHTML(c) {
+function bucksLineHTML(c) {
   if (c.kind === 'unlimited') return '';
   const mode = c.kind === 'daily' ? 'daily' : 'archive';
-  let n = c.rooms.reduce((s, r) => s + (r.play.state === 'done' ? cloversFor(r.play.score, r.mode === 'daily' ? 'daily' : mode) : 0), 0);
+  let n = c.rooms.reduce((s, r) => s + (r.play.state === 'done' ? bucksFor(r.play.score, r.mode === 'daily' ? 'daily' : mode) : 0), 0);
   if (c.kind === 'daily' && c.rooms.every(r => r.play.state === 'done')) n += DAY_BONUS;
-  return `<div class="clovers rise" style="--d:5">🍀 <b>+${n}</b> ${n === 1 ? 'clover' : 'clovers'} ${c.kind === 'daily' ? 'today' : 'from this day'}${S.clovers ? ` · ${S.clovers.balance} to spend` : ''}
+  return `<div class="bucksline rise" style="--d:5">${bucksIcon()} <b>+${n}</b> WK ${n === 1 ? 'Buck' : 'Bucks'} ${c.kind === 'daily' ? 'today' : 'from this day'}${S.bucks ? ` · ${S.bucks.balance} to spend` : ''}
     <button class="btn sm alt" id="wardrobeBtn2" type="button">Dress up ${sk()}</button></div>`;
 }
 
@@ -558,7 +554,7 @@ function summaryHTML(c) {
         ${c.kind === 'archive' ? '<a class="btn alt" href="#/archive">More days</a>' : ''}
       </div>
       ${c.kind === 'daily' ? '<div class="countdown">New mountain in <b class="cd">--:--:--</b></div>' : ''}
-      ${cloverLineHTML(c)}
+      ${bucksLineHTML(c)}
       ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy ${sk()} a snack</a>` : ''}
     </div>`;
 }
@@ -576,17 +572,7 @@ function wireSummary(c) {
 
 /* ═══════════ Share ═══════════ */
 function shareText(c) {
-  const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
-  const head = `Summit #${c.number}${c.kind === 'archive' ? ' (archive)' : ''} ⛰️ ${meters(total)} / 3,000 m`;
-  const rows = c.rooms.map(r => {
-    const p = r.play, g1 = p.guesses[0], g2 = p.guesses[1];
-    let s = stageOf(r.puzzle.slot).emoji + ' ' + '❌'.repeat(p.rejects1 || 0);
-    if (p.gaveUp) return s + (g1 ? square(g1.score) + '→' + '❌'.repeat(p.rejects2 || 0) : '') + '🏳️ 0';
-    if (g1) s += square(g1.score);
-    if (g2) s += '→' + '❌'.repeat(p.rejects2 || 0) + square(g2.score);
-    return s + ' ' + p.score;
-  });
-  return [head, ...rows, location.origin + location.pathname].join('\n');
+  return summitShareText({ number: c.number, rooms: c.rooms, archive: c.kind === 'archive' }, location.host + '/summit');
 }
 async function doShare(c) {
   const text = shareText(c);
@@ -638,7 +624,7 @@ function showSkipper(r) {
         <p class="sk-role">Cable car operator · Professional middle-finder</p>
         <p class="sk-quote">“${lines[mood] || lines.smile}”</p>
         <ul class="sk-facts"><li><b>Rides:</b> a few thousand, give or take a goat-load</li><li><b>Favorite spot:</b> the lodge, right in the middle</li>
-          <li><b>Hates:</b> people who say “a 5 km race”</li><li><b>Snack:</b> alpine clover (you earn it by climbing)</li></ul>
+          <li><b>Hates:</b> people who say “a 5 km race”</li><li><b>Snack:</b> alpine wildflowers, fresh off the slope</li></ul>
         <div class="row"><button class="btn" id="skOk">Back to the ride</button><button class="btn alt" id="skWear">👕 Wardrobe</button></div></div></div>`);
   animatePortrait($('#skipCv'), mood, () => look());
   $('#skOk').onclick = closeModal;
@@ -666,7 +652,7 @@ async function showWardrobe() {
   try { w = await api('skipper'); } catch (e) { openModal(`<h2>Wardrobe</h2><div class="note bad">${esc(e.message)}</div>`); return; }
   let tab = 'fur', preview = null, confirming = null;
   const apply = data => {
-    w = data; S.clovers = data.clovers; S.me.skipper = data.look; paintTools();
+    w = data; S.bucks = data.bucks; S.me.skipper = data.look; paintTools();
     // Redraw the cable car with the new look.
     if (S.ctx && !S.showSummary && $('#sceneHost')) { S.scenePid = null; ensureScene(S.ctx.rooms[S.roomIdx], 'enter'); }
   };
@@ -684,8 +670,8 @@ async function showWardrobe() {
       : `<div class="witems">${items.map(it => itemHTML(tab, it)).join('')}</div>`;
     $('#modalBody').innerHTML = `<h2>${sk()}'s wardrobe</h2>
       <div class="wtop"><div class="portrait sm"><canvas id="wardCv" width="44" height="44"></canvas></div>
-        <div><div class="wbal">🍀 <b>${w.clovers.balance}</b> ${w.clovers.balance === 1 ? 'clover' : 'clovers'}</div>
-          <p class="sub">You earn 1 clover for every 100 m you climb on the daily (bonus 5 for a perfect stage, and 5 more for finishing all three). Past days earn half.</p></div></div>
+        <div><div class="wbal">${bucksIcon()} <b>${w.bucks.balance}</b> WK ${w.bucks.balance === 1 ? 'Buck' : 'Bucks'}</div>
+          <p class="sub">Summit pays 1 WK Buck for every 100 m you climb on the daily (bonus 5 for a perfect stage, and 5 more for finishing all three). Past days pay half. WK Bucks work in every game's shop.</p></div></div>
       <div class="wtabs">${SLOTS.map(s => `<button type="button" data-wtab="${s.key}" class="${s.key === tab ? 'on' : ''}">${s.name}</button>`).join('')}</div>
       <div class="msg" id="wmsg"></div>
       ${list}`;
@@ -711,8 +697,8 @@ async function showWardrobe() {
   function itemHTML(slot, it) {
     const own = owns(slot, it), on = slot !== 'name' && w.look[slot] === it.id;
     const asking = confirming === itemKey(slot, it.id);
-    const label = on ? 'Wearing' : own ? (slot === 'name' ? 'Yours' : 'Wear') : asking ? `Buy for 🍀 ${it.price}?` : `🍀 ${it.price}`;
-    const short = !own && it.price > w.clovers.balance;
+    const label = on ? 'Wearing' : own ? (slot === 'name' ? 'Yours' : 'Wear') : asking ? `Buy for ${bucksAmount(it.price)}?` : bucksAmount(it.price);
+    const short = !own && it.price > w.bucks.balance;
     return `<button type="button" class="witem ${on ? 'on' : ''} ${short ? 'short' : ''} ${asking ? 'ask' : ''}" data-wslot="${slot}" data-wid="${it.id}">
       ${swatch(slot, it)}<span class="wn">${esc(it.name)}</span><span class="wp">${label}</span></button>`;
   }
@@ -720,8 +706,9 @@ async function showWardrobe() {
   async function act(slot, it, b) {
     const own = owns(slot, it);
     if (slot !== 'name' && w.look[slot] === it.id) return;
-    if (!own && it.price > w.clovers.balance) {
-      $('#wmsg').innerHTML = `<div class="note warn">You need ${it.price - w.clovers.balance} more ${it.price - w.clovers.balance === 1 ? 'clover' : 'clovers'} for that. Keep climbing!</div>`;
+    if (!own && it.price > w.bucks.balance) {
+      const need = it.price - w.bucks.balance;
+      $('#wmsg').innerHTML = `<div class="note warn">You need ${need} more WK ${need === 1 ? 'Buck' : 'Bucks'} for that. Keep climbing!</div>`;
       return;
     }
     // Buying takes two taps: the first shows it on and asks.
@@ -760,7 +747,7 @@ function showHelp() {
       <div class="stepc" style="--d:1">${ICON.lodge}<p><b class="n">Ride to the lodge</b>Name something real that's juuust right in between. The lodge is the middle by <b>ratio</b>: between 1 and 100 it's <b>10</b>, not 50. Shortcut: √(small × big).</p></div>
       <div class="stepc" style="--d:2">${ICON.fog}<p><b class="n">Into the fog</b>You'll see your score, but fog hides which way you're off. Keep it, or take one final ride worth ×0.8. Answers off the cable get ❌: three are free, then the next scores 0.</p></div>
     </div>
-    <p class="sub">Each stage is worth up to 1,000 m, so a perfect day tops out at the 3,000 m summit. Every 100 m you climb earns a 🍀 clover to spend on ${sk()}'s wardrobe. New mountain every midnight UTC.</p>
+    <p class="sub">Each stage is worth up to 1,000 m, so a perfect day tops out at the 3,000 m summit. Every 100 m you climb earns a WK Buck ${bucksIcon()} to spend on ${sk()}'s wardrobe. New mountain every midnight UTC.</p>
     <div class="row"><button class="btn" id="helpGo">All aboard 🚡</button></div>`);
   $('#helpGo').onclick = closeModal;
 }
@@ -778,65 +765,10 @@ async function showStats() {
     const si = $('#statsSignin'); if (si) si.onclick = () => showAccount();
   } catch (e) { openModal(`<h2>Your stats</h2><div class="note bad">${esc(e.message)}</div>`); }
 }
-function showAccount(note) {
-  if (S.me.signedIn) {
-    const has = !!S.me.hasPassword;
-    openModal(`<h2>Account</h2><p>Signed in as <b>${esc(S.me.email)}</b>. Your stats and ${sk()}'s wardrobe come with you to any device.</p>
-      <form class="authform" id="pwForm" autocomplete="on">
-        <h4>${has ? 'Change your password' : 'Add a password'}</h4>
-        <p class="sub">${has ? '' : 'Handy if Google sign-in ever acts up: you can sign in with your email and this password instead.'}</p>
-        <input type="email" name="username" value="${esc(S.me.email)}" autocomplete="username" hidden>
-        ${has ? '<input class="pin" type="password" name="current" placeholder="Current password" autocomplete="current-password" required>' : ''}
-        <input class="pin" type="password" name="password" placeholder="New password (8+ characters)" autocomplete="new-password" minlength="8" required>
-        <div class="msg" id="pwMsg"></div>
-        <div class="row"><button class="btn sm" type="submit">${has ? 'Change password' : 'Save password'}</button><button class="btn alt sm" type="button" id="signout">Sign out</button></div>
-      </form>`);
-    $('#signout').onclick = async () => { await api('auth/logout', {}).catch(() => {}); location.href = location.pathname; };
-    const f = $('#pwForm');
-    f.onsubmit = async e => {
-      e.preventDefault();
-      const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
-      try {
-        await api('auth/password', { password: f.password.value, current: f.current ? f.current.value : '' });
-        S.me.hasPassword = true; closeModal(); toast(has ? 'Password changed.' : 'Password saved. You can sign in with it anytime.');
-      } catch (err) { $('#pwMsg').innerHTML = `<div class="note bad">${esc(err.message)}</div>`; btn.disabled = false; }
-    };
-    return;
-  }
-  const local = ['localhost', '127.0.0.1'].includes(location.hostname);
-  let mode = 'signin';
-  const draw = () => {
-    const up = mode === 'signup';
-    openModal(`<h2>${up ? 'Make an account' : 'Sign in'}</h2>
-      ${typeof note === 'string' ? `<div class="note warn" style="margin-bottom:12px">${esc(note)}</div>` : ''}
-      <p>You're playing as a guest, so your scores only live on this device. Sign in to keep your streak and ${sk()}'s wardrobe on your phone and computer. Your email is never shown to anyone.</p>
-      <div class="row"><a class="btn" href="/api/auth/login?return=/">Continue with Google</a>${local ? '<a class="btn alt sm" href="/api/auth/dev?return=/">Dev sign-in</a>' : ''}</div>
-      <div class="or"><span>or use your email</span></div>
-      <form class="authform" id="authForm" autocomplete="on">
-        <input class="pin" type="email" name="email" placeholder="Email" autocomplete="email" required>
-        <input class="pin" type="password" name="password" placeholder="${up ? 'Password (8+ characters)' : 'Password'}" autocomplete="${up ? 'new-password' : 'current-password'}" ${up ? 'minlength="8"' : ''} required>
-        <div class="msg" id="authMsg"></div>
-        <div class="row"><button class="btn sm" type="submit">${up ? 'Create account' : 'Sign in'}</button>
-          <button class="link" type="button" id="authSwap">${up ? 'Already have an account? Sign in' : 'New here? Make an account'}</button></div>
-        ${up ? '' : '<p class="sub">Forgot your password? If you also use Google, sign in with Google and set a new one from this menu.</p>'}
-      </form>`);
-    $('#authSwap').onclick = () => { mode = up ? 'signin' : 'signup'; note = null; draw(); };
-    const f = $('#authForm');
-    f.email.focus();
-    f.onsubmit = async e => {
-      e.preventDefault();
-      const btn = f.querySelector('button[type=submit]'); btn.disabled = true; btn.classList.add('busy');
-      try {
-        await api(up ? 'auth/register' : 'auth/signin', { email: f.email.value, password: f.password.value });
-        location.href = location.pathname + '?signedin=1';
-      } catch (err) {
-        $('#authMsg').innerHTML = `<div class="note bad">${esc(err.message)}</div>`;
-        btn.disabled = false; btn.classList.remove('busy');
-      }
-    };
-  };
-  draw();
+function accountUI() {
+  return { me: S.me, api, openModal, closeModal, toast };
 }
+function showAccount(note) { accountModal(accountUI(), note); }
 function showReport(r, guessId) {
   const g = r.play.guesses.find(x => x.id === guessId); if (!g) return;
   openModal(`<h2>Wrong number?</h2>
@@ -887,7 +819,8 @@ function paintTools() {
   $('#unlBtn').hidden = !S.me.isAdmin;
   $('#admBtn').hidden = !S.me.isAdmin;
   $('#acctBtn').classList.toggle('on', !!S.me.signedIn);
-  $('#cloverNum').textContent = S.clovers ? S.clovers.balance : '';
+  $('#bucksIco').innerHTML = bucksIcon();
+  $('#bucksNum').textContent = S.bucks ? S.bucks.balance : '';
 }
 $('#helpBtn').onclick = showHelp;
 $('#statsBtn').onclick = showStats;

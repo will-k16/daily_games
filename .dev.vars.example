@@ -1,6 +1,8 @@
 # Copy to .dev.vars for local development. Never commit .dev.vars.
 
-# Fake AI judge so you can play offline without any API keys.
+# Fake AI judges so you can play offline without any API keys.
+#   Summit: a number in the answer sets its value ("rock 820").
+#   Venn: "yes" fits every circle, "close" fits 2 of 3, "typo" asks "Did you mean"; puzzles come from the built-in bank.
 MOCK_AI=1
 
 # Lets you sign in as this email on localhost without Google (dev only).

@@ -1,5 +1,7 @@
 # Summit: build spec
 
+> Summit is now one of the games in **WK Game Suite** (`wk-game-suite.pages.dev`) and lives at `/summit`. The suite home page, WK Bucks, shared accounts, the suite admin and the second game, Venn, are described in [docs/WK_GAME_SUITE_PLAN.md](docs/WK_GAME_SUITE_PLAN.md) and [VENN_SPEC.md](VENN_SPEC.md).
+
 This is the single source of truth for rebuilding **Threshold** as a standalone, free-to-host web game called **Summit**. It records three things: how the old Apps Script version worked, what makes games like it popular, and every decision made for the new version.
 
 ---
@@ -161,7 +163,7 @@ Custom properties with their own unit label are allowed for admin-made puzzles.
   🥣 ❌❌🟩 98
   🪑 🟧→🟩 72
   🛏️ 🟥 43
-  https://<site>
+  <site>/summit
   ```
   ❌ = an out-of-range rejection, colored squares = accepted guesses (🟩 ≥ 90, 🟨 ≥ 60, 🟧 ≥ 30, 🟥 < 30), → = took the second guess (×0.8 applied).
 - **Tip-jar link** (configurable; hidden if empty). No ads.
@@ -184,8 +186,8 @@ Days played (all 3 rooms finished), average daily total, best, current streak, m
 ### 4.15 Units for display
 A US/metric toggle. Values are formatted with sensible units (oz/lb/tons, in/ft/mi, mL/L/gal, ms through years, W through GW, B through TB, and so on).
 
-### 4.16 Admin tools (admin.html)
-- **Dashboard:** today's players, average scores per room, the score distribution, AI calls and errors, open complaints.
+### 4.16 Admin tools (`/admin`, Summit tab)
+- **Today:** today's players, average scores per room, the score distribution, open complaints. (Real players across the suite, AI calls and errors, and the WK Bucks grant box are on the Suite tab.)
 - **Calendar and queue:** the next 30 / past 14 days with 3 slots each and their status. Generate drafts, edit, approve, reject, hand-write.
 - **Complaints inbox:** accept (with a value fix and rescore) or reject.
 - **Answer value editor:** search the cache, edit name/value/status, approve for public display, rescore.
@@ -206,14 +208,14 @@ A US/metric toggle. Values are formatted with sensible units (oz/lb/tons, in/ft/
 - **Type:** Pixelify Sans for headings, Silkscreen for numbers, Nunito for reading.
 - **Motion (no sound):** pointer parallax across 4 layers, drifting clouds, flapping birds, chimney smoke, twinkling stars, falling snow, pendulum-physics cabin swing, jolt on off-the-cable answers, fireworks at the lodge on 90+, count-ups and staggered reveals. Respects `prefers-reduced-motion`.
 - **Best answer:** after each stage, the best answer anyone has found (Skipper's AI search or a player's guess, whichever is closer). It can be matched but never beaten. Skipper's search runs in the background (Cloudflare `waitUntil`) as soon as the day's puzzles are loaded, one puzzle at a time, so it's normally ready before anyone finishes a stage; if it isn't, the page shows the best player answer so far and checks back every few seconds.
-- **Skipper's wardrobe:** players earn 🍀 clovers by climbing: 1 per 100 m on the daily (+5 for a perfect stage, +5 for finishing all three), half that on archive days, none in practice. Clovers buy fur colors, hats, scarves, glasses, cable-car colors and a name tag (rename Skipper; only you see the name). Balance = earned (computed from plays) − spent (`purchases`). The catalog and prices live in `public/js/wardrobe.js`; buying takes two taps.
+- **Skipper's wardrobe:** Summit pays **WK Bucks** (the suite-wide currency, which replaced clovers 1:1) for climbing: 1 per 100 m on the daily (+5 for a perfect stage, +5 for finishing all three), half that on archive days, none in practice. WK Bucks buy fur colors, hats, scarves, glasses, cable-car colors and a name tag (rename Skipper; only you see the name). One balance covers every game: earned (computed from Summit plays and Venn rounds) − spent (`purchases`; admin grants are negative-price rows). The catalog and prices live in `public/js/wardrobe.js`; the ledger is `functions/_lib/bucks.js`; buying takes two taps.
 - **No measurements:** puzzle ends never contain numbers or units ("a 5-kilometer race" is rejected), and answers like "a 5 km race" or "a gallon of milk" (for volume) are refused without using a guess.
 
 ---
 
 ## 6. Data model (D1)
 
-- `players(id, google_sub, email, created_at, last_seen, password_hash, skipper)`: `google_sub` is `google:<sub>`, `email:<address>` (password-only) or `dev:<email>`; `skipper` is the JSON look
+- `players(id, google_sub, email, created_at, last_seen, password_hash, skipper, mel)`: `google_sub` is `google:<sub>`, `email:<address>` (password-only) or `dev:<email>`; `skipper` and `mel` are the JSON looks
 - `purchases(player_id, item, price, created_at)`, `login_fails(key, created_at)`
 - `sessions(token, player_id, created_at, expires_at)`
 - `puzzles(id, date, slot, status[draft|approved|auto|rejected|unlimited], property, unit_label, small_item, small_value, big_item, big_value, note, created_at)`, unique `(date, slot)` among approved/auto
@@ -224,6 +226,6 @@ A US/metric toggle. Values are formatted with sensible units (oz/lb/tons, in/ft/
 - `ai_log(id, kind, provider, ok, ms, error, player_id, created_at)`
 
 ## 7. Configuration
-- `wrangler.toml` vars: `LAUNCH_DATE`, `ADMIN_EMAILS`, `TIP_URL`.
+- `wrangler.toml` vars: `LAUNCH_DATE` (Summit #1), `VENN_LAUNCH_DATE` (Venn #1), `ADMIN_EMAILS`, `TIP_URL`.
 - Secrets: `GEMINI_API_KEY` (recommended), `GROQ_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, optional `GROQ_MODEL`, `GEMINI_MODEL` (plain calls), `GEMINI_SEARCH=on` (use Gemini's Google Search; needs billing), `GEMINI_SEARCH_MODEL` (default `gemini-3.5-flash-lite`), `JUDGE=groq` (put Groq first).
 - Local dev only (`.dev.vars`): `MOCK_AI=1` (fake judge for offline testing), `DEV_LOGIN_EMAIL` (localhost-only sign-in without Google).
