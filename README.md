@@ -12,8 +12,8 @@ A daily game. Each day has three stages: Foothills (easy), Ridge (medium) and Pe
 | Website | Cloudflare Pages | unlimited static requests |
 | API | Cloudflare Pages Functions (`functions/`) | 100,000 requests/day |
 | Database | Cloudflare D1 (SQLite) | 5M row reads/day, 100k writes/day, 5 GB |
-| AI judge | Groq (primary), Gemini (backup) | free API tiers; answers are cached |
-| Sign-in | Google OAuth | free |
+| AI judge | Gemini 2.5 Flash + Google Search (primary), Groq + browser search (backup) | free API tiers; answers are cached |
+| Sign-in | Google OAuth, or email + password | free |
 
 There's no build step. `public/` is plain HTML/CSS/ES modules.
 
@@ -52,13 +52,16 @@ npm test                             # scoring + unit tests
 3. **Create the Pages project.** In the Cloudflare dashboard go to Workers & Pages → Create → Pages → Connect to Git, and pick the repo.
    - Build command: *(leave empty)*. Build output directory: `public`.
    - Settings → Bindings → add **D1 database**, variable name `DB` → `just-right`. (The binding in `wrangler.toml` is used too.)
-4. **Get a free Groq key** at https://console.groq.com/keys. Optionally also get a Gemini key at https://aistudio.google.com as a backup.
+4. **Get AI keys.** The judge searches the web for every new answer before it puts a number on it.
+   - **Gemini (recommended, the main judge):** get a free key at https://aistudio.google.com/apikey. The judge uses `gemini-2.5-flash` with Grounding with Google Search, which is free for up to 500 searched answers a day. (Google Search grounding is *not* free on the Gemini 3.x models, so don't switch `GEMINI_SEARCH_MODEL` to one of those unless billing is on.)
+   - **Groq (backup):** get a free key at https://console.groq.com/keys. Groq's free tier only allows about two web searches a minute, so on its own it often falls back to answering from memory. That's what used to cause wrong "not a real thing" calls.
+   - Want Groq first anyway? Set the variable `JUDGE=groq`.
 5. **Set up Google sign-in.** Go to https://console.cloud.google.com → APIs & Services → Credentials → Create OAuth client ID (Web application).
    - Authorized redirect URI: `https://summit-daily.pages.dev/api/auth/callback`
 6. **Add secrets** in Pages → Settings → Variables and Secrets (Production), or with the CLI:
    ```bash
    npx wrangler pages secret put GROQ_API_KEY
-   npx wrangler pages secret put GEMINI_API_KEY        # optional
+   npx wrangler pages secret put GEMINI_API_KEY        # recommended: the main web-search judge
    npx wrangler pages secret put GOOGLE_CLIENT_ID
    npx wrangler pages secret put GOOGLE_CLIENT_SECRET
    ```

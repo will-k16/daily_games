@@ -105,12 +105,12 @@ function paint(stage, tod, seed) {
 }
 
 /* ───────────── the live scene ───────────── */
-export function createScene(host, { stage = 1, seed = 1, onGondolaClick } = {}) {
+export function createScene(host, { stage = 1, seed = 1, look = {}, onGondolaClick } = {}) {
   const tod = document.documentElement.dataset.tod || 'day';
   const L = paint(stage, tod, seed * 7919 + stage * 131);
-  host.innerHTML = '<canvas class="scene-canvas" aria-label="A pixel-art cable car between two mountain stations. Click the cabin to meet Skipper."></canvas>';
+  host.innerHTML = '<canvas class="scene-canvas" aria-label="A pixel-art cable car between two mountain stations."></canvas>';
   const cv = host.querySelector('canvas'), ctx = cv.getContext('2d');
-  const sprites = {}; const gsprite = (mood, blink) => sprites[mood + blink] || (sprites[mood + blink] = P.gondolaSprite(mood, blink));
+  const sprites = {}; const gsprite = (mood, blink) => sprites[mood + blink] || (sprites[mood + blink] = P.gondolaSprite(mood, blink, look));
   const trolley = P.trolleySprite();
 
   const st = { t: STATION_T, v: 0, swing: 0, swingV: 0, move: null, px: 0, py: 0, tx: 0, ty: 0, time: 0, idleAmp: 1.2,

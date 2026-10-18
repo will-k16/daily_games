@@ -1,15 +1,20 @@
 import { HttpError, json } from '../_lib/util.js';
-import { identify, googleStart, googleCallback, devLogin, logout } from '../_lib/auth.js';
+import { identify, googleStart, googleCallback, devLogin, logout, register, passwordLogin, setPassword } from '../_lib/auth.js';
+import * as wardrobe from '../_lib/wardrobe.js';
 import * as game from '../_lib/game.js';
 import * as admin from '../_lib/admin.js';
 
 const ROUTES = {
-  'GET today': (c) => game.today(c.env, c.who),
+  'GET today': (c) => game.today(c.env, c.who, c.waitUntil),
   'GET room': (c) => game.room(c.env, c.who, c.q.get('id'), c.q.get('mode') || 'daily'),
-  'POST guess': (c) => game.guess(c.env, c.who, c.body),
+  'POST guess': (c) => game.guess(c.env, c.who, c.body, c.waitUntil),
   'POST decide': (c) => game.decide(c.env, c.who, c.body),
   'POST giveup': (c) => game.giveUp(c.env, c.who, c.body),
-  'GET best': (c) => game.bestAnswer(c.env, c.who, c.q.get('id'), c.q.get('mode') || 'daily'),
+  'GET best': (c) => game.bestAnswer(c.env, c.who, c.q.get('id'), c.q.get('mode') || 'daily', c.waitUntil),
+  'POST auth/password': (c) => setPassword(c.env, c.who, c.body),
+  'GET skipper': (c) => wardrobe.get(c.env, c.who),
+  'POST skipper/buy': (c) => wardrobe.buy(c.env, c.who, c.body),
+  'POST skipper/wear': (c) => wardrobe.wear(c.env, c.who, c.body),
   'POST complaint': (c) => game.complain(c.env, c.who, c.body),
   'POST notifications/seen': (c) => game.markSeen(c.env, c.who, c.body),
   'GET stats': (c) => game.stats(c.env, c.who),
@@ -33,6 +38,7 @@ const ROUTES = {
 
 export async function onRequest(context) {
   const { request, env } = context;
+  const waitUntil = p => { try { context.waitUntil(p); } catch { /* not available: let it run */ } };
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/api\/?/, '').replace(/\/$/, '');
   let who = null;
@@ -45,9 +51,6 @@ export async function onRequest(context) {
     if (path === 'auth/dev') return withCookies(await devLogin(request, env, who), who.setCookies);
     if (path === 'auth/logout' && request.method === 'POST') return await logout(request, env);
 
-    const handler = ROUTES[request.method + ' ' + path];
-    if (!handler) throw new HttpError(404, 'Not found');
-    if (path.startsWith('admin/')) admin.requireAdmin(who);
     if (request.method === 'POST') {
       // Basic CSRF guard: JSON bodies only, from this site.
       const origin = request.headers.get('origin');
@@ -55,7 +58,13 @@ export async function onRequest(context) {
       if (!(request.headers.get('content-type') || '').includes('application/json')) throw new HttpError(415, 'Send JSON.');
     }
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
-    const data = await handler({ env, who, q: url.searchParams, body, request });
+    if (path === 'auth/register' && request.method === 'POST') return withCookies(await register(request, env, who, body), who.setCookies);
+    if (path === 'auth/signin' && request.method === 'POST') return withCookies(await passwordLogin(request, env, who, body), who.setCookies);
+
+    const handler = ROUTES[request.method + ' ' + path];
+    if (!handler) throw new HttpError(404, 'Not found');
+    if (path.startsWith('admin/')) admin.requireAdmin(who);
+    const data = await handler({ env, who, q: url.searchParams, body, request, waitUntil });
     return withCookies(json(data), who.setCookies);
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;

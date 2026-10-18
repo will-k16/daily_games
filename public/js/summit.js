@@ -5,6 +5,7 @@ import { fmt, nice } from './units.js';
 import { PROPS, propLabel } from './props.js';
 import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE } from './score.js';
 import * as pad from './pad.js';
+import { WARDROBE, SLOTS, DEFAULT_LOOK, itemKey, cloversFor, DAY_BONUS } from './wardrobe.js';
 
 /* ═══════════ Basics ═══════════ */
 const $ = s => document.querySelector(s);
@@ -26,7 +27,7 @@ const SUMMIT_M = 3000;   // three stages × 1000; every point is a meter climbed
 
 const S = {
   units: store.get('jr.units', 'imperial'),
-  me: { signedIn: false, isAdmin: false, email: '' },
+  me: { signedIn: false, isAdmin: false, email: '', skipper: { ...DEFAULT_LOOK } }, clovers: null,
   today: null, ctx: null, roomIdx: 0, showSummary: false,
   scene: null, scenePid: null, shownTotal: 0, unl: null
 };
@@ -34,7 +35,7 @@ const S = {
 async function api(path, body) {
   const opt = body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
   const res = await fetch('/api/' + path, { credentials: 'same-origin', ...opt });
-  const data = await res.json().catch(() => ({ error: 'The cable car is having trouble. Try again.' }));
+  const data = await res.json().catch(() => ({ error: 'Lost the connection there. Try again?' }));
   if (!res.ok || data.error) throw new Error(data.error || 'Something went wrong.');
   return data;
 }
@@ -43,6 +44,8 @@ function toast(msg) {
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3000);
 }
 const val = (p, v) => fmt(p.property, v, p.unitLabel, S.units);
+const look = () => S.me.skipper || DEFAULT_LOOK;
+const sk = () => esc(look().name || 'Skipper');                 // the goat's name, ready for HTML
 const meters = n => Math.round(n).toLocaleString('en-US') + ' m';
 
 function countUp(el, to, { dur = 1100, fmt: f = n => Math.round(n) } = {}) {
@@ -68,11 +71,11 @@ document.addEventListener('pointerdown', e => {
 
 /* ═══════════ Verdicts ═══════════ */
 function verdict(s) {
-  if (s >= 1000) return { t: 'Summit!', mood: 'happy', d: 'Skipper docked right at the lodge.' };
+  if (s >= 1000) return { t: 'Summit!', mood: 'happy', d: `${sk()} pulled right up to the lodge.` };
   if (s >= 900) return { t: 'So close!', mood: 'wow', d: 'Just a few meters from the lodge.' };
   if (s >= 750) return { t: 'Smooth ride', mood: 'smile', d: 'A comfy spot on the cable.' };
   if (s >= 500) return { t: 'A bit wobbly', mood: 'neutral', d: 'Not bad, not the lodge.' };
-  if (s >= 250) return { t: 'Rough ride', mood: 'sad', d: 'Skipper is clinging on.' };
+  if (s >= 250) return { t: 'Rough ride', mood: 'sad', d: `${sk()} is hanging on for dear life.` };
   if (s > 0) return { t: 'Off the rails', mood: 'dizzy', d: 'Way out on the cable.' };
   return { t: 'Lost in the clouds', mood: 'dizzy', d: 'Nowhere near the lodge.' };
 }
@@ -109,12 +112,16 @@ const firstOpen = rooms => { const i = rooms.findIndex(r => r.play.state !== 'do
 async function loadToday() {
   if (!S.ctx || S.ctx.kind !== 'daily') { dropScene(); $('#main').innerHTML = loadingHTML('Warming up the cable car…'); }
   const d = await api('today');
-  S.today = d; S.me = d.me; paintTools();
+  S.today = d; S.me = d.me; S.clovers = d.clovers; paintTools();
   setCtx({ kind: 'daily', date: d.date, number: d.number, rooms: d.rooms.map(r => ({ ...r, mode: 'daily' })), day: d.day });
   if (d.notifications && d.notifications.length) showNotifications(d.notifications);
   else if (!store.get('jr.summitHelp', false)) { store.set('jr.summitHelp', true); showHelp(); }
   const sp = new URLSearchParams(location.search);
   if (sp.get('signedin') === '1') { history.replaceState(null, '', location.pathname); toast(S.me.signedIn ? `Signed in as ${S.me.email}` : 'Sign-in didn\'t stick. Try once more.'); }
+  if (sp.get('signin') === 'failed') {
+    history.replaceState(null, '', location.pathname);
+    showAccount('Google sign-in didn\'t go through. You can use your email and a password instead.');
+  }
 }
 async function loadArchiveDay(date) {
   dropScene(); $('#main').innerHTML = loadingHTML('Dusting off an old trail map…');
@@ -134,7 +141,7 @@ function setCtx(ctx) {
   $('#main').innerHTML = `
     <div class="dayhead" id="dayhead"></div>
     <section id="stageWrap">
-      <div class="stage"><div class="stage-label" id="stageLabel"></div><div class="scene-host" id="sceneHost"></div><div class="stage-hint">Click the cable car to meet Skipper</div></div>
+      <div class="stage"><div class="stage-label" id="stageLabel"></div><div class="scene-host" id="sceneHost"></div><div class="stage-hint">Tap the cable car to say hi to ${sk()}</div></div>
       <div class="signs" id="signs"></div>
     </section>
     <section class="card" id="card"></section>`;
@@ -207,7 +214,7 @@ function ensureScene(r, how) {
   const fresh = S.scenePid !== r.puzzle.id || !S.scene;
   if (fresh) {
     dropScene();
-    S.scene = createScene($('#sceneHost'), { stage: r.puzzle.slot, seed: r.puzzle.id, onGondolaClick: () => showSkipper(r) });
+    S.scene = createScene($('#sceneHost'), { stage: r.puzzle.slot, seed: r.puzzle.id, look: look(), onGondolaClick: () => showSkipper(r) });
     S.scenePid = r.puzzle.id;
   }
   if (fresh || how === 'enter') syncScene(r, 'enter');
@@ -267,7 +274,7 @@ function pipsHTML(used) {
   let s = '';
   for (let i = 0; i < MAX_REJECTS; i++) s += `<span class="pip ${i < used ? 'used' : ''}"></span>`;
   const left = MAX_REJECTS - used;
-  return `<div class="pips rise" style="--d:3">${s}<span>${left > 0 ? `${left} off-the-cable ${left === 1 ? 'try' : 'tries'} left before it counts as 0` : 'Next out-of-range answer counts as 0!'}</span></div>`;
+  return `<div class="pips rise" style="--d:3">${s}<span>${left > 0 ? `${left} free ${left === 1 ? 'miss' : 'misses'} left` : 'Careful: one more miss and this stage is a 0'}</span></div>`;
 }
 
 function blocks(score) {
@@ -275,13 +282,14 @@ function blocks(score) {
   return `<div class="meter"><b data-count="${score}">0</b><div class="cells">${Array.from({ length: 10 }, (_, i) => `<i class="${i < on ? 'on ' + tier(score) : ''}" style="--d:${i}"></i>`).join('')}</div></div>`;
 }
 
+const REPORT = { open: 'we\'re taking a look', accepted: 'fixed', rejected: 'checked, no change' };
 function guessCard(r, g, compact) {
   const complained = r.complaints && r.complaints[g.id];
   return `<div class="gcard ${compact ? 'compact' : ''} rise" style="--d:1">
     ${blocks(g.score)}
     <div><div class="said">You said “${esc(g.input)}”${g.outOfRange ? ' · off the cable' : ''}</div>
-      <div class="judged">Judged as ${esc(g.name)} · <span class="val">≈ ${esc(val(r.puzzle, g.value))}</span></div>
-      ${complained ? `<span class="empty">Report sent (${esc(complained)})</span>` : `<button class="link report" data-guess="${g.id}">Judge got it wrong?</button>`}</div></div>`;
+      <div class="judged">Counted as ${esc(g.name)} · <span class="val">≈ ${esc(val(r.puzzle, g.value))}</span></div>
+      ${complained ? `<span class="empty">Reported: ${esc(REPORT[complained] || complained)}</span>` : `<button class="link report" data-guess="${g.id}">Wrong number?</button>`}</div></div>`;
 }
 
 function guessFormHTML(r) {
@@ -294,9 +302,9 @@ function guessFormHTML(r) {
     ${pipsHTML(play.rejects || 0)}
     <div class="msg" id="msg"></div>
     <p class="sub rise" style="--d:4">${second
-      ? `Final answer, worth <b>×${SECOND_GUESS_MULT}</b>. It has to be something different.`
-      : 'The lodge sits at the middle <b>by ratio</b>: between 1 and 100, that\'s 10 (not 50). The notebook can do the math.'}
-      <br><button type="button" class="link" id="giveUpBtn">🏳️ Give up and take a 0</button></p>`;
+      ? `Last ride, worth <b>×${SECOND_GUESS_MULT}</b>. It has to be something new.`
+      : 'Think in ratios, not averages: halfway from 1 to 100 is <b>10</b>, not 50.'}
+      <br><button type="button" class="link" id="giveUpBtn">🏳️ I give up (scores 0)</button></p>`;
 }
 
 function decideHTML(r) {
@@ -304,10 +312,10 @@ function decideHTML(r) {
   return `${guessCard(r, g, false)}
     <div class="deduce rise" style="--d:2"><span class="fogicon"></span><span>${g.outOfRange
       ? 'That one ran off the cable, so it counts as 0.'
-      : `Skipper is somewhere in the fog. The lodge is either <b>bigger or smaller</b> than ${esc(val(r.puzzle, g.value))}, but you don't know which.`}</span></div>
+      : `${sk()} is somewhere in the fog. The lodge could be <b>above or below</b> ${esc(val(r.puzzle, g.value))}. Your call.`}</span></div>
     <div class="choices rise" style="--d:3">
       <button class="btn green" id="keepBtn">Keep ${g.score}<small>Lock it in</small></button>
-      <button class="btn alt" id="retryBtn">One more ride<small>Final answer, worth up to ${Math.round(MAX_SCORE * SECOND_GUESS_MULT)}</small></button>
+      <button class="btn alt" id="retryBtn">One more ride<small>Last try, worth up to ${Math.round(MAX_SCORE * SECOND_GUESS_MULT)}</small></button>
     </div>`;
 }
 
@@ -337,7 +345,7 @@ function gaugeHTML(r) {
 
 function revealHTML(r, c) {
   const play = r.play, rv = r.reveal, p = rv.puzzle;
-  const v = play.gaveUp ? { t: 'Gave up', d: 'Skipper rode back down. No shame.' } : verdict(play.score);
+  const v = play.gaveUp ? { t: 'Gave up', d: `${sk()} rode back down. No shame in it.` } : verdict(play.score);
   const facts = play.guesses.map((g, i) => {
     const isFinal = !play.gaveUp && g.attempt === play.guesses.length;
     const complained = r.complaints && r.complaints[g.id];
@@ -345,7 +353,7 @@ function revealHTML(r, c) {
       <span class="n">#${g.attempt}</span>
       <div class="w"><b>${esc(g.name)}</b> ≈ ${esc(val(p, g.value))}
         <small>You said “${esc(g.input)}” · ${g.outOfRange ? 'off the cable' : esc(offText(p, g.value))}${g.attempt === 2 ? ` · ${g.raw} × ${SECOND_GUESS_MULT}` : ''}${!isFinal ? ' · not counted' : ''}</small>
-        ${complained ? `<small>Report: ${esc(complained)}</small>` : `<button class="link report" data-guess="${g.id}">Judge got it wrong?</button>`}</div>
+        ${complained ? `<small>Reported: ${esc(REPORT[complained] || complained)}</small>` : `<button class="link report" data-guess="${g.id}">Wrong number?</button>`}</div>
       <span class="s">${g.score}</span></div>`;
   }).join('') + (play.gaveUp ? `<div class="fact final" style="--d:${play.guesses.length}"><span class="n">🏳️</span><div class="w"><b>You gave up</b><small>0 points for this stage.</small></div><span class="s">0</span></div>` : '');
 
@@ -353,15 +361,15 @@ function revealHTML(r, c) {
   if (rv.crowd) {
     const max = Math.max(1, ...rv.crowd.hist), myB = Math.min(10, Math.floor(play.score / 100));
     const beat = c.kind === 'daily'
-      ? (rv.crowd.beat == null ? 'You\'re one of the first riders today.' : `You beat <b>${rv.crowd.beat}%</b> of ${rv.crowd.total - 1} other riders.`)
-      : `${rv.crowd.total} people rode this one on the day.`;
+      ? (rv.crowd.beat == null ? 'You\'re one of the first up today.' : `Better than <b>${rv.crowd.beat}%</b> of today's ${rv.crowd.total - 1} other ${rv.crowd.total === 2 ? 'player' : 'players'}.`)
+      : `${rv.crowd.total} ${rv.crowd.total === 1 ? 'person' : 'people'} played this one on the day.`;
     crowd = `<div class="crowd">
       <div><div class="h4">📊 How everyone did</div><p class="beat">${beat}</p>
         <div class="histo">${rv.crowd.hist.map((n, i) => `<i class="${i === myB && c.kind === 'daily' ? 'me' : ''}" style="height:${Math.max(4, n / max * 100)}%;--d:${i}" title="${i * 100}${i < 10 ? '–' + (i * 100 + 99) : ''}: ${n}"></i>`).join('')}</div>
         <div class="histo-l"><span>0</span><span>500</span><span>1000</span></div></div>
       <div><div class="h4">🏆 Top answers today</div>
-        ${rv.top.length ? `<ol class="toplist">${rv.top.map((t, i) => `<li style="--d:${i}"><span class="rk">${i === 0 ? '👑' : i + 1}</span><span class="nm">${esc(t.name)}<small>≈ ${esc(val(p, t.value))} · ${t.count} ${t.count === 1 ? 'rider' : 'riders'}</small></span><span class="sc">${t.score}</span></li>`).join('')}</ol>`
-          : '<p class="empty">Top answers show up once a few riders find the same thing.</p>'}</div></div>`;
+        ${rv.top.length ? `<ol class="toplist">${rv.top.map((t, i) => `<li style="--d:${i}"><span class="rk">${i === 0 ? '👑' : i + 1}</span><span class="nm">${esc(t.name)}<small>≈ ${esc(val(p, t.value))} · ${t.count} ${t.count === 1 ? 'player' : 'players'}</small></span><span class="sc">${t.score}</span></li>`).join('')}</ol>`
+          : '<p class="empty">Nothing popular yet. Answers show up here once a couple of people land on the same one.</p>'}</div></div>`;
   }
 
   const nextIdx = c.rooms.findIndex(x => x !== r && x.play.state !== 'done');
@@ -374,7 +382,7 @@ function revealHTML(r, c) {
     ${gaugeHTML(r)}
     <div class="facts">${facts}</div>
     <div class="h4">🐐 The best answer</div>
-    <div id="bestBox"><div class="shimmer">Skipper is scouting the perfect answer…</div></div>
+    <div id="bestBox"><div class="shimmer">${sk()} is digging out the best answer…</div></div>
     ${crowd}
     <div class="row">${next}</div>`;
 }
@@ -409,7 +417,7 @@ async function submitGuess(r, answer, avg) {
   btn.disabled = true; btn.classList.add('busy'); input.disabled = true; msg.innerHTML = '';
   let rerendered = false;
   // New answers are judged by the AI; unfamiliar ones get looked up online, which can take a few seconds.
-  const slow = setTimeout(() => { if (msg.isConnected && !msg.innerHTML) msg.innerHTML = '<div class="note">🔎 Skipper is looking that up…</div>'; }, 2500);
+  const slow = setTimeout(() => { if (msg.isConnected && !msg.innerHTML) msg.innerHTML = `<div class="note">🔎 ${sk()} is looking that up…</div>`; }, 900);
   try {
     const res = await api('guess', { puzzleId: r.puzzle.id, mode: r.mode || 'daily', answer, avg: !!avg });
     clearTimeout(slow); if (msg.isConnected) msg.innerHTML = '';
@@ -420,18 +428,18 @@ async function submitGuess(r, answer, avg) {
       S.scene && S.scene.bump(); S.scene && S.scene.setMood('wow');
       setTimeout(() => S.scene && S.scene.setMood('smile'), 1400);
       $('#card').innerHTML = cardHTML(r, S.ctx); wireCard(r, S.ctx);
-      $('#msg').innerHTML = `<div class="note bad">Off the cable! ${res.triesLeft > 0 ? `That one doesn't count. ${res.triesLeft} more ${res.triesLeft === 1 ? 'try' : 'tries'} before it does.` : 'That one doesn\'t count, but the next out-of-range answer will be a 0.'}</div>`;
+      $('#msg').innerHTML = `<div class="note bad">Off the cable! That's outside the range, so it doesn't count. ${res.triesLeft > 0 ? `${res.triesLeft} free ${res.triesLeft === 1 ? 'miss' : 'misses'} left.` : 'One more miss and this stage is a 0.'}</div>`;
       return;
     }
     if (res.status === 'vague') {
-      msg.innerHTML = `<div class="note warn">That one varies a lot. Want to be more specific?
+      msg.innerHTML = `<div class="note warn">Which kind? They can be really different.
         <div class="chips">${(res.suggestions || []).map(s => `<button type="button" class="chip">${esc(s)}</button>`).join('')}</div>
-        <button type="button" class="link avg">Use the average for “${esc(answer)}”</button></div>`;
+        <button type="button" class="link avg">Just use the average for “${esc(answer)}”</button></div>`;
       msg.querySelectorAll('.chip').forEach(ch => ch.onclick = () => { input.value = ch.textContent; submitGuess(r, ch.textContent, false); });
       msg.querySelector('.avg').onclick = () => submitGuess(r, answer, true);
       return;
     }
-    msg.innerHTML = `<div class="note bad">${esc(res.reason || 'Couldn\'t use that. Try something real and specific.')}</div>`;
+    msg.innerHTML = `<div class="note bad">${esc(res.reason || 'Hmm, that didn\'t work. Try naming something more specific.')}</div>`;
   } catch (e) {
     clearTimeout(slow);
     msg.innerHTML = `<div class="note bad">${esc(e.message)}</div>`;
@@ -452,7 +460,7 @@ async function decide(r, choice) {
 
 function confirmGiveUp(r) {
   openModal(`<h2>Give up on this stage?</h2>
-    <p>You'll get <b>0</b> for the ${esc(stageOf(r.puzzle.slot).name)}, and Skipper will show you the answer.</p>
+    <p>You'll get <b>0</b> for the ${esc(stageOf(r.puzzle.slot).name)}, and ${sk()} will show you the answer.</p>
     <div class="row"><button class="btn alt" id="guNo">Keep trying</button><button class="btn" id="guYes">Give up</button></div>`);
   $('#guNo').onclick = closeModal;
   $('#guYes').onclick = async () => {
@@ -477,32 +485,52 @@ function afterChange(r, event) {
 
 async function refreshDay() {
   try {
-    const d = await api('today'); S.today = d;
+    const d = await api('today'); S.today = d; S.clovers = d.clovers; paintTools();
     if (S.ctx.kind === 'daily' && S.ctx.date === d.date) S.ctx.day = d.day;
   } catch { /* fine */ }
 }
 
 const bestCache = new Map();
-async function loadBest(box, r) {
+/** The best answer is worked out in the background, so it's usually instant; if not, check back every few seconds. */
+async function loadBest(box, r, tries = 0) {
   if (!box) return;
   const key = r.puzzle.id + '|' + (r.mode || 'daily');
   const draw = b => {
     if (!box.isConnected) return;
     const p = r.reveal.puzzle;
+    const sig = [b.name, b.score, !!b.pending].join('|');
+    if (box.dataset.sig === sig) return;                 // unchanged: don't replay the animation
+    box.dataset.sig = sig;
     box.innerHTML = `<div class="fact best"><span class="n">${b.score >= MAX_SCORE ? '👑' : '🐐'}</span>
-      <div class="w"><b>${esc(b.name)}</b> ≈ ${esc(val(p, b.value))}<small>Type “${esc(b.input)}” · ${esc(offText(p, b.value))} · ${b.by === 'player' ? 'found by a rider' : 'found by Skipper'}</small></div>
+      <div class="w"><b>${esc(b.name)}</b> ≈ ${esc(val(p, b.value))}<small>Type “${esc(b.input)}” · ${esc(offText(p, b.value))} · ${b.by === 'player' ? 'found by another player' : `${sk()}'s pick`}</small></div>
       <span class="s">${b.score}</span></div>
-      ${!r.play.gaveUp && r.play.guesses.length && r.play.guesses[r.play.guesses.length - 1].raw >= b.score ? '<p class="beatskipper">🎉 That is the best answer anyone has found!</p>' : ''}`;
+      ${!r.play.gaveUp && r.play.guesses.length && r.play.guesses[r.play.guesses.length - 1].raw >= b.score ? '<p class="beatskipper">🎉 Nobody has found a better answer than yours!</p>' : ''}
+      ${b.pending ? `<p class="empty">${sk()} is still checking a few more ideas…</p>` : ''}`;
   };
   if (bestCache.has(key)) return draw(bestCache.get(key));
   try {
     const b = await api(`best?id=${r.puzzle.id}&mode=${encodeURIComponent(r.mode || 'daily')}`);
-    bestCache.set(key, b); draw(b);
+    if (!b.pending) { bestCache.set(key, b); draw(b); return; }
+    if (b.name) draw(b);
+    if (tries >= 15) {
+      if (!b.name && box.isConnected) box.innerHTML = `<p class="empty">${sk()} is still out looking. Check back in a bit.</p>`;
+      return;
+    }
+    setTimeout(() => { if (box.isConnected) loadBest(box, r, tries + 1); }, 2500);
   } catch (e) {
     if (!box.isConnected) return;
     box.innerHTML = `<p class="empty">${esc(e.message)} <button class="link" type="button">Try again</button></p>`;
-    box.querySelector('button').onclick = () => { box.innerHTML = '<div class="shimmer">Skipper is scouting…</div>'; loadBest(box, r); };
+    box.querySelector('button').onclick = () => { box.innerHTML = `<div class="shimmer">${sk()} is digging out the best answer…</div>`; loadBest(box, r); };
   }
+}
+
+function cloverLineHTML(c) {
+  if (c.kind === 'unlimited') return '';
+  const mode = c.kind === 'daily' ? 'daily' : 'archive';
+  let n = c.rooms.reduce((s, r) => s + (r.play.state === 'done' ? cloversFor(r.play.score, r.mode === 'daily' ? 'daily' : mode) : 0), 0);
+  if (c.kind === 'daily' && c.rooms.every(r => r.play.state === 'done')) n += DAY_BONUS;
+  return `<div class="clovers rise" style="--d:5">🍀 <b>+${n}</b> ${n === 1 ? 'clover' : 'clovers'} ${c.kind === 'daily' ? 'today' : 'from this day'}${S.clovers ? ` · ${S.clovers.balance} to spend` : ''}
+    <button class="btn sm alt" id="wardrobeBtn2" type="button">Dress up ${sk()}</button></div>`;
 }
 
 /* ═══════════ Summary ═══════════ */
@@ -515,7 +543,7 @@ function summaryHTML(c) {
   const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
   const day = c.day || {};
   const v = verdict(Math.round(total / 3));
-  const beat = c.kind === 'daily' && day.beat != null ? `<p class="beat">You out-climbed <b>${day.beat}%</b> of today's ${day.players - 1} other riders.</p>`
+  const beat = c.kind === 'daily' && day.beat != null ? `<p class="beat">You out-climbed <b>${day.beat}%</b> of today's ${day.players - 1} other ${day.players === 2 ? 'player' : 'players'}.</p>`
     : c.kind === 'daily' ? '<p class="beat">You\'re one of the first to finish today!</p>' : '';
   return `<div class="summary">
       <div class="daylabel rise">${c.kind === 'archive' ? 'Archive · ' : ''}Day #${c.number}</div>
@@ -530,7 +558,8 @@ function summaryHTML(c) {
         ${c.kind === 'archive' ? '<a class="btn alt" href="#/archive">More days</a>' : ''}
       </div>
       ${c.kind === 'daily' ? '<div class="countdown">New mountain in <b class="cd">--:--:--</b></div>' : ''}
-      ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy Skipper a snack</a>` : ''}
+      ${cloverLineHTML(c)}
+      ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy ${sk()} a snack</a>` : ''}
     </div>`;
 }
 function wireSummary(c) {
@@ -541,6 +570,7 @@ function wireSummary(c) {
   }, 250);
   $('#shareBtn').onclick = () => doShare(c);
   $('#statsBtn2').onclick = showStats;
+  const wb = $('#wardrobeBtn2'); if (wb) wb.onclick = showWardrobe;
   tick();
 }
 
@@ -561,7 +591,7 @@ function shareText(c) {
 async function doShare(c) {
   const text = shareText(c);
   if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) { try { await navigator.share({ text }); return; } catch { /* copy instead */ } }
-  try { await navigator.clipboard.writeText(text); toast('Copied! Paste it anywhere.'); }
+  try { await navigator.clipboard.writeText(text); toast('Copied to your clipboard.'); }
   catch { openModal(`<h2>Share</h2><textarea class="box" readonly style="min-height:150px">${esc(text)}</textarea>`); const ta = $('#modalBody textarea'); ta.focus(); ta.select(); }
 }
 
@@ -604,22 +634,123 @@ function showSkipper(r) {
   };
   openModal(`<div class="skipper">
       <div class="portrait"><canvas id="skipCv" width="44" height="44"></canvas></div>
-      <div class="sk-text"><h2>Skipper</h2>
+      <div class="sk-text"><h2>${sk()}</h2>
         <p class="sk-role">Cable car operator · Professional middle-finder</p>
         <p class="sk-quote">“${lines[mood] || lines.smile}”</p>
         <ul class="sk-facts"><li><b>Rides:</b> a few thousand, give or take a goat-load</li><li><b>Favorite spot:</b> the lodge, right in the middle</li>
-          <li><b>Hates:</b> people who say “a 5 km race”</li><li><b>Snack:</b> alpine clover</li></ul>
-        <div class="row"><button class="btn" id="skOk">Back to the ride</button></div></div></div>`);
-  const cv = $('#skipCv'), ctx = cv.getContext('2d');
+          <li><b>Hates:</b> people who say “a 5 km race”</li><li><b>Snack:</b> alpine clover (you earn it by climbing)</li></ul>
+        <div class="row"><button class="btn" id="skOk">Back to the ride</button><button class="btn alt" id="skWear">👕 Wardrobe</button></div></div></div>`);
+  animatePortrait($('#skipCv'), mood, () => look());
+  $('#skOk').onclick = closeModal;
+  $('#skWear').onclick = showWardrobe;
+}
+
+/** Draws Skipper's portrait into a canvas and keeps him blinking. `getLook` is read every frame so previews update live. */
+function animatePortrait(cv, mood, getLook) {
+  const ctx = cv.getContext('2d');
   let blink = false, ear = 0, n = 0;
-  const draw = () => { ctx.clearRect(0, 0, 44, 44); const img = skipperPortrait(mood, blink, ear); ctx.drawImage(img, 0, 0); };
+  const draw = () => { ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(skipperPortrait(mood, blink, ear, getLook()), 0, 0); };
   cv.width = 46; cv.height = 46; draw();
   clearInterval(skipperTimer);
   skipperTimer = setInterval(() => {
     if (!cv.isConnected) { clearInterval(skipperTimer); return; }
     n++; blink = n % 14 === 0; ear = n % 9 === 0 ? 1 : 0; draw();
   }, 220);
-  $('#skOk').onclick = closeModal;
+  return draw;
+}
+
+/* ═══════════ Wardrobe ═══════════ */
+async function showWardrobe() {
+  openModal(`<h2>${sk()}'s wardrobe</h2><div class="shimmer">Opening the closet…</div>`);
+  let w;
+  try { w = await api('skipper'); } catch (e) { openModal(`<h2>Wardrobe</h2><div class="note bad">${esc(e.message)}</div>`); return; }
+  let tab = 'fur', preview = null, confirming = null;
+  const apply = data => {
+    w = data; S.clovers = data.clovers; S.me.skipper = data.look; paintTools();
+    // Redraw the cable car with the new look.
+    if (S.ctx && !S.showSummary && $('#sceneHost')) { S.scenePid = null; ensureScene(S.ctx.rooms[S.roomIdx], 'enter'); }
+  };
+  const owns = (slot, it) => !it.price || w.owned.includes(itemKey(slot, it.id));
+  const shown = () => (preview ? { ...w.look, ...preview } : w.look);
+
+  const draw = () => {
+    const items = WARDROBE[tab];
+    const list = tab === 'name'
+      ? (owns('name', items[0])
+        ? `<form class="namebox" id="nameForm"><input class="pin" name="n" maxlength="16" value="${esc(w.look.name)}" aria-label="Name"><button class="btn sm" type="submit">Save name</button></form>
+           <p class="sub">Only you see this name.</p>`
+        : `<p class="sub">Get the name tag to call your goat whatever you like. Only you see the name.</p>
+           <div class="witems">${itemHTML('name', items[0])}</div>`)
+      : `<div class="witems">${items.map(it => itemHTML(tab, it)).join('')}</div>`;
+    $('#modalBody').innerHTML = `<h2>${sk()}'s wardrobe</h2>
+      <div class="wtop"><div class="portrait sm"><canvas id="wardCv" width="44" height="44"></canvas></div>
+        <div><div class="wbal">🍀 <b>${w.clovers.balance}</b> ${w.clovers.balance === 1 ? 'clover' : 'clovers'}</div>
+          <p class="sub">You earn 1 clover for every 100 m you climb on the daily (bonus 5 for a perfect stage, and 5 more for finishing all three). Past days earn half.</p></div></div>
+      <div class="wtabs">${SLOTS.map(s => `<button type="button" data-wtab="${s.key}" class="${s.key === tab ? 'on' : ''}">${s.name}</button>`).join('')}</div>
+      <div class="msg" id="wmsg"></div>
+      ${list}`;
+    animatePortrait($('#wardCv'), 'smile', shown);
+    document.querySelectorAll('[data-wtab]').forEach(b => b.onclick = () => { tab = b.dataset.wtab; preview = null; confirming = null; draw(); });
+    document.querySelectorAll('[data-wid]').forEach(b => {
+      const slot = b.dataset.wslot, it = WARDROBE[slot].find(x => x.id === b.dataset.wid);
+      if (slot !== 'name') {
+        b.onmouseenter = () => { preview = { [slot]: it.id }; };
+        b.onmouseleave = () => { preview = confirming ? preview : null; };
+        b.onfocus = b.onmouseenter; b.onblur = b.onmouseleave;
+      }
+      b.onclick = () => act(slot, it, b);
+    });
+    const nf = $('#nameForm');
+    if (nf) nf.onsubmit = async e => {
+      e.preventDefault();
+      try { apply(await api('skipper/wear', { slot: 'name', name: nf.n.value })); toast(`Say hi to ${look().name}!`); draw(); }
+      catch (err) { $('#wmsg').innerHTML = `<div class="note bad">${esc(err.message)}</div>`; }
+    };
+  };
+
+  function itemHTML(slot, it) {
+    const own = owns(slot, it), on = slot !== 'name' && w.look[slot] === it.id;
+    const asking = confirming === itemKey(slot, it.id);
+    const label = on ? 'Wearing' : own ? (slot === 'name' ? 'Yours' : 'Wear') : asking ? `Buy for 🍀 ${it.price}?` : `🍀 ${it.price}`;
+    const short = !own && it.price > w.clovers.balance;
+    return `<button type="button" class="witem ${on ? 'on' : ''} ${short ? 'short' : ''} ${asking ? 'ask' : ''}" data-wslot="${slot}" data-wid="${it.id}">
+      ${swatch(slot, it)}<span class="wn">${esc(it.name)}</span><span class="wp">${label}</span></button>`;
+  }
+
+  async function act(slot, it, b) {
+    const own = owns(slot, it);
+    if (slot !== 'name' && w.look[slot] === it.id) return;
+    if (!own && it.price > w.clovers.balance) {
+      $('#wmsg').innerHTML = `<div class="note warn">You need ${it.price - w.clovers.balance} more ${it.price - w.clovers.balance === 1 ? 'clover' : 'clovers'} for that. Keep climbing!</div>`;
+      return;
+    }
+    // Buying takes two taps: the first shows it on and asks.
+    if (!own && confirming !== itemKey(slot, it.id)) {
+      confirming = itemKey(slot, it.id);
+      preview = slot === 'name' ? null : { [slot]: it.id };
+      draw();
+      return;
+    }
+    confirming = null;
+    b.disabled = true;
+    try {
+      apply(await api(own ? 'skipper/wear' : 'skipper/buy', { slot, id: it.id }));
+      preview = null;
+      if (!own) toast(slot === 'name' ? 'Name tag unlocked. Pick a name!' : `${it.name}: yours!`);
+      draw();
+    } catch (e) { b.disabled = false; $('#wmsg').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; }
+  }
+  draw();
+}
+
+function swatch(slot, it) {
+  const box = bg => `<span class="sw" style="background:${bg}"></span>`;
+  if (slot === 'fur') return box(it.c[0]);
+  if (slot === 'cabin') return box(it.c);
+  if (slot === 'scarf') return box(it.rainbow ? 'linear-gradient(90deg,#d9482b,#f2b33d,#5fae6a,#3f78c9,#7d55c7)' : `repeating-linear-gradient(90deg,${it.c[0]} 0 6px,${it.c[1]} 6px 9px)`);
+  if (slot === 'hat') return `<span class="sw em">${{ none: '🙅', beanie: '🧶', party: '🥳', cowboy: '🤠', tophat: '🎩', crown: '👑' }[it.kind]}</span>`;
+  if (slot === 'glasses') return `<span class="sw em">${{ none: '👀', specs: '👓', shades: '🕶️', stars: '⭐' }[it.kind]}</span>`;
+  return '<span class="sw em">🏷️</span>';
 }
 
 function showHelp() {
@@ -629,7 +760,7 @@ function showHelp() {
       <div class="stepc" style="--d:1">${ICON.lodge}<p><b class="n">Ride to the lodge</b>Name something real that's juuust right in between. The lodge is the middle by <b>ratio</b>: between 1 and 100 it's <b>10</b>, not 50. Shortcut: √(small × big).</p></div>
       <div class="stepc" style="--d:2">${ICON.fog}<p><b class="n">Into the fog</b>You'll see your score, but fog hides which way you're off. Keep it, or take one final ride worth ×0.8. Answers off the cable get ❌: three are free, then the next scores 0.</p></div>
     </div>
-    <p class="sub">Each stage is worth up to 1,000 m. A perfect day reaches the 3,000 m summit. New mountain at midnight UTC.</p>
+    <p class="sub">Each stage is worth up to 1,000 m, so a perfect day tops out at the 3,000 m summit. Every 100 m you climb earns a 🍀 clover to spend on ${sk()}'s wardrobe. New mountain every midnight UTC.</p>
     <div class="row"><button class="btn" id="helpGo">All aboard 🚡</button></div>`);
   $('#helpGo').onclick = closeModal;
 }
@@ -643,38 +774,87 @@ async function showStats() {
         <div><b>${s.streak}</b><span>Streak</span></div><div><b>${s.maxStreak}</b><span>Max streak</span></div></div>
       <div class="bars">${s.dist.map((n, i) => `<div class="bar"><span>${names[i]}</span><i style="width:${Math.max(8, n / max * 100)}%;--d:${i}">${n}</i></div>`).join('')}</div>
       <p class="sub">Highest climb: ${meters(s.best)}. Archive: ${s.archive.played} stages · average ${s.archive.avg}.</p>
-      ${S.me.signedIn ? '' : '<p class="sub">Stats live on this device. <button class="link" id="statsSignin">Sign in</button> to keep them everywhere.</p>'}`);
-    const si = $('#statsSignin'); if (si) si.onclick = showAccount;
+      ${S.me.signedIn ? '' : '<p class="sub">These are only saved on this device. <button class="link" id="statsSignin">Sign in</button> to take them with you.</p>'}`);
+    const si = $('#statsSignin'); if (si) si.onclick = () => showAccount();
   } catch (e) { openModal(`<h2>Your stats</h2><div class="note bad">${esc(e.message)}</div>`); }
 }
-function showAccount() {
+function showAccount(note) {
   if (S.me.signedIn) {
-    openModal(`<h2>Account</h2><p>Signed in as <b>${esc(S.me.email)}</b>. Your stats follow you everywhere.</p><div class="row"><button class="btn alt" id="signout">Sign out</button></div>`);
+    const has = !!S.me.hasPassword;
+    openModal(`<h2>Account</h2><p>Signed in as <b>${esc(S.me.email)}</b>. Your stats and ${sk()}'s wardrobe come with you to any device.</p>
+      <form class="authform" id="pwForm" autocomplete="on">
+        <h4>${has ? 'Change your password' : 'Add a password'}</h4>
+        <p class="sub">${has ? '' : 'Handy if Google sign-in ever acts up: you can sign in with your email and this password instead.'}</p>
+        <input type="email" name="username" value="${esc(S.me.email)}" autocomplete="username" hidden>
+        ${has ? '<input class="pin" type="password" name="current" placeholder="Current password" autocomplete="current-password" required>' : ''}
+        <input class="pin" type="password" name="password" placeholder="New password (8+ characters)" autocomplete="new-password" minlength="8" required>
+        <div class="msg" id="pwMsg"></div>
+        <div class="row"><button class="btn sm" type="submit">${has ? 'Change password' : 'Save password'}</button><button class="btn alt sm" type="button" id="signout">Sign out</button></div>
+      </form>`);
     $('#signout').onclick = async () => { await api('auth/logout', {}).catch(() => {}); location.href = location.pathname; };
-  } else {
-    const local = ['localhost', '127.0.0.1'].includes(location.hostname);
-    openModal(`<h2>Account</h2><p>You're riding as a guest, so your scores live on this device. Sign in to keep your streak on every device. Nobody ever sees your name or email.</p>
-      <div class="row"><a class="btn" href="/api/auth/login?return=/">Sign in with Google</a>${local ? '<a class="btn alt sm" href="/api/auth/dev?return=/">Dev sign-in</a>' : ''}</div>`);
+    const f = $('#pwForm');
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+      try {
+        await api('auth/password', { password: f.password.value, current: f.current ? f.current.value : '' });
+        S.me.hasPassword = true; closeModal(); toast(has ? 'Password changed.' : 'Password saved. You can sign in with it anytime.');
+      } catch (err) { $('#pwMsg').innerHTML = `<div class="note bad">${esc(err.message)}</div>`; btn.disabled = false; }
+    };
+    return;
   }
+  const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+  let mode = 'signin';
+  const draw = () => {
+    const up = mode === 'signup';
+    openModal(`<h2>${up ? 'Make an account' : 'Sign in'}</h2>
+      ${typeof note === 'string' ? `<div class="note warn" style="margin-bottom:12px">${esc(note)}</div>` : ''}
+      <p>You're playing as a guest, so your scores only live on this device. Sign in to keep your streak and ${sk()}'s wardrobe on your phone and computer. Your email is never shown to anyone.</p>
+      <div class="row"><a class="btn" href="/api/auth/login?return=/">Continue with Google</a>${local ? '<a class="btn alt sm" href="/api/auth/dev?return=/">Dev sign-in</a>' : ''}</div>
+      <div class="or"><span>or use your email</span></div>
+      <form class="authform" id="authForm" autocomplete="on">
+        <input class="pin" type="email" name="email" placeholder="Email" autocomplete="email" required>
+        <input class="pin" type="password" name="password" placeholder="${up ? 'Password (8+ characters)' : 'Password'}" autocomplete="${up ? 'new-password' : 'current-password'}" ${up ? 'minlength="8"' : ''} required>
+        <div class="msg" id="authMsg"></div>
+        <div class="row"><button class="btn sm" type="submit">${up ? 'Create account' : 'Sign in'}</button>
+          <button class="link" type="button" id="authSwap">${up ? 'Already have an account? Sign in' : 'New here? Make an account'}</button></div>
+        ${up ? '' : '<p class="sub">Forgot your password? If you also use Google, sign in with Google and set a new one from this menu.</p>'}
+      </form>`);
+    $('#authSwap').onclick = () => { mode = up ? 'signin' : 'signup'; note = null; draw(); };
+    const f = $('#authForm');
+    f.email.focus();
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const btn = f.querySelector('button[type=submit]'); btn.disabled = true; btn.classList.add('busy');
+      try {
+        await api(up ? 'auth/register' : 'auth/signin', { email: f.email.value, password: f.password.value });
+        location.href = location.pathname + '?signedin=1';
+      } catch (err) {
+        $('#authMsg').innerHTML = `<div class="note bad">${esc(err.message)}</div>`;
+        btn.disabled = false; btn.classList.remove('busy');
+      }
+    };
+  };
+  draw();
 }
 function showReport(r, guessId) {
   const g = r.play.guesses.find(x => x.id === guessId); if (!g) return;
-  openModal(`<h2>Judge got it wrong?</h2>
-    <p>You said “${esc(g.input)}”. The judge read it as <b>${esc(g.name)}</b> at about <b>${esc(val(r.puzzle, g.value))}</b>.</p>
-    <p class="sub">If you're right, the value gets fixed, everyone's scores update, and you'll get a note next visit.</p>
-    <textarea class="box" id="rnote" maxlength="500" placeholder="What's wrong? (optional)"></textarea>
+  openModal(`<h2>Wrong number?</h2>
+    <p>You said “${esc(g.input)}”, and we counted it as <b>${esc(g.name)}</b> at about <b>${esc(val(r.puzzle, g.value))}</b>.</p>
+    <p class="sub">Tell us what it should be. If we fix it, everyone's scores update and you'll see a note next time you stop by.</p>
+    <textarea class="box" id="rnote" maxlength="500" placeholder="What should it be? A link helps. (optional)"></textarea>
     <div class="row"><button class="btn" id="rsend">Send report</button><button class="btn alt" id="rcancel">Cancel</button></div>`);
   $('#rcancel').onclick = closeModal;
   $('#rsend').onclick = async () => {
     $('#rsend').disabled = true;
-    try { await api('complaint', { guessId, note: $('#rnote').value }); r.complaints = { ...(r.complaints || {}), [guessId]: 'open' }; closeModal(); toast('Report sent. Thanks!'); afterChange(r, 'none'); }
+    try { await api('complaint', { guessId, note: $('#rnote').value }); r.complaints = { ...(r.complaints || {}), [guessId]: 'open' }; closeModal(); toast('Thanks! We\'ll take a look.'); afterChange(r, 'none'); }
     catch (e) { toast(e.message); $('#rsend').disabled = false; }
   };
 }
 function showNotifications(list) {
   openModal(`<h2>Mail from the lodge 📬</h2>
-    ${list.map(n => `<div class="note ${n.status === 'accepted' ? '' : 'warn'}" style="margin-bottom:10px">${n.status === 'accepted' ? '✅ Your appeal was accepted!' : '📝 Your report was reviewed.'}
-      <div class="sub">“${esc(n.input)}” is now judged as ${esc(n.name)} ≈ ${esc(fmt(n.property, n.value, n.unitLabel, S.units))}.${n.status === 'accepted' ? ' Scores were updated.' : ''}</div>
+    ${list.map(n => `<div class="note ${n.status === 'accepted' ? '' : 'warn'}" style="margin-bottom:10px">${n.status === 'accepted' ? '✅ You were right!' : '📝 We checked your report.'}
+      <div class="sub">“${esc(n.input)}” now counts as ${esc(n.name)} ≈ ${esc(fmt(n.property, n.value, n.unitLabel, S.units))}.${n.status === 'accepted' ? ' Your score has been updated.' : ' We\'re keeping it as is.'}</div>
       ${n.note ? `<div class="sub">Note: ${esc(n.note)}</div>` : ''}</div>`).join('')}
     <div class="row"><button class="btn" id="nOk">Got it</button></div>`);
   $('#nOk').onclick = closeModal;
@@ -696,7 +876,7 @@ async function renderArchiveList() {
     return `<a class="aday" style="--d:${Math.min(i, 15)}" href="#/archive/${day.date}"><span class="num">#${day.number}</span><span class="d">${esc(dateStr)}</span><span class="s">${cells}</span></a>`;
   }).join('');
   $('#main').innerHTML = `<section class="card"><h2 class="prompt">🗺️ Trail maps</h2>
-    <p class="sub">Ride any past day. Archive scores are kept separately and don't affect streaks.</p>
+    <p class="sub">Catch up on days you missed. These don't count toward your streak.</p>
     <div class="archive">${rows || '<p class="empty">No past days yet. Come back tomorrow!</p>'}</div>
     <div class="row"><a class="btn alt sm" href="#/">← Today</a></div></section>`;
 }
@@ -707,10 +887,12 @@ function paintTools() {
   $('#unlBtn').hidden = !S.me.isAdmin;
   $('#admBtn').hidden = !S.me.isAdmin;
   $('#acctBtn').classList.toggle('on', !!S.me.signedIn);
+  $('#cloverNum').textContent = S.clovers ? S.clovers.balance : '';
 }
 $('#helpBtn').onclick = showHelp;
 $('#statsBtn').onclick = showStats;
-$('#acctBtn').onclick = showAccount;
+$('#acctBtn').onclick = () => showAccount();
+$('#wardBtn').onclick = showWardrobe;
 $('#unlBtn').onclick = () => { location.hash = '#/unlimited'; };
 $('#unitBtn').onclick = () => {
   S.units = S.units === 'imperial' ? 'metric' : 'imperial'; store.set('jr.units', S.units);

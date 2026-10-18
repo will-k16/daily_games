@@ -53,14 +53,18 @@ Pitfalls to avoid: bare higher/lower feedback (it becomes binary search), ambigu
 ### 4.1 Platform (everything free)
 - **Cloudflare Pages** (static site) + **Pages Functions** (API) + **D1** (SQLite).
   - Free tier: 100,000 function requests/day, 5 million D1 row reads/day, 100,000 row writes/day, 5 GB storage. Static asset requests are free and unlimited.
-- **AI judge:** Groq (primary) → Gemini (backup), both free tiers. Caching answers means repeat answers never hit the AI. Each player is limited per day (80 AI calls) to protect the quota.
+- **AI judge:** every new answer is looked up on the web first: Gemini 2.5 Flash with Google Search (primary, 500 free searches/day), then Groq gpt-oss with browser search (backup; free tier ≈ 2 searches/minute). If the web-backed verdict is "not real" or has no number, a plain (no-search) second opinion gets a chance. Caching answers means repeat answers never hit the AI; AI "not real" verdicts are re-checked after 3 days. Each player is limited per day (80 AI calls) to protect the quota.
 - **Code:** a git repo pushed to GitHub, with Cloudflare Pages deploying on every push. Free `*.pages.dev` subdomain.
 - No build step: plain HTML/CSS/ES modules on the front end and plain JS functions on the back end.
 
 ### 4.2 Audience and identity
 - **Public**, anyone can play.
 - **Anonymous by default:** a server-set HttpOnly cookie holds a random player ID.
-- **Optional Google sign-in** syncs stats across devices. Signing in merges the anonymous device's plays into the account.
+- **Optional sign-in** (Google, or email + password) syncs stats and Skipper's wardrobe across devices. Signing in merges the anonymous device's plays and purchases into the account.
+  - Passwords are PBKDF2-SHA256 (100k rounds) with a random salt. 10 wrong tries per email (or 40 per network) in 15 minutes locks sign-in for a while.
+  - A signed-in Google account can add a password from the Account menu (the fallback when Google sign-in misbehaves).
+  - Email + password accounts never prove they own the email, so they can never be admin. If Google later signs in with the same email, Google wins: that account becomes the Google account and its password is wiped.
+  - There's no password-reset email (no email service). Forgotten password → sign in with Google and set a new one.
 - **No public names anywhere.** Comparisons are percentiles, histograms and anonymous top answers.
 - **Admin** = Google accounts listed in `ADMIN_EMAILS` (`will.kolander@gmail.com`).
 
@@ -201,14 +205,16 @@ A US/metric toggle. Values are formatted with sensible units (oz/lb/tons, in/ft/
 - **Time of day:** morning, day, evening and night palettes for the sky, mountains and UI. Night has stars, a moon and glowing windows.
 - **Type:** Pixelify Sans for headings, Silkscreen for numbers, Nunito for reading.
 - **Motion (no sound):** pointer parallax across 4 layers, drifting clouds, flapping birds, chimney smoke, twinkling stars, falling snow, pendulum-physics cabin swing, jolt on off-the-cable answers, fireworks at the lodge on 90+, count-ups and staggered reveals. Respects `prefers-reduced-motion`.
-- **Best answer:** after each stage, the best answer anyone has found (Skipper's AI search or a player's guess, whichever is closer). It can be matched but never beaten.
+- **Best answer:** after each stage, the best answer anyone has found (Skipper's AI search or a player's guess, whichever is closer). It can be matched but never beaten. Skipper's search runs in the background (Cloudflare `waitUntil`) as soon as the day's puzzles are loaded, one puzzle at a time, so it's normally ready before anyone finishes a stage; if it isn't, the page shows the best player answer so far and checks back every few seconds.
+- **Skipper's wardrobe:** players earn 🍀 clovers by climbing: 1 per 100 m on the daily (+5 for a perfect stage, +5 for finishing all three), half that on archive days, none in practice. Clovers buy fur colors, hats, scarves, glasses, cable-car colors and a name tag (rename Skipper; only you see the name). Balance = earned (computed from plays) − spent (`purchases`). The catalog and prices live in `public/js/wardrobe.js`; buying takes two taps.
 - **No measurements:** puzzle ends never contain numbers or units ("a 5-kilometer race" is rejected), and answers like "a 5 km race" or "a gallon of milk" (for volume) are refused without using a guess.
 
 ---
 
 ## 6. Data model (D1)
 
-- `players(id, google_sub, email, created_at, last_seen)`
+- `players(id, google_sub, email, created_at, last_seen, password_hash, skipper)`: `google_sub` is `google:<sub>`, `email:<address>` (password-only) or `dev:<email>`; `skipper` is the JSON look
+- `purchases(player_id, item, price, created_at)`, `login_fails(key, created_at)`
 - `sessions(token, player_id, created_at, expires_at)`
 - `puzzles(id, date, slot, status[draft|approved|auto|rejected|unlimited], property, unit_label, small_item, small_value, big_item, big_value, note, created_at)`, unique `(date, slot)` among approved/auto
 - `answers(key, property, norm, status, name, value, suggestions, reason, flagged, approved, source, updated_at)`
@@ -219,5 +225,5 @@ A US/metric toggle. Values are formatted with sensible units (oz/lb/tons, in/ft/
 
 ## 7. Configuration
 - `wrangler.toml` vars: `LAUNCH_DATE`, `ADMIN_EMAILS`, `TIP_URL`.
-- Secrets: `GROQ_API_KEY`, `GEMINI_API_KEY` (optional), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, optional `GROQ_MODEL`, `GEMINI_MODEL`.
+- Secrets: `GEMINI_API_KEY` (recommended), `GROQ_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, optional `GROQ_MODEL`, `GEMINI_MODEL` (plain calls), `GEMINI_SEARCH_MODEL` (the web-search judge, default `gemini-2.5-flash`), `JUDGE=groq` (put Groq's search first).
 - Local dev only (`.dev.vars`): `MOCK_AI=1` (fake judge for offline testing), `DEV_LOGIN_EMAIL` (localhost-only sign-in without Google).

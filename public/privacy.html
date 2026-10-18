@@ -22,7 +22,8 @@
     <ul>
       <li><b>A random player ID</b> in a cookie, so the game remembers your guesses and stats on this device.</li>
       <li><b>Your guesses</b>: what you typed, how the judge read it, and your scores.</li>
-      <li><b>If you sign in with Google:</b> your email address and Google account ID. These are used only to keep your stats in sync across devices and to recognize the game's admins.</li>
+      <li><b>If you sign in:</b> your email address, plus your Google account ID (if you use Google) or a salted hash of your password (if you use one; we never store the password itself). These are used only to keep your stats and Skipper's wardrobe in sync across devices and to recognize the game's admins.</li>
+      <li>What you've bought for Skipper with clovers, and the name you gave him.</li>
       <li><b>Reports</b> you send when you think the judge got something wrong, including any note you write.</li>
       <li>Your notebook, unit choice, and similar settings stay in your browser's local storage and are never sent to us.</li>
     </ul>
@@ -33,7 +34,7 @@
     <h2 class="h4">Services we use</h2>
     <ul>
       <li><b>Cloudflare</b> hosts the site and its database.</li>
-      <li><b>Groq</b> (and, as a backup, <b>Google Gemini</b>) receives the text of new answers so the AI judge can estimate them. Only the answer text is sent, never your ID or email.</li>
+      <li><b>Google Gemini</b> (and, as a backup, <b>Groq</b>) receives the text of new answers so the AI judge can look them up on the web and estimate them. Only the answer text is sent, never your ID or email.</li>
       <li><b>Google</b> handles sign-in if you choose to use it.</li>
       <li><b>Google Fonts</b> provides the fonts.</li>
     </ul>

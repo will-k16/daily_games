@@ -50,11 +50,16 @@ export async function identify(request, env) {
   }
 
   const email = player.email ? String(player.email).toLowerCase() : '';
+  // Admin needs an email someone proved they own (Google, or the localhost dev login). Anyone can
+  // type any address into the sign-up form, so password-only accounts never count.
+  const verified = /^(google|dev):/.test(player.google_sub || '');
   return {
     player,
     email,
     signedIn: !!player.google_sub,
-    isAdmin: !!email && adminEmails(env).includes(email),
+    verified,
+    hasPassword: !!player.password_hash,
+    isAdmin: verified && !!email && adminEmails(env).includes(email),
     setCookies
   };
 }
@@ -134,6 +139,18 @@ async function signIn(env, who, sub, email, secure) {
   const anon = who.player;
   let account = await db.prepare(`SELECT * FROM players WHERE google_sub = ?`).bind(sub).first();
 
+  if (!account && sub.startsWith('google:')) {
+    // Someone made a password account with this email before ever using Google. Google just proved
+    // who owns the address, so that account becomes theirs. Its password is wiped, because whoever
+    // typed it never proved anything; the owner can set a new one from the Account menu.
+    const claimed = await db.prepare(`SELECT * FROM players WHERE google_sub = ?`).bind('email:' + email).first();
+    if (claimed) {
+      await db.prepare(`UPDATE players SET google_sub = ?, password_hash = NULL WHERE id = ?`).bind(sub, claimed.id).run();
+      await db.prepare(`DELETE FROM sessions WHERE player_id = ?`).bind(claimed.id).run();
+      account = { ...claimed, google_sub: sub };
+    }
+  }
+
   if (!account && !anon.google_sub) {
     // First sign-in: this device's anonymous player simply becomes the account.
     await db.prepare(`UPDATE players SET google_sub = ?, email = ? WHERE id = ?`).bind(sub, email, anon.id).run();
@@ -151,7 +168,9 @@ async function signIn(env, who, sub, email, secure) {
         db.prepare(`UPDATE plays SET player_id = ? WHERE player_id = ? AND NOT EXISTS
           (SELECT 1 FROM plays q WHERE q.player_id = ? AND q.puzzle_id = plays.puzzle_id AND q.mode = plays.mode)`)
           .bind(account.id, anon.id, account.id),
-        db.prepare(`UPDATE complaints SET player_id = ? WHERE player_id = ?`).bind(account.id, anon.id)
+        db.prepare(`UPDATE complaints SET player_id = ? WHERE player_id = ?`).bind(account.id, anon.id),
+        db.prepare(`UPDATE OR IGNORE purchases SET player_id = ? WHERE player_id = ?`).bind(account.id, anon.id),
+        db.prepare(`UPDATE players SET skipper = (SELECT skipper FROM players WHERE id = ?) WHERE id = ? AND skipper = '{}'`).bind(anon.id, account.id)
       ]);
     }
   }
@@ -161,6 +180,104 @@ async function signIn(env, who, sub, email, secure) {
   await db.prepare(`INSERT INTO sessions (token, player_id, created_at, expires_at) VALUES (?, ?, ?, ?)`)
     .bind(token, account.id, nowISO(), exp).run();
   return [cookie(SESS, token, { maxAge: SESSION_DAYS * 86400, secure })];
+}
+
+/* ───────────── Email + password ───────────── */
+
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
+const ITER = 100000;          // the most PBKDF2 rounds Cloudflare Workers allow
+const hex = buf => Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+const unhex = h => new Uint8Array((h.match(/../g) || []).map(b => parseInt(b, 16)));
+
+async function pbkdf2(password, salt, iter) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, key, 256));
+}
+async function hashPassword(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  return `pbkdf2$${ITER}$${hex(salt)}$${await pbkdf2(password, salt, ITER)}`;
+}
+async function checkPassword(password, stored) {
+  const [kind, iter, salt, want] = String(stored || '').split('$');
+  if (kind !== 'pbkdf2' || !want) return false;
+  const got = await pbkdf2(password, unhex(salt), Number(iter));
+  let diff = got.length ^ want.length;
+  for (let i = 0; i < Math.min(got.length, want.length); i++) diff |= got.charCodeAt(i) ^ want.charCodeAt(i);
+  return diff === 0;
+}
+
+function readCredentials(body) {
+  const email = String(body.email || '').trim().toLowerCase();
+  const password = String(body.password || '');
+  if (!EMAIL_RE.test(email) || email.length > 254) throw new HttpError(400, 'That email doesn\'t look right.');
+  return { email, password };
+}
+function checkNewPassword(password) {
+  if (password.length < 8) throw new HttpError(400, 'Use at least 8 characters for your password.');
+  if (password.length > 200) throw new HttpError(400, 'That password is too long.');
+}
+
+/** Slows down password guessing: 10 misses per email, or 40 per network, in 15 minutes. Returns a "record a miss" function. */
+async function throttle(env, request, email) {
+  const since = new Date(Date.now() - 15 * 60000).toISOString();
+  const e = 'e:' + email, ip = 'ip:' + (request.headers.get('cf-connecting-ip') || 'local');
+  const row = await env.DB.prepare(`SELECT SUM(key = ?) AS e, SUM(key = ?) AS i FROM login_fails WHERE created_at > ? AND key IN (?, ?)`)
+    .bind(e, ip, since, e, ip).first();
+  if (row && (row.e >= 10 || row.i >= 40)) throw new HttpError(429, 'Too many tries. Wait a few minutes and try again.');
+  return () => env.DB.batch([
+    env.DB.prepare(`INSERT INTO login_fails (key, created_at) VALUES (?, ?), (?, ?)`).bind(e, nowISO(), ip, nowISO()),
+    env.DB.prepare(`DELETE FROM login_fails WHERE created_at < ?`).bind(new Date(Date.now() - 86400000).toISOString())
+  ]);
+}
+
+function jsonWithCookies(data, cookies) {
+  const h = new Headers({ 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  cookies.forEach(c => h.append('set-cookie', c));
+  return new Response(JSON.stringify(data), { headers: h });
+}
+
+/** Makes a new account with an email and password. */
+export async function register(request, env, who, body) {
+  const { email, password } = readCredentials(body);
+  checkNewPassword(password);
+  const taken = await env.DB.prepare(`SELECT password_hash FROM players WHERE email = ? AND google_sub IS NOT NULL ORDER BY password_hash IS NULL LIMIT 1`).bind(email).first();
+  if (taken) {
+    throw new HttpError(409, taken.password_hash
+      ? 'There\'s already an account with that email. Try signing in instead.'
+      : 'That email already signs in with Google. Use Google once, then add a password from the Account menu.');
+  }
+  const sub = 'email:' + email;
+  const cookies = await signIn(env, who, sub, email, secureFor(new URL(request.url)));
+  await env.DB.prepare(`UPDATE players SET password_hash = ? WHERE google_sub = ?`).bind(await hashPassword(password), sub).run();
+  return jsonWithCookies({ ok: true }, cookies);
+}
+
+/** Signs in with an email and password. */
+export async function passwordLogin(request, env, who, body) {
+  const { email, password } = readCredentials(body);
+  const miss = await throttle(env, request, email);
+  const account = await env.DB.prepare(`SELECT * FROM players WHERE email = ? AND password_hash IS NOT NULL ORDER BY created_at LIMIT 1`).bind(email).first();
+  if (!account || !(await checkPassword(password, account.password_hash))) {
+    await miss();
+    throw new HttpError(401, 'That email and password don\'t match.');
+  }
+  const cookies = await signIn(env, who, account.google_sub, email, secureFor(new URL(request.url)));
+  return jsonWithCookies({ ok: true }, cookies);
+}
+
+/** Adds or changes the password on the account you're signed in to. */
+export async function setPassword(env, who, body) {
+  if (!who.signedIn) throw new HttpError(401, 'Sign in first.');
+  const password = String(body.password || '');
+  checkNewPassword(password);
+  if (who.hasPassword && !(await checkPassword(String(body.current || ''), who.player.password_hash))) {
+    throw new HttpError(401, 'Your current password isn\'t right.');
+  }
+  // One password per email, so email sign-in always knows which account you mean.
+  const other = await env.DB.prepare(`SELECT id FROM players WHERE email = ? AND password_hash IS NOT NULL AND id != ?`).bind(who.email, who.player.id).first();
+  if (other) throw new HttpError(409, 'Another account already uses this email with a password.');
+  await env.DB.prepare(`UPDATE players SET password_hash = ? WHERE id = ?`).bind(await hashPassword(password), who.player.id).run();
+  return { ok: true };
 }
 
 export async function logout(request, env) {

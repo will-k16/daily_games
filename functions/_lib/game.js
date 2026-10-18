@@ -1,6 +1,7 @@
 import { HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, puzzleNumber, sameItem, normalize, clampStr } from './util.js';
 import { estimate, generatePuzzles, suggestMiddle } from './ai.js';
 import { planSpecs, recentItems } from './plan.js';
+import { lookOf, cloverBalance } from './wardrobe.js';
 import { answerMeasurementProblem } from '../../public/js/measure.js';
 import { PROPS } from '../../public/js/props.js';
 import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS, MAX_SCORE } from '../../public/js/score.js';
@@ -60,7 +61,7 @@ function checkAccess(p, mode, who) {
   if (mode === 'daily' && live && p.date === today) return;
   if (mode === 'archive' && live && p.date && p.date < today) return;
   if (mode === 'unlimited' && who.isAdmin && p.status === 'unlimited') return;
-  throw new HttpError(403, 'That puzzle isn\'t available in this mode.');
+  throw new HttpError(403, 'You can\'t play that one right now.');
 }
 
 /* ───────────── Plays ───────────── */
@@ -132,15 +133,17 @@ async function reveal(env, p, mode, view, who) {
 
 /* ───────────── Endpoints ───────────── */
 
-export async function today(env, who) {
+export async function today(env, who, waitUntil) {
   const date = todayUTC();
   const puzzles = await ensureDay(env, date);
+  await warmBest(env, waitUntil);
   const rooms = [];
   for (const p of puzzles) rooms.push(await fullState(env, who, p, 'daily'));
   return {
     date, number: puzzleNumber(env, date), rooms,
     day: await daySummary(env, who, date, rooms),
-    me: { signedIn: who.signedIn, email: who.email, isAdmin: who.isAdmin },
+    me: { signedIn: who.signedIn, email: who.email, isAdmin: who.isAdmin, hasPassword: who.hasPassword, skipper: lookOf(who.player) },
+    clovers: await cloverBalance(env, who.player.id),
     notifications: await notifications(env, who),
     tipUrl: env.TIP_URL || '',
     nextReset: addDays(date, 1) + 'T00:00:00Z'
@@ -203,10 +206,11 @@ export async function newUnlimited(env, who) {
   return { ...(await fullState(env, who, r, 'unlimited')), mode: 'unlimited' };
 }
 
-export async function guess(env, who, body) {
+export async function guess(env, who, body, waitUntil) {
   const mode = ['daily', 'archive', 'unlimited'].includes(body.mode) ? body.mode : 'daily';
   const p = await getPuzzle(env, body.puzzleId);
   checkAccess(p, mode, who);
+  if (mode === 'daily') await warmBest(env, waitUntil);
   const db = env.DB;
 
   let play = await getPlay(env, who.player.id, p.id, mode);
@@ -233,7 +237,7 @@ export async function guess(env, who, body) {
 
   const est = await estimate(env, { property: p.property, unitLabel: p.unit_label, answer, avg: !!body.avg, playerId: who.player.id });
   if (est.status === 'vague') return { status: 'vague', suggestions: est.suggestions, reason: est.reason };
-  if (est.status !== 'ok') return { status: 'invalid', reason: est.reason || 'Couldn\'t measure that. Try something real and specific.' };
+  if (est.status !== 'ok') return { status: 'invalid', reason: est.reason || 'Couldn\'t find a number for that. Try naming something more specific.' };
   if (attempt === 2 && prior[0] && prior[0].answer_key === est.key) {
     return { status: 'invalid', reason: 'Your second guess has to be something different.' };
   }
@@ -300,17 +304,16 @@ export async function giveUp(env, who, body) {
 
 /**
  * The best answer: the closest thing to the middle that anyone has found, AI or player, scored by the
- * same judge players get. The AI searches in two rounds (the second homes in on the closest so far),
- * and any player answer that does better replaces it, so the shown best answer is never beaten.
- * Only shown after you finish the room. Cached on the puzzle.
+ * same judge players get. Skipper's search runs in the background as soon as a day's puzzles exist
+ * (see warmBest), so it's normally ready long before anyone finishes a stage. Any player answer that
+ * does better replaces it, so the shown best answer is never beaten. Only shown after you finish.
  */
-export async function bestAnswer(env, who, puzzleId, mode) {
+export async function bestAnswer(env, who, puzzleId, mode, waitUntil) {
   const p = await getPuzzle(env, puzzleId);
   checkAccess(p, mode, who);
   const play = await getPlay(env, who.player.id, p.id, mode);
-  if (!play || play.state !== 'done') throw new HttpError(403, 'Finish the room first!');
+  if (!play || play.state !== 'done') throw new HttpError(403, 'Finish this stage first!');
   const shape = (input, name, value, by) => ({ input, name, value, score: scoreGuess(p.small_value, p.big_value, value), by });
-  const dim = (PROPS[p.property] || {}).dim || 'count';
 
   // Best answer any player has given for this puzzle.
   const pg = await env.DB.prepare(`SELECT g.input, g.name, g.value FROM guesses g JOIN plays pl ON pl.id = g.play_id JOIN answers a ON a.key = g.answer_key
@@ -319,32 +322,60 @@ export async function bestAnswer(env, who, puzzleId, mode) {
 
   let best = p.best_name ? shape(p.best_input, p.best_name, p.best_value, 'ai') : null;
   if (!best) {
-    const target = middle(p.small_value, p.big_value);
-    const tried = new Set();
-    const judge = async names => {
-      const fresh = names.filter(n => !tried.has(normalize(n)) && !sameItem(n, p.small_item) && !sameItem(n, p.big_item) && !answerMeasurementProblem(n, dim));
-      fresh.forEach(n => tried.add(normalize(n)));
-      const out = [];
-      for (let i = 0; i < fresh.length; i += 4) {
-        const batch = await Promise.all(fresh.slice(i, i + 4).map(n =>
-          estimate(env, { property: p.property, unitLabel: p.unit_label, answer: n, avg: false, playerId: '' }).catch(() => null)));
-        batch.forEach((est, j) => { if (est && est.status === 'ok' && inRange(p.small_value, p.big_value, est.value)) out.push(shape(fresh[i + j], est.name, est.value, 'ai')); });
-      }
-      return out;
-    };
-    const pickBest = list => list.reduce((b, c) => (!b || c.score > b.score ? c : b), null);
-    const base = { property: p.property, unitLabel: p.unit_label, target, small: p.small_item, big: p.big_item };
-    try { best = pickBest(await judge(await suggestMiddle(env, base))); } catch { best = null; }
-    if (!best || best.score < 970) {
-      try { best = pickBest([best, ...(await judge(await suggestMiddle(env, { ...base, closest: best, count: 6 })))].filter(Boolean)); } catch { /* keep round one */ }
-    }
+    // Still searching (or never started): kick it off and answer right away with what we have.
+    if (waitUntil) waitUntil(computeBest(env, p).catch(e => console.error('best answer failed', e.message)));
+    return playerBest ? { ...playerBest, pending: true } : { pending: true };
   }
-  if (playerBest && (!best || playerBest.score > best.score)) best = playerBest;
-  if (!best) throw new HttpError(503, 'Could not find one right now. Try again in a minute.');
-  if (best.name !== p.best_name || best.value !== p.best_value) {
+  if (playerBest && playerBest.score > best.score) {
+    best = playerBest;
     await env.DB.prepare(`UPDATE puzzles SET best_input = ?, best_name = ?, best_value = ? WHERE id = ?`).bind(best.input, best.name, best.value, p.id).run();
   }
   return best;
+}
+
+const BEST_CLAIM_MS = 3 * 60000;
+
+/** Starts Skipper's search for one of today's puzzles that doesn't have a best answer yet. */
+export async function warmBest(env, waitUntil) {
+  if (!waitUntil) return;
+  const p = await env.DB.prepare(`SELECT * FROM puzzles WHERE date = ? AND ${LIVE} AND best_name IS NULL
+      AND (best_started IS NULL OR best_started < ?) ORDER BY slot LIMIT 1`).bind(todayUTC(), new Date(Date.now() - BEST_CLAIM_MS).toISOString()).first();
+  if (p) waitUntil(computeBest(env, p).catch(e => console.error('best answer failed', e.message)));
+}
+
+/**
+ * Asks the AI for things near the middle and runs each one past the judge (so the value shown is
+ * exactly what a player would get for typing it). Two rounds: the second homes in on the closest.
+ * Only one worker searches a puzzle at a time; every judged answer is cached, so a retry is quick.
+ */
+async function computeBest(env, p) {
+  const db = env.DB, now = nowISO();
+  const claim = await db.prepare(`UPDATE puzzles SET best_started = ? WHERE id = ? AND best_name IS NULL AND (best_started IS NULL OR best_started < ?)`)
+    .bind(now, p.id, new Date(Date.now() - BEST_CLAIM_MS).toISOString()).run();
+  if (!claim.meta.changes) return;
+  const shape = (input, name, value) => ({ input, name, value, score: scoreGuess(p.small_value, p.big_value, value) });
+  const dim = (PROPS[p.property] || {}).dim || 'count';
+  const tried = new Set();
+  const judge = async names => {
+    const fresh = names.filter(n => !tried.has(normalize(n)) && !sameItem(n, p.small_item) && !sameItem(n, p.big_item) && !answerMeasurementProblem(n, dim));
+    fresh.forEach(n => tried.add(normalize(n)));
+    const out = [];
+    for (let i = 0; i < fresh.length; i += 3) {
+      const batch = await Promise.all(fresh.slice(i, i + 3).map(n =>
+        estimate(env, { property: p.property, unitLabel: p.unit_label, answer: n, avg: false, playerId: '' }).catch(() => null)));
+      batch.forEach((est, j) => { if (est && est.status === 'ok' && inRange(p.small_value, p.big_value, est.value)) out.push(shape(fresh[i + j], est.name, est.value)); });
+    }
+    return out;
+  };
+  const pickBest = list => list.filter(Boolean).reduce((b, c) => (!b || c.score > b.score ? c : b), null);
+  const base = { property: p.property, unitLabel: p.unit_label, target: middle(p.small_value, p.big_value), small: p.small_item, big: p.big_item };
+  let best = null;
+  try { best = pickBest(await judge(await suggestMiddle(env, { ...base, count: 6 }))); } catch { /* try round two */ }
+  if (!best || best.score < 970) {
+    try { best = pickBest([best, ...(await judge(await suggestMiddle(env, { ...base, closest: best, count: 5 })))]); } catch { /* keep round one */ }
+  }
+  if (!best) { await db.prepare(`UPDATE puzzles SET best_started = NULL WHERE id = ?`).bind(p.id).run(); return; }
+  await db.prepare(`UPDATE puzzles SET best_input = ?, best_name = ?, best_value = ? WHERE id = ? AND best_name IS NULL`).bind(best.input, best.name, best.value, p.id).run();
 }
 
 /* ───────────── Complaints & notifications ───────────── */

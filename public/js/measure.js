@@ -41,9 +41,9 @@ export function dimOf(dim) { return dim === 'time_y' ? 'time' : dim; }
 export function answerMeasurementProblem(text, dim) {
   const t = String(text || '').toLowerCase();
   if (/^[\s\d.,$%-]+$/.test(t)) return 'Name a thing, not a number.';
-  if (numUnit(dimOf(dim)).test(t) || DOLLAR_NUM.test(t)) return 'No measurements! Name a thing, not an amount (like "a 5 km race").';
+  if (numUnit(dimOf(dim)).test(t) || DOLLAR_NUM.test(t)) return 'Name a thing, not an amount (so no "a 5 km race").';
   const own = WORDS[dimOf(dim)] || [];
-  if (own.length && new RegExp(`\\b(?:${own.join('|')})\\b`, 'i').test(t)) return 'No measurements! Name a thing, not an amount of this property.';
+  if (own.length && new RegExp(`\\b(?:${own.join('|')})\\b`, 'i').test(t)) return 'That names an amount, not a thing. Try the thing itself.';
   return '';
 }
 

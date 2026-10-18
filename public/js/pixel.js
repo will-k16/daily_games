@@ -2,6 +2,8 @@
 // the gondola and Skipper the goat. Everything draws on small low-resolution canvases that
 // get scaled up with nearest-neighbor sampling, so edges stay crisp.
 
+import { WARDROBE } from './wardrobe.js';
+
 /* ───────────── basics ───────────── */
 export function rng(seed) {
   let a = seed >>> 0;
@@ -269,10 +271,21 @@ export function sunSprite(pal, moon) {
   return c;
 }
 
+/* ───────────── Skipper's outfit ───────────── */
+/** Turns a look ({ fur, hat, scarf, glasses, cabin } ids) into the colors and shapes to draw. */
+export function outfit(look = {}) {
+  const pick = (slot, id) => WARDROBE[slot].find(i => i.id === id) || WARDROBE[slot][0];
+  return {
+    fur: pick('fur', look.fur).c, hat: pick('hat', look.hat), scarf: pick('scarf', look.scarf),
+    glasses: pick('glasses', look.glasses).kind, cabin: pick('cabin', look.cabin).c
+  };
+}
+
 /* ───────────── the gondola ───────────── */
-export function gondolaSprite(mood = 'smile', blink = false) {
+export function gondolaSprite(mood = 'smile', blink = false, look = {}) {
   const c = canvas(18, 23), x = c.getContext('2d');
-  const R = '#d9482b', Rd = '#a8331c', Rl = '#f06a46', W = '#f3ead8';
+  const o = outfit(look);
+  const R = o.cabin, Rd = mix(o.cabin, '#000000', .25), Rl = mix(o.cabin, '#ffffff', .2), W = '#f3ead8';
   // hanger
   rect(x, 8, 0, 2, 6, '#59636f'); rect(x, 4, 5, 10, 1, '#59636f'); px(x, 3, 6, '#59636f'); px(x, 14, 6, '#59636f');
   // body
@@ -280,13 +293,20 @@ export function gondolaSprite(mood = 'smile', blink = false) {
   rect(x, 2, 8, 1, 11, Rl); rect(x, 1, 17, 16, 1, W);
   // window
   rect(x, 3, 9, 12, 7, '#4a2014'); rect(x, 4, 10, 10, 5, '#bfe3f5'); px(x, 4, 10, '#e6f6ff'); px(x, 5, 10, '#e6f6ff'); px(x, 4, 11, '#e6f6ff');
-  // Skipper in the window: horns, ears, face, eyes, nose
+  // Skipper in the window: horns, ears, face, hat, eyes, nose
   px(x, 7, 10, '#8a6440'); px(x, 10, 10, '#8a6440');
-  rect(x, 7, 11, 4, 4, '#f6f0e4'); px(x, 6, 12, '#e8d6bd'); px(x, 11, 12, '#e8d6bd');
-  rect(x, 7, 10, 4, 1, '#d9482b'); px(x, 8, 9, '#ffffff');               // tiny red beanie + pompom
+  rect(x, 7, 11, 4, 4, o.fur[0]); px(x, 6, 12, o.fur[1]); px(x, 11, 12, o.fur[1]);
+  const h = o.hat, hc = h.c || [];
+  if (h.kind === 'beanie') { rect(x, 7, 10, 4, 1, hc[0]); px(x, 8, 9, '#ffffff'); }
+  else if (h.kind === 'party') { rect(x, 7, 10, 4, 1, hc[0]); rect(x, 8, 9, 2, 1, hc[1]); px(x, 8, 8, hc[0]); }
+  else if (h.kind === 'cowboy') { rect(x, 6, 10, 6, 1, hc[1]); rect(x, 7, 9, 4, 1, hc[0]); }
+  else if (h.kind === 'tophat') { rect(x, 6, 10, 6, 1, hc[0]); rect(x, 7, 8, 4, 2, hc[0]); rect(x, 7, 9, 4, 1, hc[1]); }
+  else if (h.kind === 'crown') { rect(x, 7, 10, 4, 1, hc[0]); px(x, 7, 9, hc[0]); px(x, 10, 9, hc[0]); px(x, 8, 9, '#e4572e'); }
   const ink = '#1d1410', mouth = '#7a3b2e';
-  if (blink || mood === 'happy') { px(x, 7, 12, '#8a6440'); px(x, 10, 12, '#8a6440'); }
+  if (o.glasses === 'shades' || o.glasses === 'stars') rect(x, 7, 12, 4, 1, o.glasses === 'stars' ? '#e2a72e' : ink);
+  else if (blink || mood === 'happy') { px(x, 7, 12, '#8a6440'); px(x, 10, 12, '#8a6440'); }
   else { px(x, 7, 12, ink); px(x, 10, 12, ink); }
+  if (o.glasses === 'specs') { px(x, 8, 12, '#59636f'); px(x, 9, 12, '#59636f'); }
   if (mood === 'wow') { px(x, 8, 14, mouth); px(x, 9, 14, mouth); px(x, 8, 13, '#e48c8c'); }
   else if (mood === 'sad' || mood === 'dizzy') { px(x, 8, 14, mouth); px(x, 9, 14, mouth); }
   else { px(x, 8, 13, '#e48c8c'); px(x, 9, 13, '#e48c8c'); px(x, 8, 14, mouth); px(x, 9, 14, mouth); }
@@ -302,9 +322,11 @@ export function trolleySprite() {
 }
 
 /* ───────────── Skipper's portrait ───────────── */
-export function skipperPortrait(mood = 'smile', blink = false, ear = 0) {
+export function skipperPortrait(mood = 'smile', blink = false, ear = 0, look = {}) {
   const c = canvas(44, 44), x = c.getContext('2d');
-  const fur = '#f7f1e5', furS = '#e2d5bf', horn = '#9a7048', hornD = '#6f4e30', pink = '#f0a3a0', red = '#d9482b', redD = '#a8331c', ink = '#1d1410';
+  const o = outfit(look);
+  const fur = o.fur[0], furS = o.fur[1], horn = '#9a7048', hornD = '#6f4e30', pink = '#f0a3a0', ink = '#1d1410';
+  const muzzle = mix(fur, '#ffffff', .45);
   // horns curling back
   // curved goat horns sweeping up and back from under the beanie
   [[12, 15], [11, 14], [10, 13], [10, 12], [9, 11], [9, 10], [9, 9], [10, 8], [11, 7]].forEach(([hx, hy], i) => {
@@ -315,17 +337,15 @@ export function skipperPortrait(mood = 'smile', blink = false, ear = 0) {
   ellipse(x, 8 - ear, 20 + ear, 6, 2, furS); ellipse(x, 8 - ear, 20 + ear, 4, 1, pink);
   ellipse(x, 36 + ear, 20 + ear, 6, 2, furS); ellipse(x, 36 + ear, 20 + ear, 4, 1, pink);
   // head, muzzle, beard
-  ellipse(x, 22, 22, 11, 12, fur); ellipse(x, 22, 29, 7, 5, '#fbf7ef');
+  ellipse(x, 22, 22, 11, 12, fur); ellipse(x, 22, 29, 7, 5, muzzle);
   for (let i = 0; i < 6; i++) rect(x, 20 + (i > 3 ? 1 : 0), 34 + i, 4 - (i > 3 ? 2 : 0), 1, furS);
   rect(x, 12, 26, 2, 1, furS); rect(x, 30, 26, 2, 1, furS);
-  // beanie with stripe and pompom
-  ellipse(x, 22, 13, 11, 6, red); rect(x, 11, 13, 23, 6, red); rect(x, 11, 17, 23, 2, '#f3ead8'); rect(x, 11, 19, 23, 1, redD);
-  for (let i = 12; i < 34; i += 3) px(x, i, 14, redD);
-  ellipse(x, 22, 5, 3, 3, '#ffffff'); px(x, 21, 4, '#e6e6e6');
+  drawHat(x, o.hat, furS);
   // eyes
   if (blink || mood === 'happy') { rect(x, 16, 25, 3, 1, ink); rect(x, 26, 25, 3, 1, ink); if (mood === 'happy') { px(x, 15, 24, ink); px(x, 29, 24, ink); } }
   else if (mood === 'dizzy') { [[16, 23], [18, 25], [18, 23], [16, 25], [17, 24]].forEach(([a, b]) => { px(x, a, b, ink); px(x, a + 10, b, ink); }); }
   else { rect(x, 16, 23, 3, 4, ink); rect(x, 26, 23, 3, 4, ink); px(x, 16, 23, '#ffffff'); px(x, 26, 23, '#ffffff'); }
+  drawGlasses(x, o.glasses);
   // blush, nose, mouth
   rect(x, 13, 28, 2, 1, pink); rect(x, 30, 28, 2, 1, pink);
   rect(x, 21, 28, 3, 2, '#c9726a'); px(x, 21, 28, '#e59a92');
@@ -333,7 +353,58 @@ export function skipperPortrait(mood = 'smile', blink = false, ear = 0) {
   else if (mood === 'sad' || mood === 'dizzy') { rect(x, 20, 32, 5, 1, '#7a3b2e'); px(x, 19, 33, '#7a3b2e'); px(x, 25, 33, '#7a3b2e'); }
   else { px(x, 19, 31, '#7a3b2e'); rect(x, 20, 32, 5, 1, '#7a3b2e'); px(x, 25, 31, '#7a3b2e'); }
   // scarf
-  rect(x, 12, 38, 21, 3, red); for (let i = 13; i < 33; i += 4) rect(x, i, 38, 2, 3, '#f3ead8');
-  rect(x, 27, 40, 4, 4, red); px(x, 28, 41, '#f3ead8');
+  const [sc, st] = o.scarf.c, bands = ['#d9482b', '#f2b33d', '#5fae6a', '#3f78c9', '#7d55c7'];
+  rect(x, 12, 38, 21, 3, sc);
+  for (let i = 13, n = 0; i < 33; i += 4, n++) rect(x, i, 38, 2, 3, o.scarf.rainbow ? bands[n % bands.length] : st);
+  rect(x, 27, 40, 4, 4, sc); px(x, 28, 41, o.scarf.rainbow ? bands[2] : st);
   return outline(c);
+}
+
+function drawHat(x, hat, furS) {
+  const [a, b] = hat.c || [];
+  if (hat.kind === 'beanie') {
+    ellipse(x, 22, 13, 11, 6, a); rect(x, 11, 13, 23, 6, a); rect(x, 11, 17, 23, 2, '#f3ead8'); rect(x, 11, 19, 23, 1, b);
+    for (let i = 12; i < 34; i += 3) px(x, i, 14, b);
+    ellipse(x, 22, 5, 3, 3, '#ffffff'); px(x, 21, 4, '#e6e6e6');
+  } else if (hat.kind === 'party') {
+    for (let y = 1; y <= 15; y++) {
+      const w = Math.round((y - 1) * .55);
+      for (let dx = -w; dx <= w; dx++) px(x, 22 + dx, y, ((y >> 2) & 1) ? b : a);
+    }
+    rect(x, 13, 15, 19, 2, mix(a, '#000000', .2));
+    ellipse(x, 22, 1, 2, 1, '#ffffff');
+  } else if (hat.kind === 'cowboy') {
+    rect(x, 14, 6, 17, 9, a); rect(x, 15, 5, 6, 1, a); rect(x, 24, 5, 6, 1, a); px(x, 22, 6, b);   // crown with a dent
+    rect(x, 14, 12, 17, 2, b);                                                                     // band
+    rect(x, 5, 15, 35, 2, a); rect(x, 3, 14, 3, 1, a); rect(x, 39, 14, 3, 1, a); rect(x, 5, 17, 35, 1, b);
+  } else if (hat.kind === 'tophat') {
+    rect(x, 14, 0, 17, 15, a); rect(x, 15, 1, 2, 12, mix(a, '#ffffff', .2));
+    rect(x, 14, 11, 17, 2, b);
+    rect(x, 9, 15, 27, 2, a); rect(x, 9, 17, 27, 1, mix(a, '#000000', .3));
+  } else if (hat.kind === 'crown') {
+    rect(x, 12, 10, 21, 6, a); rect(x, 12, 15, 21, 1, b);
+    [12, 17, 22, 27, 32].forEach(cx => { rect(x, cx - 1, 6, 1, 4, a); px(x, cx - 1, 5, a); });
+    rect(x, 31, 6, 1, 4, a);
+    [[16, 12, '#e4572e'], [22, 12, '#3f78c9'], [28, 12, '#5fae6a']].forEach(([gx, gy, gc]) => { px(x, gx, gy, gc); px(x, gx + 1, gy, gc); });
+  } else {
+    // no hat: a little tuft of fur between the horns
+    rect(x, 19, 9, 7, 2, furS); px(x, 21, 8, furS); px(x, 23, 8, furS);
+  }
+}
+
+function drawGlasses(x, kind) {
+  const frame = '#2a313b';
+  if (kind === 'specs') {
+    [15, 25].forEach(gx => { rect(x, gx, 21, 5, 1, frame); rect(x, gx, 27, 5, 1, frame); rect(x, gx - 1, 22, 1, 5, frame); rect(x, gx + 5, 22, 1, 5, frame); });
+    rect(x, 21, 23, 4, 1, frame);
+  } else if (kind === 'shades') {
+    [14, 25].forEach(gx => { rect(x, gx, 22, 6, 5, '#1d2230'); px(x, gx + 1, 23, '#6d7a90'); });
+    rect(x, 20, 23, 5, 1, frame); rect(x, 11, 23, 3, 1, frame); rect(x, 31, 23, 3, 1, frame);
+  } else if (kind === 'stars') {
+    const star = (cx, cy) => {
+      rect(x, cx - 3, cy - 1, 7, 2, '#e2a72e'); rect(x, cx - 1, cy - 3, 3, 7, '#e2a72e'); rect(x, cx - 2, cy - 2, 5, 5, '#e2a72e');
+      px(x, cx - 1, cy - 1, '#fff2b0');
+    };
+    star(17, 24); star(27, 24); rect(x, 21, 24, 3, 1, '#c8901f');
+  }
 }
