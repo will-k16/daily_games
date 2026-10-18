@@ -108,7 +108,7 @@ function mockJudge(circles, answer, known) {
 
 /* ───────────── Generator ───────────── */
 
-const GEN_SCHEMA = {
+const PUZZLE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     circles: { type: 'ARRAY', items: { type: 'STRING' } },
@@ -118,6 +118,10 @@ const GEN_SCHEMA = {
   },
   required: ['circles', 'answers', 'typical', 'note']
 };
+const GEN_SCHEMA = { type: 'OBJECT', properties: { puzzles: { type: 'ARRAY', items: PUZZLE_SCHEMA } }, required: ['puzzles'] };
+const CANDIDATES = 3;
+// Generation shouldn't hang: a slow or rate-limited provider is skipped for the backup instead of waited on.
+const GEN_OPTS = { timeout: 20000, retries: 1 };
 
 export const catKey = s => normalize(s).replace(/^(things|words|places|people) (that are |that |which |colored |)/, '');
 export const setKey = circles => circles.map(c => normalize(c)).sort().join(' | ');
@@ -160,55 +164,80 @@ export function cleanVennPuzzle(p, round, history = { categories: [], sets: new 
   return { round, circles, answers: answers.slice(0, 80), typical, par: parFor(typical, round), note: String(p.note || '').slice(0, 200) };
 }
 
+// Easy building blocks. Each draft gets a random handful to start from, so days don't all look alike.
+const EASY_TOPICS = ['Animals', 'Foods people eat', 'Fruits', 'Vegetables', 'Desserts and sweets', 'Drinks', 'Things found in a kitchen',
+  'Things found in a bathroom', 'Things found in a bedroom', 'Things found in a classroom', 'Things found at the beach', 'Things found on a farm',
+  'Things found at a park', 'Sports', 'Things used in sports', 'Vehicles', 'Clothing', 'Toys and games', 'Musical instruments', 'Tools',
+  'Jobs', 'Famous real people', 'Countries', 'US states', 'Body parts', 'Things in the sky', 'Things at a birthday party', 'Pets', 'Insects and bugs', 'Birds'];
+const EASY_PROPERTIES = ['Things colored red', 'Things colored yellow', 'Things colored green', 'Things colored orange', 'Things colored white',
+  'Things colored black', 'Things that are round', 'Things that are soft', 'Things that are sticky', 'Things bigger than a person',
+  'Things smaller than a hand', 'Things made of wood', 'Things made of metal', 'Things made of glass', 'Things that have wheels',
+  'Things that can fly', 'Things that swim or float', 'Things that are cold', 'Things that are hot', 'Things that make noise',
+  'Things with legs', 'Things that are sweet', 'Things that grow on trees', 'Things that plug into the wall', 'Words that start with the letter B',
+  'Words that start with the letter S', 'Words that start with the letter C', 'Words that start with the letter P', 'Words that start with the letter M',
+  'Words that have a double letter'];
+const pickSome = (list, k) => list.slice().sort(() => Math.random() - 0.5).slice(0, k);
+
 function genPrompt(round, date, history, ask) {
   const n = round === 2 ? 3 : 2;
+  const used = new Set(history.categories.map(catKey));
+  const fresh = list => list.filter(c => !used.has(catKey(c)));
   return [
-    `You write puzzles for "Venn", a daily word game. Players get 90 seconds to type as many real things as they can that fit ALL ${n} categories at once (${round === 2 ? 'the very center of a three-circle Venn diagram' : 'the overlap of a two-circle Venn diagram'}).`,
+    `You write puzzles for "Venn", a daily word game for everyone, not trivia buffs. Players get 90 seconds to type as many real things as they can that fit ALL ${n} categories at once (${round === 2 ? 'the very center of a three-circle Venn diagram' : 'the overlap of a two-circle Venn diagram'}).`,
     '',
-    `Write ONE puzzle with exactly ${n} categories.`,
-    '- Mix the kinds of category. The four allowed kinds: properties (colored orange, round, made of wood), time and place (invented after 1950, from Japan), word play (starts with B, has a double letter), and topic groups (foods, animals, sports equipment, famous people).',
-    '- Each category is ONE full, plain phrase that is unambiguous on its own: "Things colored orange", never just "Orange". "Foods people eat", "Animals", "Words that start with the letter B". No examples, no extra labels.',
+    `Write ${CANDIDATES} DIFFERENT candidate puzzles in "puzzles", each with exactly ${n} categories (no category shared between candidates). Each must be EASY to get started: an ordinary adult should think of several answers in the first 10 seconds.`,
+    '- Use broad, familiar categories. At least one should be a big everyday topic group (animals, foods people eat, things found in a house or kitchen, sports, vehicles, clothing, toys and games, famous people, countries, jobs). The others should be simple properties anyone can check at a glance (a common color, round, bigger than a person, made of wood or metal, has wheels, found at the beach, starts with a common letter).',
+    '- The four allowed kinds: properties (colored orange, round, made of wood), time and place (invented after 1950, from Japan), word play (starts with B, has a double letter), and topic groups (foods, animals, sports equipment, famous people). Prefer the easy end of each.',
+    `- Start from these easy ideas (pick from them, or something just as easy; mix them up): topic groups: ${pickSome(fresh(EASY_TOPICS), 6).join('; ')}. Properties: ${pickSome(fresh(EASY_PROPERTIES), 8).join('; ')}.`,
+    round === 2 ? '- For three circles, use at least two broad categories and make sure the three really are different (not "Made of metal" + "Colored silver"), so the center still has plenty of common answers.' : '',
+    '- Too hard (never do this): "Things that are naturally blue" + "Foods" (few common answers); "Mammals" + "Things that can fly" + "Things found in Australia" (only bats); anything whose answers are mostly species, breeds, varieties or brand-new products.',
+    '- Each category is ONE full, plain phrase that is unambiguous on its own: "Things colored orange", never just "Orange". No examples, no extra labels.',
     `- Facts are judged as of ${date || 'today'}.`,
-    `- The answers that fit ALL ${n} categories must be plentiful and reasonably well known: everyday things a typical teenager or adult would think of within seconds. No obscure trivia, no lists of species, breeds or varieties (not "Grey-headed flying fox", "Blue Hubbard squash").`,
-    `- "answers": list ${ask} different real things that fit all ${n} categories (at least ${MIN_ANSWERS[round]}). Plain everyday names, one thing each, no variants of the same thing, no fictional characters. If you can't list that many COMMON answers, choose broader categories instead of padding the list.`,
+    `- "answers" (per puzzle): list ${ask} different COMMON things that fit all ${n} categories: words a kid or grandparent would know, like "carrot", "pumpkin", "basketball". Plain everyday names, one thing each, no variants, no species or variety names, no fictional characters. If you can't easily list ${ask} common answers, the categories are too narrow: pick broader ones.`,
     '- "typical": your honest estimate of how many answers a typical player finds in 90 seconds.',
     '- "note": one short sentence for the admin about what makes it fun.',
-    '- Make it fun and a little surprising, but fair. Avoid categories that overlap almost completely.',
+    '- Avoid categories that overlap almost completely.',
     history.categories.length ? '- Do NOT use any of these recently used categories (or close rewordings): ' + history.categories.slice(0, 100).join('; ') + '.' : ''
   ].filter(Boolean).join('\n');
 }
 
-const REVIEW_SCHEMA = { type: 'OBJECT', properties: { keep: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['keep'] };
+const REVIEW_SCHEMA = {
+  type: 'OBJECT',
+  properties: { lists: { type: 'ARRAY', items: { type: 'OBJECT', properties: { keep: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['keep'] } } },
+  required: ['lists']
+};
 
-function reviewPrompt(circles, date, answers) {
+function reviewPrompt(cands, date) {
   return [
-    'You check answer lists for "Venn", a word game. An answer counts only if it fits ALL of these categories:',
-    ...circles.map((c, i) => `${'ABC'[i]}: "${c}"`),
-    `Judge facts as of ${date || 'today'}.`,
+    `You check answer lists for "Venn", a word game. Below are ${cands.length} puzzles. For each one, an answer counts only if it fits ALL of that puzzle's categories. Judge facts as of ${date || 'today'}.`,
     '',
-    'From the list below, keep ONLY the answers that (1) clearly fit every category and (2) a typical teenager or adult would know and think of within seconds.',
-    'Drop obscure items, species/breed/variety names, made-up or doubtful items, and near-duplicates (keep the plain common name once).',
-    'Return the kept answers exactly as written in "keep". It is fine to keep only a few.',
+    'For each puzzle, keep ONLY the answers that (1) clearly fit every category and (2) almost every adult would recognize instantly, the kind of word a kid or grandparent knows ("carrot", "pumpkin", "basketball").',
+    'Drop anything you might need to explain or look up ("Blue Java banana", "butterfly pea flower", "spectacled flying fox"), species/breed/variety names, specialty or regional foods, made-up or doubtful items, and near-duplicates (keep the plain common name once).',
+    `Return "lists" with exactly ${cands.length} entries, in the same order, each with the kept answers exactly as written. It is fine to keep only a few.`,
     '',
-    'List: ' + answers.map(a => String(a).replace(/[<>]/g, '')).join('; ')
+    ...cands.map((c, i) => `Puzzle ${i + 1}. Categories: ${c.circles.map(x => '"' + x + '"').join(' + ')}
+Answers: ${c.answers.map(a => String(a).replace(/[<>]/g, '')).join('; ')}`)
   ].join('\n');
 }
 
 /**
- * Asks the AI for one puzzle for this round, retrying when a draft fails the size check or repeats a
- * category. Returns a cleaned puzzle or null (the caller decides whether to use the fallback bank).
+ * Asks the AI for one puzzle for this round in two calls: one writes several candidates, one strict
+ * review keeps only well-known answers that truly fit. The size check runs on what's left, and the
+ * candidate with the most surviving answers wins. One more try if none pass; rate limits end it at once.
+ * Returns a cleaned puzzle or null (the caller decides whether to use the fallback bank).
  */
 export async function generateVennPuzzle(env, round, date, history) {
   if (env.MOCK_AI === '1') return null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await callAI(env, genPrompt(round, date, history, round === 2 ? 14 : 32), GEN_SCHEMA, 'venn-generate', '', 0.9);
-      if (!cleanVennPuzzle(res, round, history)) continue;
-      // A second, stricter pass keeps only answers that really fit and are well known; the size check runs on what's left.
-      const review = await callAI(env, reviewPrompt(res.circles, date, res.answers), REVIEW_SCHEMA, 'venn-generate', '', 0);
-      const p = cleanVennPuzzle({ ...res, answers: Array.isArray(review.keep) ? review.keep : [] }, round, history);
-      if (p) return p;
-    } catch (e) { console.error('venn generate failed', e.message); if (/429|swamped/i.test(e.message)) break; }
+      const res = await callAI(env, genPrompt(round, date, history, round === 2 ? 14 : 32), GEN_SCHEMA, 'venn-generate', '', 0.7, GEN_OPTS);
+      const cands = (Array.isArray(res.puzzles) ? res.puzzles : []).filter(c => cleanVennPuzzle(c, round, history));
+      if (!cands.length) continue;
+      const review = await callAI(env, reviewPrompt(cands, date), REVIEW_SCHEMA, 'venn-generate', '', 0, GEN_OPTS);
+      const lists = Array.isArray(review.lists) ? review.lists : [];
+      const passed = cands.map((c, i) => cleanVennPuzzle({ ...c, answers: (lists[i] && Array.isArray(lists[i].keep)) ? lists[i].keep : [] }, round, history)).filter(Boolean);
+      if (passed.length) return passed.sort((a, b) => b.answers.length - a.answers.length)[0];
+    } catch (e) { console.error('venn generate failed', e.message); if (/429|swamped|busy/i.test(e.message)) break; }
   }
   return null;
 }

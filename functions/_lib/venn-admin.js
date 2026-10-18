@@ -23,7 +23,7 @@ export async function calendar(env, q) {
   return { from, to, today: todayUTC(), puzzles: rows.map(z => adminPuzzle(z, env)) };
 }
 
-/** AI drafts: either one (date + round) or every empty round in [from, from + days). */
+/** AI drafts: either one (date + round, what the admin page sends, one at a time) or every empty round in [from, from + days). */
 export async function generate(env, body) {
   const db = env.DB;
   const one = isDate(body.date) && [1, 2].includes(Number(body.round));
@@ -42,18 +42,17 @@ export async function generate(env, body) {
       [1, 2].filter(r => !taken.includes(r)).forEach(r => jobs.push([date, r]));
     }
   }
-  let made = 0, failed = 0, last = null;
+  let made = 0, fromBank = 0, last = null;
   for (const [date, round] of jobs) {
     const history = await vennHistory(env, date);
-    // Offline (MOCK_AI=1) drafts come from the built-in bank so the admin flow can be tested.
-    const p = (await generateVennPuzzle(env, round, date, history))
-      || (env.MOCK_AI === '1' ? fallbackVennPuzzle(round, dayIndex(date) + Math.floor(Math.random() * 7), history) : null);
-    if (!p) { failed++; continue; }
+    // If the AI is busy or its drafts don't pass the checks, a puzzle from the built-in bank becomes the
+    // draft instead (marked in its note), so Generate always produces something to review.
+    let p = await generateVennPuzzle(env, round, date, history);
+    if (!p) { p = fallbackVennPuzzle(round, dayIndex(date) + Math.floor(Math.random() * 7), history); p.note = 'AI was busy, so this one is from the built-in bank.'; fromBank++; }
     last = await insertPuzzle(env, date, 'draft', p);
     made++;
   }
-  if (one && !made) throw new HttpError(503, 'The AI is busy right now (free-tier limit), or its drafts kept failing the size check. Wait a minute and try again.');
-  return { made, failed, puzzle: last ? adminPuzzle(last, env) : null };
+  return { made, fromBank, puzzle: last ? adminPuzzle(last, env) : null };
 }
 
 /** Create or update a puzzle. Approving demotes any other unplayed live puzzle for that day + round. */

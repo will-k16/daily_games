@@ -373,7 +373,7 @@ async function vennCal(box) {
   };
   box.innerHTML = `
     <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Generate Venn drafts</h2>
-      <p class="sub">The AI writes a two-circle round 1 and a three-circle round 2 for each day with an empty round. Every draft has to list at least 25 well-known answers (8 for round 2), or it's thrown out and tried again. Par = 60% of the AI's “typical” count (min 3 / 2). Days with nothing approved use their draft; with no draft the AI makes one on the spot, then the built-in bank.</p>
+      <p class="sub">The AI writes a two-circle round 1 and a three-circle round 2 for each day with an empty round, one at a time (about 5–10 seconds each). Every draft has to keep at least 25 well-known answers (8 for round 2) after a strict review; if the AI is busy or nothing passes, the draft comes from the built-in bank instead. Par = 60% of the AI's “typical” count (min 3 / 2). Days with nothing approved use their draft; with no draft the AI makes one on the spot, then the built-in bank.</p>
       <div class="row"><label class="sub">From <input type="date" id="vgFrom" class="box" style="width:auto" value="${addDays(d.today, 1)}"></label>
         <label class="sub">Days <select id="vgDays" class="box" style="width:auto">${[1, 3, 5, 7].map(n => `<option ${n === 3 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <button class="btn sm" id="vgGo">Generate</button></div>
@@ -383,15 +383,28 @@ async function vennCal(box) {
       <tbody>${dates.map(dt => `<tr class="${dt === d.today ? 'today' : ''}"><td><b>${dt.slice(5)}</b>${dt === d.today ? '<br><span class="badge">today</span>' : ''}</td>${[1, 2].map(r => cell(dt, r)).join('')}</tr>`).join('')}</tbody>
     </table></div></section>`;
 
+  // One round per request, so each wait is short and progress shows as it goes.
   $('#vgGo').onclick = async () => {
-    $('#vgGo').disabled = true; $('#vgGo').textContent = 'Thinking…';
-    try { const r = await api('admin/venn/generate', { from: $('#vgFrom').value, days: Number($('#vgDays').value) }); toast(r.failed ? `Made ${r.made} drafts. ${r.failed} rounds are still empty (AI busy, or drafts failed the size check). Try Generate on them in a minute.` : `Made ${r.made} drafts`); go('venn'); }
-    catch (e) { toast(e.message); $('#vgGo').disabled = false; $('#vgGo').textContent = 'Generate'; }
+    const from = $('#vgFrom').value, days = Number($('#vgDays').value), b = $('#vgGo');
+    const jobs = [];
+    for (let i = 0; i < days; i++) {
+      const date = addDays(from, i);
+      [1, 2].forEach(round => { if (!vennAll.some(p => p.date === date && p.round === round && ['approved', 'auto', 'draft'].includes(p.status))) jobs.push({ date, round }); });
+    }
+    if (!jobs.length) return toast('Those days already have puzzles.');
+    b.disabled = true;
+    let made = 0, bank = 0, failed = 0;
+    for (const [i, j] of jobs.entries()) {
+      b.textContent = `Writing ${i + 1} of ${jobs.length}…`;
+      try { const r = await api('admin/venn/generate', j); made++; bank += r.fromBank; } catch (e) { failed++; toast(e.message); }
+    }
+    toast(`Made ${made} ${made === 1 ? 'draft' : 'drafts'}${bank ? ` (${bank} from the built-in bank because the AI was busy)` : ''}${failed ? `. ${failed} failed.` : ''}`);
+    go('venn');
   };
   box.querySelectorAll('[data-vgen]').forEach(b => b.onclick = async () => {
     const [date, round] = b.dataset.vgen.split('|');
-    b.disabled = true; b.textContent = 'Thinking…';
-    try { const r = await api('admin/venn/generate', { date, round: Number(round) }); toast(`New draft: ${r.puzzle.circles.join(' + ')}`); go('venn'); }
+    b.disabled = true; b.textContent = 'Writing…';
+    try { const r = await api('admin/venn/generate', { date, round: Number(round) }); toast(`${r.fromBank ? 'AI busy, used the bank: ' : 'New draft: '}${r.puzzle.circles.join(' + ')}`); go('venn'); }
     catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Generate'; }
   });
   box.querySelectorAll('[data-vapprove]').forEach(b => b.onclick = () => vennStatus(Number(b.dataset.vapprove), 'approved'));
