@@ -128,7 +128,8 @@ async function roundState(env, who, p, mode) {
 
 async function results(env, who, p, mode, view) {
   const db = env.DB;
-  const mine = view.answers.filter(a => a.verdict === 'ok').map(a => a.canonical);
+  // Anything you gave (counted or not) is left out of "missed".
+  const mine = view.answers.flatMap(a => [a.canonical, a.input]).filter(Boolean);
   // Answers you missed: what other players found most often first, then the AI's list.
   const crowd = (await db.prepare(`
     SELECT a.canonical AS name, COUNT(DISTINCT pl.player_id) AS n FROM venn_answers a JOIN venn_plays pl ON pl.id = a.play_id
@@ -315,6 +316,10 @@ async function judgmentFor(env, p, input, norm, playerId, { known, allowSuggest 
   }
   const ai = await judgeAnswer(env, { circles: circlesOf(p), date: p.date, answer: input, known, playerId });
   const j = { canonical: ai.recognized ? ai.canonical : '', fits: ai.fits, reason: ai.reason, suggestion: ai.didYouMean, offensive: ai.offensive, fictional: ai.fictional };
+  // The same thing as an answer the puzzle already counts ("hog" → Pig) gets that answer's verdict, so the
+  // judge can't contradict the puzzle's own list.
+  const same = j.canonical && !j.offensive && !j.fictional ? exactMatch(j.canonical, known) : null;
+  if (same) Object.assign(j, { canonical: same, fits: circlesOf(p).map(() => true), reason: '' });
   await saveJudgment(env, p.id, norm, j);
   if (allowSuggest && !ai.recognized && ai.didYouMean) return { suggestion: ai.didYouMean };
   return { j };

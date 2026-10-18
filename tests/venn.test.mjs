@@ -121,3 +121,11 @@ test('Mel catalog: defaults, prices and namespaced keys', () => {
   assert.equal(MEL_WARDROBE.hat.find(h => h.id === 'crown').price, 120);
   assert.equal(MEL_WARDROBE.skin[0].c[0], '#3d7a5a');
 });
+
+test('judge mapping to a known answer takes that answer’s verdict', async () => {
+  const { exactMatch } = await import('../functions/_lib/fuzzy.js');
+  const known = ['Horse', 'Cow', 'Pig'];
+  assert.equal(exactMatch('Pig', known), 'Pig');
+  assert.equal(exactMatch('pigs', known), 'Pig');
+  assert.equal(exactMatch('Silo', known), null);
+});
