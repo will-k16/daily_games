@@ -33,7 +33,7 @@ Venn is the second game in WK Game Suite, at `/venn`. The decisions behind it ar
 - Hiding the page sends `navigator.sendBeacon('/api/venn/pause')`; the circles are hidden and blurred until the player resumes. If the beacon fails, the clock keeps running. Closing the page and coming back later resumes from the banked time.
 
 ## Scoring (`public/js/venn-score.js`)
-`n` counted answers, par `P`: `n < P` → 0; `n ≥ 2P` → 100; otherwise `round(25 + 75 × (n − P) / P)`. The day is out of 200.
+`n` counted answers, par `P`: `n < P` → 5 per answer, at most 20 (e.g. 3 answers with par 4 = 15); `n = P` → 25; `n ≥ 2P` → 100; otherwise `round(25 + 75 × (n − P) / P)`. The day is out of 200. (Changed from the plan's "0 below par" at Will's request.)
 
 ## After a round
 Your answers on the diagram (✓ in the overlap, "Close!" in their two-ring region, ✗ listed beside with the reason and "Wrong call?"), "You found 8. Par was 5. 70 / 100.", up to 10 answers you missed (most-found by other players first, then the AI's list), and how everyone did (histogram of counts, "better than X%"). Accepting a complaint makes that answer count for the puzzle, rescores every play that has it, and the player gets a note on their next visit.

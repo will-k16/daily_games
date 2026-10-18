@@ -8,11 +8,14 @@ export const MIN_PAR = { 1: 3, 2: 2 };
 export const MIN_ANSWERS = { 1: 25, 2: 8 };    // a draft must list at least this many real answers
 export const MAX_ANSWER = 60;                  // characters
 
-/** n counted answers against par P: 0 below par, 25 at par, 100 at double par, linear between. */
+export const BELOW_PAR_EACH = 5;               // points per answer while under par
+export const BELOW_PAR_MAX = 20;               // under par always scores less than reaching par (25)
+
+/** n counted answers against par P: 5 each below par (at most 20), 25 at par, 100 at double par, linear between. */
 export function roundScore(n, par) {
   n = Math.max(0, Math.floor(Number(n) || 0));
   const P = Math.max(1, Math.floor(Number(par) || 1));
-  if (n < P) return 0;
+  if (n < P) return Math.min(BELOW_PAR_MAX, n * BELOW_PAR_EACH);
   if (n >= 2 * P) return ROUND_MAX;
   return Math.round(25 + 75 * (n - P) / P);
 }

@@ -9,12 +9,15 @@ import { resolveMelLook, melItemKey, MEL_DEFAULT_LOOK, MEL_WARDROBE } from '../p
 import { itemKey } from '../public/js/wardrobe.js';
 
 test('round score: the P = 5 table', () => {
-  const want = { 0: 0, 4: 0, 5: 25, 6: 40, 7: 55, 8: 70, 9: 85, 10: 100, 11: 100, 30: 100 };
+  const want = { 0: 0, 1: 5, 3: 15, 4: 20, 5: 25, 6: 40, 7: 55, 8: 70, 9: 85, 10: 100, 11: 100, 30: 100 };
   for (const [n, s] of Object.entries(want)) assert.equal(roundScore(Number(n), 5), s, `n=${n}`);
 });
 
-test('round score: other pars', () => {
-  assert.equal(roundScore(2, 3), 0);
+test('round score: other pars, and 5 per answer under par (at most 20)', () => {
+  assert.equal(roundScore(2, 3), 10);
+  assert.equal(roundScore(3, 4), 15);
+  assert.equal(roundScore(7, 9), 20);
+  assert.equal(roundScore(1, 2), 5);
   assert.equal(roundScore(3, 3), 25);
   assert.equal(roundScore(4, 3), 50);
   assert.equal(roundScore(6, 3), 100);

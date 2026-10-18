@@ -776,7 +776,7 @@ function showHelp() {
     <div class="steps">
       <div class="stepc">${ringsIcon(2)}<p><b class="n">Round 1: two circles</b>Each circle is a category, like “Things colored orange” and “Foods people eat”. You get 90 seconds to name as many things as you can that fit <b>both</b>.</p></div>
       <div class="stepc">${ringsIcon(3)}<p><b class="n">Round 2: three circles</b>Only the very center counts. Something that fits two of the three is close, but doesn't count.</p></div>
-      <div class="stepc"><svg viewBox="0 0 70 56" aria-hidden="true"><rect width="70" height="56" fill="#17402b"/><text x="35" y="25" text-anchor="middle" font-size="14" font-weight="700" fill="#f2c230">par 5</text><text x="35" y="44" text-anchor="middle" font-size="11" fill="#fff">10 = 100</text></svg><p><b class="n">Beat par</b>Reach par for 25 points. Every answer past par adds more, up to 100 at double par. The day is out of 200.</p></div>
+      <div class="stepc"><svg viewBox="0 0 70 56" aria-hidden="true"><rect width="70" height="56" fill="#17402b"/><text x="35" y="25" text-anchor="middle" font-size="14" font-weight="700" fill="#f2c230">par 5</text><text x="35" y="44" text-anchor="middle" font-size="11" fill="#fff">10 = 100</text></svg><p><b class="n">Beat par</b>Every answer is 5 points until you reach par, which jumps you to 25. Every answer past par adds more, up to 100 at double par. The day is out of 200.</p></div>
     </div>
     <p class="sub">Wrong answers cost nothing. Leaving the page pauses the clock. Each round pays WK Bucks ${bucksIcon()} to spend on ${mel()}'s wardrobe. New rings every midnight UTC.</p>
     <div class="row"><button class="btn" id="helpGo">Got it</button></div>`);
