@@ -624,18 +624,47 @@ function wireReal(el) {
 async function pollyDash(box) {
   const d = await api('admin/polly/dashboard');
   $('#pollyN').textContent = d.openReports ? `(${d.openReports})` : '';
+  const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const qSpread = d.qHist.map((n, i) => ({ n, label: i === 9 ? '90+' : String(i * 10), tip: i === 9 ? '90–100' : `${i * 10}–${i * 10 + 9}` }));
+  const dSpread = d.dHist.map((n, i) => ({ n, label: i === 9 ? '270+' : String(i * 30), tip: i === 9 ? '270–300' : `${i * 30}–${i * 30 + 29}` }));
+  const week = d.week.map(w => ({ n: w.n, label: day(w.date), tip: day(w.date) }));
+  const a = d.auto || {};
+  const pctL = s => (s.sideL + s.sideR ? Math.round(100 * s.sideL / (s.sideL + s.sideR)) + '%' : '–');
   box.innerHTML = `<section class="card"><div class="kicker"><span>Polly #${d.number} · ${d.date} (UTC)</span></div>
       <div class="kpis" style="margin-top:10px">
         <div class="kpi"><b>${d.players}</b><span>Players today</span></div>
-        <div class="kpi"><b>${d.bank.fresh}</b><span>Never-run approved (${d.bank.days} days)</span></div>
-        <div class="kpi"><b>${d.bank.unscheduled}</b><span>In the bank, unscheduled</span></div>
+        <div class="kpi"><b>${d.finished}</b><span>Finished all 3 today</span></div>
+        <div class="kpi"><b>${d.avgDay == null ? '–' : d.avgDay}</b><span>Average day (of 300)</span></div>
+        <div class="kpi"><b>${d.ever}</b><span>Players ever</span></div>
         <div class="kpi"><b>${d.openReports}</b><span>Open reports</span></div>
       </div>
-      ${bankLowNote(d.bank)}
+      ${d.openReports ? `<p class="sub"><a href="#polly/rep">Review ${d.openReports} open ${d.openReports === 1 ? 'report' : 'reports'} →</a></p>` : ''}
       <div class="section-title">Today's questions</div>
-      <div class="tbl"><table><thead><tr><th>#</th><th>Question</th><th>Real</th><th>Answers</th><th>Avg score</th><th>Avg miss</th></tr></thead>
-      <tbody>${d.slots.map(s => `<tr><td>${s.slot}</td><td>${esc(s.short)}<br><span class="sub">${esc(s.left_label)} / ${esc(s.right_label)}</span></td><td>${s.real}%</td>
-        <td>${s.plays}</td><td>${s.avg == null ? '–' : Math.round(s.avg)}</td><td>${s.miss == null ? '–' : (Math.round(s.miss * 10) / 10)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">No poll today. Approve questions and the calendar fills itself.</td></tr>'}</tbody></table></div>
+      <div class="tbl"><table><thead><tr><th>#</th><th>Question</th><th>Real</th><th>Answers</th><th>Avg score</th><th>Avg miss</th><th>WK players' side</th></tr></thead>
+      <tbody>${d.slots.map(s => `<tr><td>${s.slot}</td><td>${esc(s.short)}${s.reused ? ` ${badge('reused', 'auto')}` : ''}<br><span class="sub">${esc(s.left_label)} / ${esc(s.right_label)} · ${esc(TOPIC_NAMES[s.topic] || s.topic)} · <a href="${esc(s.url)}" target="_blank" rel="noopener">source ↗</a></span></td>
+        <td>${s.real}%</td><td>${s.plays}</td><td>${s.avg == null ? '–' : Math.round(s.avg)}</td><td>${s.miss == null ? '–' : (Math.round(s.miss * 10) / 10)}</td>
+        <td>${s.plays ? `${s.sideL + s.sideR ? `${pctL(s)} ${esc(s.left_label)}` : '–'}<br><span class="sub">${s.skipped || 0} skipped</span>` : '–'}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No poll today. Approve questions (or run Auto-find) and the calendar fills itself.</td></tr>'}</tbody></table></div>
+      <div class="crowd" style="margin-top:6px">
+        <div><div class="section-title">Question scores today</div>${bars(qSpread, 'answer', 'answers')}
+          <p class="sub">Every daily answer today, by score (each player counts up to 3 times).</p></div>
+        <div><div class="section-title">Day totals today</div>${bars(dSpread, 'player', 'players', 2)}
+          <p class="sub">Players who finished all three, by day total out of 300.</p></div>
+      </div>
+      <div class="section-title">Daily players (14 days)</div>${bars(week, 'player', 'players', 2)}
+      <p class="sub">People who answered at least one question that day.</p>
+    </section>
+    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Question supply</h2>
+      <div class="kpis" style="margin-top:10px">
+        <div class="kpi"><b>${d.bank.fresh}</b><span>Never-run approved (${d.bank.days} ${d.bank.days === 1 ? 'day' : 'days'})</span></div>
+        <div class="kpi"><b>${d.bank.unscheduled}</b><span>In the bank, unscheduled</span></div>
+        <div class="kpi"><b>${a.drafts || 0}</b><span>Drafts to review</span></div>
+        <div class="kpi"><b>${a.autoWeek || 0}</b><span>Auto-approved this week</span></div>
+        <div class="kpi"><b>${a.queued || 0}</b><span>Pages waiting to be read</span></div>
+      </div>
+      ${bankLowNote(d.bank)}
+      ${d.gaps.length ? `<div class="note warn" style="margin-top:10px">Not full yet in the next 7 days: ${d.gaps.map(g => esc(day(g))).join(', ')}.</div>` : '<p class="sub">The next 7 days are full.</p>'}
+      <p class="sub">Auto-find last ran ${esc(a.lastRun ? new Date(a.lastRun).toLocaleString() : 'never')}.
+        <a href="#polly/auto">Auto-find</a> · ${a.drafts ? `<a href="#polly/bank">Review ${a.drafts} ${a.drafts === 1 ? 'draft' : 'drafts'}</a> · ` : ''}<a href="#polly/cal">Calendar</a></p>
       ${d.stale.length ? `<div class="section-title">STALE warnings</div>${d.stale.map(s => `<p class="sub">${badge('STALE', 'rejected')} ${esc(s.date)} · Q${s.slot}: ${esc(s.short)} <i>(${esc(s.why)})</i></p>`).join('')}` : ''}
     </section>`;
 }

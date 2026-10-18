@@ -35,18 +35,40 @@ async function staleList(env, from, to) {
 }
 
 export async function dashboard(env) {
-  const db = env.DB, date = todayUTC();
-  const [players, slots, open, bank, stale] = await Promise.all([
+  const db = env.DB, date = todayUTC(), from = addDays(date, -13);
+  const [players, finished, ever, slots, open, bank, stale, week, qScores, dayTotals, upcoming, auto] = await Promise.all([
     db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM polly_plays WHERE date = ? AND mode = 'daily' AND done > 0`).bind(date).first(),
-    db.prepare(`SELECT s.slot, q.id, q.short, q.left_label, q.right_label, q.real, COUNT(g.id) AS plays, AVG(g.score) AS avg, AVG(ABS(g.guess - g.real)) AS miss
+    db.prepare(`SELECT COUNT(*) AS n, AVG(total) AS avg FROM polly_plays WHERE date = ? AND mode = 'daily' AND done >= ?`).bind(date, SLOTS).first(),
+    db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM polly_plays WHERE mode IN ('daily','archive') AND done > 0`).first(),
+    db.prepare(`SELECT s.slot, s.reused, q.id, q.short, q.left_label, q.right_label, q.real, q.topic, q.url, COUNT(g.id) AS plays, AVG(g.score) AS avg, AVG(ABS(g.guess - g.real)) AS miss,
+          SUM(g.own = 'left') AS sideL, SUM(g.own = 'right') AS sideR, SUM(g.own IS NULL) AS skipped
         FROM polly_schedule s JOIN polly_questions q ON q.id = s.question_id
         LEFT JOIN polly_guesses g ON g.question_id = q.id AND g.slot = s.slot AND g.play_id IN (SELECT id FROM polly_plays WHERE date = ? AND mode = 'daily')
         WHERE s.date = ? GROUP BY s.slot ORDER BY s.slot`).bind(date, date).all(),
     db.prepare(`SELECT COUNT(*) AS n FROM polly_reports WHERE status = 'open'`).first(),
     bankInfo(env),
-    staleList(env, date, addDays(date, HORIZON - 1))
+    staleList(env, date, addDays(date, HORIZON - 1)),
+    db.prepare(`SELECT date, COUNT(DISTINCT player_id) AS n FROM polly_plays WHERE mode = 'daily' AND done > 0 AND date >= ? GROUP BY date`).bind(from).all(),
+    db.prepare(`SELECT g.score FROM polly_guesses g JOIN polly_plays pl ON pl.id = g.play_id WHERE pl.date = ? AND pl.mode = 'daily'`).bind(date).all(),
+    db.prepare(`SELECT total FROM polly_plays WHERE date = ? AND mode = 'daily' AND done >= ?`).bind(date, SLOTS).all(),
+    db.prepare(`SELECT s.date, COUNT(*) AS n FROM polly_schedule s WHERE s.date > ? AND s.date <= ? GROUP BY s.date`).bind(date, addDays(date, 7)).all(),
+    db.prepare(`SELECT (SELECT COUNT(*) FROM polly_pages WHERE status = 'queued') AS queued,
+          (SELECT value FROM polly_meta WHERE key = 'last_run') AS lastRun,
+          (SELECT COUNT(*) FROM polly_questions WHERE status = 'draft') AS drafts,
+          (SELECT COUNT(*) FROM polly_questions WHERE status = 'approved' AND entry = 'auto-checked' AND approved_at >= ?) AS autoWeek`).bind(addDays(date, -7)).first()
   ]);
-  return { date, number: pollyNumber(env, date), players: players.n, slots: slots.results, openReports: open.n, bank, stale };
+  const byDate = Object.fromEntries(week.results.map(w => [w.date, w.n]));
+  const qHist = new Array(10).fill(0), dHist = new Array(10).fill(0);
+  qScores.results.forEach(r => { qHist[Math.min(9, Math.floor(r.score / 10))]++; });
+  dayTotals.results.forEach(r => { dHist[Math.min(9, Math.floor(r.total / 30))]++; });
+  const full = Object.fromEntries(upcoming.results.map(u => [u.date, u.n]));
+  const gaps = Array.from({ length: 7 }, (_, i) => addDays(date, i + 1)).filter(d => (full[d] || 0) < SLOTS);
+  return {
+    date, number: pollyNumber(env, date), players: players.n, finished: finished.n, avgDay: finished.avg == null ? null : Math.round(finished.avg),
+    ever: ever.n, slots: slots.results, openReports: open.n, bank, stale,
+    week: Array.from({ length: 14 }, (_, i) => addDays(date, i - 13)).map(d => ({ date: d, n: byDate[d] || 0 })),
+    qHist, dHist, gaps, auto
+  };
 }
 
 /* ───────────── Adding questions ───────────── */
