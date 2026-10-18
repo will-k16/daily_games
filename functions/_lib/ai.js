@@ -359,14 +359,23 @@ function geminiSearch(prompt, key, model) {
  */
 async function groqSearch(prompt, key) {
   const pick = j => (j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
-  const runs = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'].map(model => () => fetchJson('https://api.groq.com/openai/v1/chat/completions', { authorization: 'Bearer ' + key }, {
+  const call = (model, toolChoice) => fetchJson('https://api.groq.com/openai/v1/chat/completions', { authorization: 'Bearer ' + key }, {
     model, temperature: 0, reasoning_effort: 'low', max_completion_tokens: 4000,
-    tools: [{ type: 'browser_search' }], tool_choice: 'required',
+    tools: [{ type: 'browser_search' }], tool_choice: toolChoice,
     messages: [{ role: 'user', content: prompt }]
-  }, pick, { timeout: 15000, retries: 1 }));
+  }, pick, { timeout: 15000, retries: 1 });
   let last = null;
-  for (const run of runs) {
-    try { return await run(); } catch (e) { last = e; if (!/429|rate|model_not_found|does not exist|decommissioned|404/i.test(e.message)) throw e; }
+  for (const model of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b']) {
+    try { return await call(model, 'required'); } catch (e) {
+      last = e;
+      // Now and then the model answers without searching, which "required" turns into an error.
+      // Ask again and let it decide (it still has search available).
+      if (/did not call a tool|tool call validation failed/i.test(e.message)) {
+        try { return await call(model, 'auto'); } catch (e2) { last = e2; }
+        continue;
+      }
+      if (!/429|rate|model_not_found|does not exist|decommissioned|404|^5\d\d/i.test(e.message)) throw e;
+    }
   }
   throw last;
 }
