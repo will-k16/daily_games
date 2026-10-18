@@ -31,7 +31,7 @@ const SUBTABS = {
   suite: [],
   summit: [['summit', 'Today'], ['summit/cal', 'Calendar'], ['summit/comp', 'Complaints'], ['summit/ans', 'Answers']],
   venn: [['venn', 'Calendar'], ['venn/comp', 'Complaints'], ['venn/judg', 'Judgments']],
-  polly: [['polly', 'Dashboard'], ['polly/add', 'Add'], ['polly/bank', 'Bank'], ['polly/cal', 'Calendar'], ['polly/rep', 'Reports'], ['polly/src', 'Sources']]
+  polly: [['polly', 'Dashboard'], ['polly/auto', 'Auto-find'], ['polly/add', 'Add'], ['polly/bank', 'Bank'], ['polly/cal', 'Calendar'], ['polly/rep', 'Reports'], ['polly/src', 'Sources']]
 };
 const VIEWS = {
   suite: box => suiteTab(box),
@@ -43,6 +43,7 @@ const VIEWS = {
   'venn/comp': box => vennComp(box),
   'venn/judg': box => vennJudg(box),
   polly: box => pollyDash(box),
+  'polly/auto': box => pollyAutoTab(box),
   'polly/add': box => pollyAdd(box),
   'polly/bank': box => pollyBank(box),
   'polly/cal': box => pollyCal(box),
@@ -579,7 +580,7 @@ const badge = (t, cls = '') => `<span class="st ${cls}">${esc(t)}</span>`;
 const entryBadge = e => badge(ENTRY_NAMES[e] || e, e === 'auto-checked' ? 'approved' : e === 'admin-pasted' ? 'auto' : 'draft');
 
 function bankLowNote(b) {
-  return b.low ? `<div class="note warn" style="margin-top:10px">Bank low: ${b.fresh} approved, never-run ${b.fresh === 1 ? 'question' : 'questions'} left (${b.days} ${b.days === 1 ? 'day' : 'days'}). Add more so there's always 14 days ready.</div>` : '';
+  return b.low ? `<div class="note warn" style="margin-top:10px">Bank low: ${b.fresh} approved, never-run ${b.fresh === 1 ? 'question' : 'questions'} left (${b.days} ${b.days === 1 ? 'day' : 'days'}). Add more, or let <a href="#polly/auto">Auto-find</a> fetch them.</div>` : '';
 }
 
 /** Every editable field of a question. Fields are read back with readQ(). */
@@ -637,6 +638,60 @@ async function pollyDash(box) {
         <td>${s.plays}</td><td>${s.avg == null ? '–' : Math.round(s.avg)}</td><td>${s.miss == null ? '–' : (Math.round(s.miss * 10) / 10)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">No poll today. Approve questions and the calendar fills itself.</td></tr>'}</tbody></table></div>
       ${d.stale.length ? `<div class="section-title">STALE warnings</div>${d.stale.map(s => `<p class="sub">${badge('STALE', 'rejected')} ${esc(s.date)} · Q${s.slot}: ${esc(s.short)} <i>(${esc(s.why)})</i></p>`).join('')}` : ''}
     </section>`;
+}
+
+/* ── Auto-find ── */
+const ago = s => { if (!s) return 'never'; const m = Math.round((Date.now() - Date.parse(s)) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+async function pollyAutoTab(box, data) {
+  const d = data || await api('admin/polly/auto');
+  const c = d.counts || {};
+  const pageRow = p => `<tr><td><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title || p.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}</a><br><span class="sub">${esc(p.published || '')}${p.note ? ' · ' + esc(p.note) : ''}</span></td>
+    <td><span class="st ${p.status === 'done' ? 'approved' : p.status === 'queued' ? 'auto' : p.status === 'failed' ? 'rejected' : 'draft'}">${esc(p.status)}</span></td>
+    <td>${p.added || 0}</td><td>${p.drafted || 0}</td><td>${p.failed || 0}</td></tr>`;
+  box.innerHTML = `<section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Find polls automatically</h2>
+      <p class="sub">Polly reads the pollsters' feeds below, queues their new report pages, and runs each page through the same check as a pasted URL (the AI reads only that page; the server finds every number on it). It does this on its own every few hours while the bank is low, whenever someone opens Polly, or right now with the button.</p>
+      <label class="row" style="gap:8px"><input type="checkbox" id="auAuto" ${d.autoApprove ? 'checked' : ''}>
+        <span><b>Approve the sure ones on their own.</b> <span class="sub">Only when the numbers, the poll date and the sample size were all found on the page, it fits the length limits, and it isn't time-sensitive. Everything else waits in the bank as a draft.</span></span></label>
+      <div class="kpis" style="margin-top:12px">
+        <div class="kpi"><b>${d.bank.fresh}</b><span>Never-run approved (${d.bank.days} ${d.bank.days === 1 ? 'day' : 'days'})</span></div>
+        <div class="kpi"><b>${c.queued || 0}</b><span>Pages waiting</span></div>
+        <div class="kpi"><b>${c.done || 0}</b><span>Pages read</span></div>
+        <div class="kpi"><b>${ago(d.lastRun)}</b><span>Last run</span></div>
+      </div>
+      <div class="row"><button class="btn" id="auRun">Find polls now</button><label class="sub"><input type="checkbox" id="auForce"> re-read the feeds too</label></div>
+      <div id="auOut"></div>
+    </section>
+    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Paste many links</h2>
+      <p class="sub">One or more poll page URLs (one per line). They're queued and read by "Find polls now" or the next automatic run.</p>
+      <textarea class="box" id="auUrls" style="min-height:90px" placeholder="https://www.pewresearch.org/…&#10;https://news.gallup.com/poll/…"></textarea>
+      <div class="row"><button class="btn sm" id="auQueue">Queue them</button></div>
+    </section>
+    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Feeds</h2>
+      <p class="sub">RSS / Atom feeds or sitemaps that list each pollster's new reports. Only pages on the source's own site are taken.</p>
+      <div class="tbl"><table><thead><tr><th>Source</th><th>Feed</th><th>On</th><th>Last read</th><th></th></tr></thead>
+      <tbody>${d.feeds.map(f => `<tr><td>${esc(f.source || '?')}</td><td><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.url)}</a> <span class="sub">${esc(f.kind)}</span>${f.last_error ? `<br><span class="sub" style="color:var(--bad)">${esc(f.last_error)}</span>` : ''}</td>
+        <td><input type="checkbox" data-fon="${f.id}" ${f.active ? 'checked' : ''}></td><td class="sub">${ago(f.last_checked)}</td><td><button class="mini-btn danger" data-fdel="${f.id}">✕</button></td></tr>`).join('')}
+        <tr><td><select class="box" id="nfSrc" style="height:32px">${d.sources.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></td>
+          <td><input id="nfUrl" placeholder="https://…/feed/ or …/sitemap.xml" style="max-width:340px"></td><td></td><td></td><td><button class="mini-btn ok" id="nfAdd">Add</button></td></tr></tbody></table></div>
+    </section>
+    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Recent pages</h2>
+      <div class="tbl"><table><thead><tr><th>Page</th><th>Status</th><th>Approved</th><th>Drafts</th><th>Failed check</th></tr></thead>
+      <tbody>${d.pages.map(pageRow).join('') || '<tr><td colspan="5" class="empty">Nothing read yet. Press "Find polls now".</td></tr>'}</tbody></table></div>
+    </section>`;
+  const again = async (path, body, msg) => { try { const r = await api(path, body); if (msg) toast(msg(r)); pollyAutoTab(box, r); } catch (e) { toast(e.message); } };
+  $('#auAuto').onchange = e => again('admin/polly/auto/settings', { autoApprove: e.target.checked }, r => r.autoApprove ? 'Sure ones will be approved on their own' : 'Everything will wait as a draft');
+  $('#auRun').onclick = async () => {
+    const b = $('#auRun'); b.disabled = true; b.textContent = 'Reading pages… (up to a minute)';
+    try {
+      const r = await api('admin/polly/auto/run', { maxPages: 3, forceFeeds: $('#auForce').checked });
+      toast(`Read ${r.read} ${r.read === 1 ? 'page' : 'pages'}: ${r.added} approved, ${r.drafted} drafts${r.queued ? `, ${r.queued} new pages found` : ''}. ${r.left} waiting.`);
+      pollyAutoTab(box, r);
+    } catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Find polls now'; }
+  };
+  $('#auQueue').onclick = () => again('admin/polly/auto/queue', { urls: $('#auUrls').value }, r => `Queued ${r.queued}${r.refused.length ? `. Not on the allowlist: ${r.refused.length}` : ''}`);
+  box.querySelectorAll('[data-fon]').forEach(i => i.onchange = () => again('admin/polly/feeds', { id: Number(i.dataset.fon), active: i.checked }));
+  box.querySelectorAll('[data-fdel]').forEach(b => b.onclick = () => { if (confirm('Remove this feed?')) again('admin/polly/feeds', { id: Number(b.dataset.fdel), remove: true }); });
+  $('#nfAdd').onclick = () => again('admin/polly/feeds', { sourceId: Number($('#nfSrc').value), url: $('#nfUrl').value }, () => 'Feed added');
 }
 
 /* ── Add ── */

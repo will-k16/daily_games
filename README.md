@@ -74,6 +74,7 @@ AI keys: Gemini at https://aistudio.google.com/apikey (Flash-Lite answers in abo
 
 - `/admin` → **Suite**: real players per game, your WK Bucks (grant or take back), AI calls/errors and rate-limit hits.
 - `/admin` → **Summit**: today's stages, calendar (generate / approve / edit / reject), complaints (fix a value and rescore), answers.
+- `/admin` → **Polly** → **Auto-find**: Polly finds its own questions. It reads the pollsters' feeds (Pew's RSS, Gallup's poll sitemap and AP-NORC's RSS to start; add more there), queues new report pages, and runs each through the same AI-read-then-server-check as a pasted URL. Questions whose numbers, poll date and sample size were all found on the page, that fit the length limits and aren't time-sensitive are approved on their own (toggle it off to review everything); the rest wait as drafts. It runs in the background every few hours while the bank is low (whenever someone opens Polly), or press **Find polls now**. You can also paste many links at once there.
 - `/admin` → **Polly**: dashboard (today's players, average score and miss per question, the bank, **Bank low** and **STALE** warnings); **Add** (paste a poll URL from an allowlisted pollster, paste the page text, or enter by hand; the AI pulls candidates from the page and the server checks every number against the page text); **Bank** (edit / approve / reject / retire); **Calendar** (auto-fill, drag to swap or move, pin, unschedule); **Reports** (fix = edit and rescore, dismiss, retire); **Sources** (the allowlist). Keep at least 14 days (42 questions) approved: Polly never makes up a question, and a day the bank can't fill shows "No poll today".
 - `/admin` → **Venn**: calendar of drafts (approve / edit / reject, edit par before release), complaints (accept = that answer counts for the puzzle and every play with it is rescored), judgment cache editor, and Venn Unlimited.
 - A day with nothing approved uses its draft; with no draft the AI makes one on the spot; if the AI is down, a built-in bank is used.
@@ -85,8 +86,9 @@ functions/api/[[path]].js   API router (suite/*, Summit, venn/*, mel/*, polly/*,
 functions/_middleware.js    old domains → wk-game-suite.pages.dev/summit
 functions/_lib/             auth, bucks (WK Bucks ledger + shops), game (Summit), venn, venn-ai, venn-admin,
                             fuzzy ("did you mean"), suite (home page + combined share), ai, admin, fallback banks,
-                            polly (gameplay, scheduling, stats, reports), polly-ai (page fetch, extractor, server check), polly-admin
-migrations/                 D1 schema (0005 adds Venn and Mel, 0006 adds Polly)
+                            polly (gameplay, scheduling, stats, reports), polly-ai (page fetch, extractor, server check), polly-admin,
+                            polly-auto (feeds → queue → questions, auto-approve)
+migrations/                 D1 schema (0005 adds Venn and Mel, 0006 adds Polly, 0007 Polly's auto-find)
 public/index.html           suite home (css/suite.css, js/suite.js)
 public/summit/index.html    Summit (js/summit.js, js/summit-scene.js, css/summit.css)
 public/venn/index.html      Venn (js/venn.js, js/venn-scene.js, js/mel.js, css/venn.css)

@@ -9,7 +9,7 @@ import { SLOTS, SHORT_MAX, LABEL_MAX, staleReason, tooOld } from '../../public/j
 const ENTRIES = ['auto-checked', 'admin-pasted', 'admin-entered'];
 const STATUSES = ['draft', 'approved', 'rejected', 'retired'];
 
-async function allSources(env) {
+export async function allSources(env) {
   return (await env.DB.prepare(`SELECT * FROM polly_sources ORDER BY name`).all()).results.map(s => ({ ...s, domains: safeJson(s.domains, []) }));
 }
 
@@ -83,7 +83,7 @@ export async function extract(env, body) {
  * Turns admin input into stored fields. `entry` keeps its auto-checked / admin-pasted mark only while both sides'
  * numbers are still written in the evidence; an edit that breaks that makes it admin-entered.
  */
-function fieldsFrom(body, sources, fallbackEntry = 'admin-entered') {
+export function fieldsFrom(body, sources, fallbackEntry = 'admin-entered') {
   const c = cleanCandidate(body);
   const src = sources.find(s => s.id === Number(body.source_id));
   let entry = ENTRIES.includes(body.entry) ? body.entry : fallbackEntry;
@@ -132,7 +132,7 @@ export async function saveDrafts(env, body) {
   return { saved: stmts.length };
 }
 
-function insertQ(env, f, status) {
+export function insertQ(env, f, status) {
   return env.DB.prepare(`INSERT INTO polly_questions (status, topic, short, left_label, right_label, original_wording, left_raw, right_raw, unsure_raw, real,
       source_id, url, poll_end_date, sample_size, time_sensitive, ts_reason, entry, evidence, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)

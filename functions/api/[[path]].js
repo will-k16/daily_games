@@ -8,6 +8,7 @@ import * as suite from '../_lib/suite.js';
 import * as admin from '../_lib/admin.js';
 import * as vennAdmin from '../_lib/venn-admin.js';
 import * as pollyAdmin from '../_lib/polly-admin.js';
+import * as pollyAuto from '../_lib/polly-auto.js';
 
 const ROUTES = {
   // Suite
@@ -51,7 +52,8 @@ const ROUTES = {
   'POST mel/wear': (c) => bucks.wear(c.env, c.who, c.body, 'mel'),
 
   // Polly
-  'GET polly/today': (c) => polly.today(c.env, c.who),
+  // After the page is served, Polly quietly finds more questions when the bank is low.
+  'GET polly/today': (c) => { c.waitUntil(pollyAuto.maybeDiscover(c.env)); return polly.today(c.env, c.who); },
   'POST polly/lock': (c) => polly.lock(c.env, c.who, c.body),
   'GET polly/summary': (c) => polly.summary(c.env, c.who, c.q),
   'POST polly/report': (c) => polly.report(c.env, c.who, c.body),
@@ -103,7 +105,12 @@ const ROUTES = {
   'GET admin/polly/reports': (c) => pollyAdmin.reports(c.env, c.q),
   'POST admin/polly/reports/resolve': (c) => pollyAdmin.resolveReport(c.env, c.body),
   'GET admin/polly/sources': (c) => pollyAdmin.sources(c.env),
-  'POST admin/polly/sources': (c) => pollyAdmin.saveSource(c.env, c.body)
+  'POST admin/polly/sources': (c) => pollyAdmin.saveSource(c.env, c.body),
+  'GET admin/polly/auto': (c) => pollyAuto.status(c.env),
+  'POST admin/polly/auto/run': (c) => pollyAuto.run(c.env, c.body),
+  'POST admin/polly/auto/queue': (c) => pollyAuto.queue(c.env, c.body),
+  'POST admin/polly/auto/settings': (c) => pollyAuto.settings(c.env, c.body),
+  'POST admin/polly/feeds': (c) => pollyAuto.saveFeed(c.env, c.body)
 };
 
 // The pause sent with navigator.sendBeacon as the page hides arrives as text/plain (a beacon can't
