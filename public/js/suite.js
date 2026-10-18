@@ -30,14 +30,17 @@ $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeM
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 const accountUI = () => ({ me: S.me, api, openModal, closeModal, toast });
 
-/* ── The title, stamped in letter by letter on the first load of a session ── */
+/* ── The title, stamped in letter by letter every time the page is shown ── */
 function stampTitle() {
-  const h = $('#title'), text = h.textContent;
-  let first = false;
-  try { first = !sessionStorage.getItem('wk.stamped'); sessionStorage.setItem('wk.stamped', '1'); } catch { /* private mode */ }
+  const h = $('#title'), text = h.getAttribute('aria-label');
   h.innerHTML = [...text].map((ch, i) => (ch === ' ' ? ' ' : `<span style="--i:${i}" aria-hidden="true">${ch}</span>`)).join('');
-  if (first && !reduced()) h.classList.add('stamp');
+  if (reduced()) return;
+  h.classList.remove('stamp');
+  void h.offsetWidth;            // restart the animation
+  h.classList.add('stamp');
 }
+// Coming back with the browser's back button restores the old page from memory; stamp it again.
+window.addEventListener('pageshow', e => { if (e.persisted) stampTitle(); });
 
 /* ── Status lines ── */
 function status(g) {
