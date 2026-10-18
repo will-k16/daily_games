@@ -155,8 +155,8 @@ test('dates, sample sizes and populations in page text', () => {
   assert.ok(!dateInText('2025-08-11', 'conducted Sept. 11, 2025'));
   assert.ok(sampleInText(1024, 'n=1,024'));
   assert.ok(!sampleInText(1024, 'n=10,240'));
-  ['US adults', 'U.S. adults', 'US adult citizens', 'U.S. adults ages 18 and older', 'American adults', 'adults in the United States', 'Americans', 'registered voters', 'the public', ''].forEach(p => assert.ok(isUsAdults(p), p));
-  ['US parents', 'Democrats', 'US adults under 30', 'adults ages 18-29', 'Texas adults', 'women'].forEach(p => assert.ok(!isUsAdults(p), p));
+  ['US adults', 'U.S. adults', 'US adult citizens', 'U.S. adults ages 18 and older', 'American adults', 'adults in the United States', 'Americans', 'registered voters', 'the public', 'adults 18 years and older', 'U.S. adults aged 18 or over', 'national adults 18+', ''].forEach(p => assert.ok(isUsAdults(p), p));
+  ['US parents', 'Democrats', 'US adults under 30', 'adults ages 18-29', 'Texas adults', 'women', 'older Americans', 'young adults'].forEach(p => assert.ok(!isUsAdults(p), p));
 });
 
 test('allowlist: a domain or any subdomain of it; everything else is refused', () => {

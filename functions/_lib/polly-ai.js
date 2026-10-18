@@ -179,10 +179,12 @@ export function sampleInText(n, text) {
 
 // Any national sample counts ("US adults", "U.S. adult citizens", "registered voters", "the public"…). Only a
 // clear slice of the country fails: a party, an age band, parents, one gender, one state, and so on.
-const SUBGROUP = /\b(republicans?|democrats?|independents?|gop|liberals?|conservatives?|parents?|mothers?|fathers?|moms?|dads?|women|men|males?|females?|teens?|teenagers?|students?|young|older|seniors?|retirees?|gen ?z|millennials?|boomers?|gen ?x|under \d+|over \d+|ages? \d+ ?(-|to) ?\d+|\d+ ?(-|to) ?\d+|black|white|hispanics?|latinos?|latinas?|asians?|catholics?|protestants?|evangelicals?|christians?|jews?|jewish|muslims?|veterans?|workers?|employees?|employed|unemployed|homeowners?|renters?|college grads?|graduates?|lgbtq?|immigrants?|rural|urban|suburban|smokers?|gun owners?|trump (voters|supporters)|biden (voters|supporters)|harris (voters|supporters))\b/;
+const SUBGROUP = /\b(republicans?|democrats?|independents?|gop|liberals?|conservatives?|parents?|mothers?|fathers?|moms?|dads?|women|men|males?|females?|teens?|teenagers?|students?|young (adults?|people|americans)|older (adults?|people|americans)|seniors?|retirees?|gen ?z|millennials?|boomers?|gen ?x|under \d+|over \d+|ages? \d+ ?(-|to) ?\d+|\d+ ?(-|to) ?\d+|black|white|hispanics?|latinos?|latinas?|asians?|catholics?|protestants?|evangelicals?|christians?|jews?|jewish|muslims?|veterans?|workers?|employees?|employed|unemployed|homeowners?|renters?|college grads?|graduates?|lgbtq?|immigrants?|rural|urban|suburban|smokers?|gun owners?|trump (voters|supporters)|biden (voters|supporters)|harris (voters|supporters))\b/;
 const STATES = /\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/;
 /** True unless the population is clearly a slice of the country. A blank population passes. */
-export const isUsAdults = p => { const s = squish(p).replace(/\bages? 18 ?(and older|\+|or older)/g, ''); return !SUBGROUP.test(s) && !STATES.test(s); };
+// "18 and older" just means adults: "adults 18 years and older", "ages 18+", "aged 18 or over".
+const ADULT_AGES = /\b(ages?|aged)?\s*18\s*(years?( old)?)?\s*(\+|(and|or) (older|over|up|above))/g;
+export const isUsAdults = p => { const s = squish(p).replace(ADULT_AGES, ' '); return !SUBGROUP.test(s) && !STATES.test(s); };
 
 /**
  * The share that picked neither side. Prefer the evidence's own percentages: every one besides the two sides
