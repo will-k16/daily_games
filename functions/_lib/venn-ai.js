@@ -169,13 +169,29 @@ function genPrompt(round, date, history, ask) {
     '- Mix the kinds of category. The four allowed kinds: properties (colored orange, round, made of wood), time and place (invented after 1950, from Japan), word play (starts with B, has a double letter), and topic groups (foods, animals, sports equipment, famous people).',
     '- Each category is ONE full, plain phrase that is unambiguous on its own: "Things colored orange", never just "Orange". "Foods people eat", "Animals", "Words that start with the letter B". No examples, no extra labels.',
     `- Facts are judged as of ${date || 'today'}.`,
-    `- The answers that fit ALL ${n} categories must be plentiful and reasonably well known: things a typical teenager or adult could think of, not obscure trivia.`,
-    `- "answers": list ${ask} different real things that fit all ${n} categories (at least ${MIN_ANSWERS[round]}). Plain names, one thing each, no variants of the same thing, no fictional characters.`,
+    `- The answers that fit ALL ${n} categories must be plentiful and reasonably well known: everyday things a typical teenager or adult would think of within seconds. No obscure trivia, no lists of species, breeds or varieties (not "Grey-headed flying fox", "Blue Hubbard squash").`,
+    `- "answers": list ${ask} different real things that fit all ${n} categories (at least ${MIN_ANSWERS[round]}). Plain everyday names, one thing each, no variants of the same thing, no fictional characters. If you can't list that many COMMON answers, choose broader categories instead of padding the list.`,
     '- "typical": your honest estimate of how many answers a typical player finds in 90 seconds.',
     '- "note": one short sentence for the admin about what makes it fun.',
     '- Make it fun and a little surprising, but fair. Avoid categories that overlap almost completely.',
     history.categories.length ? '- Do NOT use any of these recently used categories (or close rewordings): ' + history.categories.slice(0, 100).join('; ') + '.' : ''
   ].filter(Boolean).join('\n');
+}
+
+const REVIEW_SCHEMA = { type: 'OBJECT', properties: { keep: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['keep'] };
+
+function reviewPrompt(circles, date, answers) {
+  return [
+    'You check answer lists for "Venn", a word game. An answer counts only if it fits ALL of these categories:',
+    ...circles.map((c, i) => `${'ABC'[i]}: "${c}"`),
+    `Judge facts as of ${date || 'today'}.`,
+    '',
+    'From the list below, keep ONLY the answers that (1) clearly fit every category and (2) a typical teenager or adult would know and think of within seconds.',
+    'Drop obscure items, species/breed/variety names, made-up or doubtful items, and near-duplicates (keep the plain common name once).',
+    'Return the kept answers exactly as written in "keep". It is fine to keep only a few.',
+    '',
+    'List: ' + answers.map(a => String(a).replace(/[<>]/g, '')).join('; ')
+  ].join('\n');
 }
 
 /**
@@ -187,7 +203,10 @@ export async function generateVennPuzzle(env, round, date, history) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await callAI(env, genPrompt(round, date, history, round === 2 ? 14 : 32), GEN_SCHEMA, 'venn-generate', '', 0.9);
-      const p = cleanVennPuzzle(res, round, history);
+      if (!cleanVennPuzzle(res, round, history)) continue;
+      // A second, stricter pass keeps only answers that really fit and are well known; the size check runs on what's left.
+      const review = await callAI(env, reviewPrompt(res.circles, date, res.answers), REVIEW_SCHEMA, 'venn-generate', '', 0);
+      const p = cleanVennPuzzle({ ...res, answers: Array.isArray(review.keep) ? review.keep : [] }, round, history);
       if (p) return p;
     } catch (e) { console.error('venn generate failed', e.message); if (/429|swamped/i.test(e.message)) break; }
   }
