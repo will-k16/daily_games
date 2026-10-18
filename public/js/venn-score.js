@@ -7,6 +7,7 @@ export const DAY_MAX = 200;
 export const MIN_PAR = { 1: 3, 2: 2 };
 export const MIN_ANSWERS = { 1: 25, 2: 8 };    // a draft must list at least this many real answers
 export const MAX_ANSWER = 60;                  // characters
+export const MIN_CROWD = 5;                    // players needed before "how everyone did" shows
 
 export const BELOW_PAR_EACH = 5;               // points per answer while under par
 export const BELOW_PAR_MAX = 20;               // under par always scores less than reaching par (25)

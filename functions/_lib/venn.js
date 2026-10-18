@@ -4,7 +4,7 @@ import { HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, normalize, clam
 import { judgeAnswer, generateVennPuzzle, fallbackVennPuzzle, vennHistory } from './venn-ai.js';
 import { exactMatch, suggest, sameAnswer } from './fuzzy.js';
 import { melLookOf, bucksBalance } from './bucks.js';
-import { roundScore, ROUND_MS, GRACE_MS, MAX_ANSWER, DAY_MAX } from '../../public/js/venn-score.js';
+import { roundScore, ROUND_MS, GRACE_MS, MAX_ANSWER, DAY_MAX, MIN_CROWD } from '../../public/js/venn-score.js';
 
 const LIVE = `status IN ('approved','auto')`;
 const MODES = ['daily', 'archive', 'unlimited'];
@@ -147,7 +147,9 @@ async function results(env, who, p, mode, view) {
     const top = Math.max(2 * p.par, ...plays.map(x => x.count), view.count);
     const hist = new Array(top + 1).fill(0);
     plays.forEach(x => { hist[Math.min(top, x.count)]++; });
-    everyone = { total: plays.length, hist, beat: others.length ? Math.round(100 * others.filter(c => c < view.count).length / others.length) : null };
+    // Comparisons stay hidden until enough people have played, so nobody's single result is on show.
+    everyone = plays.length < MIN_CROWD ? { total: plays.length, few: true }
+      : { total: plays.length, hist, beat: others.length ? Math.round(100 * others.filter(c => c < view.count).length / others.length) : null };
   }
   const ids = view.answers.map(a => a.id);
   const complaints = ids.length

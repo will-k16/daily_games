@@ -4,7 +4,7 @@ import { planSpecs, recentItems } from './plan.js';
 import { lookOf, bucksBalance } from './bucks.js';
 import { answerMeasurementProblem } from '../../public/js/measure.js';
 import { PROPS } from '../../public/js/props.js';
-import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS, MAX_SCORE } from '../../public/js/score.js';
+import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS, MAX_SCORE, MIN_CROWD } from '../../public/js/score.js';
 
 const LIVE = `status IN ('approved','auto')`;
 
@@ -114,7 +114,8 @@ async function reveal(env, p, mode, view, who) {
   const hist = new Array(11).fill(0);
   scores.forEach(s => { hist[Math.min(10, Math.floor(s.score / 100))]++; });
   const my = view.score;
-  out.crowd = {
+  // Comparisons stay hidden until enough people have played, so nobody's single result is on show.
+  out.crowd = scores.length < MIN_CROWD ? { total: scores.length, few: true } : {
     total: scores.length,
     beat: others.length ? Math.round(100 * others.filter(s => s < my).length / others.length) : null,
     hist
@@ -161,7 +162,7 @@ async function daySummary(env, who, date, rooms) {
       GROUP BY pl.player_id HAVING c = 3`).bind(date).all()).results;
     const others = totals.filter(t => t.pid !== who.player.id).map(t => t.t);
     out.players = totals.length;
-    out.beat = others.length ? Math.round(100 * others.filter(t => t < total).length / others.length) : null;
+    out.beat = totals.length >= MIN_CROWD && others.length ? Math.round(100 * others.filter(t => t < total).length / others.length) : null;
   }
   return out;
 }

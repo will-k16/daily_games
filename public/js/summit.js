@@ -3,7 +3,7 @@ import { createScene, createClimb } from './summit-scene.js';
 import { skipperPortrait } from './pixel.js';
 import { fmt, nice } from './units.js';
 import { PROPS, propLabel } from './props.js';
-import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE, summitShareText } from './score.js';
+import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE, MIN_CROWD, summitShareText } from './score.js';
 import * as pad from './pad.js';
 import { WARDROBE, SLOTS, DEFAULT_LOOK, itemKey, bucksFor, DAY_BONUS } from './wardrobe.js';
 import { bucksIcon, bucksAmount } from './bucks.js';
@@ -355,14 +355,15 @@ function revealHTML(r, c) {
 
   let crowd = '';
   if (rv.crowd) {
-    const max = Math.max(1, ...rv.crowd.hist), myB = Math.min(10, Math.floor(play.score / 100));
-    const beat = c.kind === 'daily'
+    const max = rv.crowd.few ? 1 : Math.max(1, ...rv.crowd.hist), myB = Math.min(10, Math.floor(play.score / 100));
+    const beat = rv.crowd.few ? `Comparisons show once ${MIN_CROWD} people have played.`
+      : c.kind === 'daily'
       ? (rv.crowd.beat == null ? 'You\'re one of the first up today.' : `Better than <b>${rv.crowd.beat}%</b> of today's ${rv.crowd.total - 1} other ${rv.crowd.total === 2 ? 'player' : 'players'}.`)
       : `${rv.crowd.total} ${rv.crowd.total === 1 ? 'person' : 'people'} played this one on the day.`;
     crowd = `<div class="crowd">
       <div><div class="h4">📊 How everyone did</div><p class="beat">${beat}</p>
-        <div class="histo">${rv.crowd.hist.map((n, i) => `<i class="${i === myB && c.kind === 'daily' ? 'me' : ''}" style="height:${Math.max(4, n / max * 100)}%;--d:${i}" title="${i * 100}${i < 10 ? '–' + (i * 100 + 99) : ''}: ${n}"></i>`).join('')}</div>
-        <div class="histo-l"><span>0</span><span>500</span><span>1000</span></div></div>
+        ${rv.crowd.few ? '' : `<div class="histo">${rv.crowd.hist.map((n, i) => `<i class="${i === myB && c.kind === 'daily' ? 'me' : ''}" style="height:${Math.max(4, n / max * 100)}%;--d:${i}" title="${i * 100}${i < 10 ? '–' + (i * 100 + 99) : ''}: ${n}"></i>`).join('')}</div>
+        <div class="histo-l"><span>0</span><span>500</span><span>1000</span></div>`}</div>
       <div><div class="h4">🏆 Top answers today</div>
         ${rv.top.length ? `<ol class="toplist">${rv.top.map((t, i) => `<li style="--d:${i}"><span class="rk">${i === 0 ? '👑' : i + 1}</span><span class="nm">${esc(t.name)}<small>≈ ${esc(val(p, t.value))} · ${t.count} ${t.count === 1 ? 'player' : 'players'}</small></span><span class="sc">${t.score}</span></li>`).join('')}</ol>`
           : '<p class="empty">Nothing popular yet. Answers show up here once a couple of people land on the same one.</p>'}</div></div>`;
@@ -540,6 +541,7 @@ function summaryHTML(c) {
   const day = c.day || {};
   const v = verdict(Math.round(total / 3));
   const beat = c.kind === 'daily' && day.beat != null ? `<p class="beat">You out-climbed <b>${day.beat}%</b> of today's ${day.players - 1} other ${day.players === 2 ? 'player' : 'players'}.</p>`
+    : c.kind === 'daily' && day.players < MIN_CROWD ? `<p class="beat">Comparisons show once ${MIN_CROWD} people have finished.</p>`
     : c.kind === 'daily' ? '<p class="beat">You\'re one of the first to finish today!</p>' : '';
   return `<div class="summary">
       <div class="daylabel rise">${c.kind === 'archive' ? 'Archive · ' : ''}Day #${c.number}</div>

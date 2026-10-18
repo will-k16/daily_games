@@ -3,7 +3,7 @@
 import { createVennScene, COLORS } from './venn-scene.js';
 import { melPortrait, moodFor, MEL_MOODS, FLASH } from './mel.js';
 import { MEL_WARDROBE, MEL_SLOTS, MEL_DEFAULT_LOOK, melItemKey } from './mel-wardrobe.js';
-import { ROUND_MS, MAX_ANSWER, DAY_MAX, bucksForRound, vennShareText, scoreSquare } from './venn-score.js';
+import { ROUND_MS, MAX_ANSWER, DAY_MAX, bucksForRound, vennShareText, scoreSquare, MIN_CROWD } from './venn-score.js';
 import { bucksIcon, bucksAmount } from './bucks.js';
 import { showAccount as accountModal, signInReturn } from './account.js';
 
@@ -539,7 +539,9 @@ function renderResults(r) {
   }).join('')}</ul>` : '';
   const closeHTML = close.length ? `<p class="sub">Close (fit 2 of 3, so no catch): ${close.map(a => esc(a.canonical)).join(', ')}</p>` : '';
   let crowd = '';
-  if (res.everyone && res.everyone.total) {
+  if (res.everyone && res.everyone.few) {
+    crowd = `<div class="h4">How everyone did</div><p class="beat">Comparisons show once ${MIN_CROWD} people have played.</p>`;
+  } else if (res.everyone && res.everyone.total) {
     const e = res.everyone, max = Math.max(1, ...e.hist);
     const beat = c.kind === 'daily'
       ? (e.beat == null ? 'You\'re one of the first today.' : `Better than <b>${e.beat}%</b> of today's players.`)
@@ -652,7 +654,7 @@ function showMel(r) {
       <div class="mel-text"><h2>${mel()}</h2>
         <p class="mel-role">Chameleon · Catches anything that fits</p>
         <p class="mel-quote">“${esc(MEL_MOODS[mood] || MEL_MOODS.ready)}”</p>
-        <ul class="mel-facts"><li><b>Name:</b> from the middle of “chaMELeon”</li><li><b>Tongue:</b> longer than its body, faster than a blink</li>
+        <ul class="mel-facts"><li><b>Tongue:</b> longer than its body, faster than a blink</li>
           <li><b>Eyes:</b> each one looks its own way</li><li><b>Turns green when:</b> something lands in the overlap</li></ul>
         <div class="row"><button class="btn" id="melOk">Back to the rings</button><button class="btn alt" id="melWear">Wardrobe</button></div></div></div>`);
   drawPortrait($('#melCv'), mood === 'ready' ? 'smile' : mood);
