@@ -687,7 +687,8 @@ async function pollyAdd(box) {
         ${d.candidates.length ? '<p class="sub">Tick the ones to keep, fix anything, then save them as drafts. Blank date / sample size fields weren\'t on the page: type them from the source.</p>' : '<p class="empty">None passed.</p>'}
         ${d.candidates.map((c, i) => `<div class="pcand" data-i="${i}">
           <label class="pick"><input type="checkbox" data-keep="${i}"> Keep</label> ${entryBadge(c.entry)} ${c.time_sensitive ? badge('time-sensitive', 'auto') : ''} ${c.already ? badge('already in the bank', 'rejected') : ''}
-          <span class="sub">${c.dateChecked ? 'date checked' : 'date not on page'} · ${c.sampleChecked ? 'sample checked' : 'sample not on page'}</span>
+          <span class="sub">${c.dateChecked ? 'date checked' : 'date not on page'} · ${c.sampleChecked ? 'sample checked' : 'sample not on page'}${c.population ? ` · ${esc(c.population)}` : ''}</span>
+          ${c.tooLong && c.tooLong.length ? `<div class="sub" style="color:var(--bad)">Trim before approving: ${esc(c.tooLong.join(', '))}</div>` : ''}
           ${qFields(c, sources)}</div>`).join('')}
         ${d.candidates.length ? '<div class="row"><button class="btn" id="saveDrafts">Save as drafts</button></div>' : ''}
       </section>

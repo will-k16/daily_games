@@ -88,7 +88,7 @@ function extractPrompt(source, url, date, text) {
     '',
     'Hard rules:',
     '- Use ONLY facts written in the page text below. Never add, estimate, round, combine or recall numbers. If the page doesn\'t state a number, don\'t output that question.',
-    '- Only results for ALL US adults. Skip any subgroup (Republicans, Democrats, parents, young adults, registered voters, women, etc.).',
+    '- Only results for the whole country: a national sample of US adults (adult citizens, registered voters or "Americans" are fine too). Skip any subgroup (Republicans, Democrats, parents, young adults, women, one state, etc.).',
     '- Only results with exactly two sides, plus an optional don\'t-know / no-answer group. A multi-option question can be used only if the page itself reports it as two groups (e.g. "Total agree" / "Total disagree").',
     '- Side labels are the poll\'s own options, shortened to 14 characters or fewer, never loaded words ("Approve" / "Disapprove", not "Supports" / "Opposes" if the poll said approve).',
     '- "short": a plain question of 90 characters or fewer that means exactly what the poll asked.',
@@ -177,8 +177,23 @@ export function sampleInText(n, text) {
   return numbersIn(text).includes(n) || squish(text).includes(n.toLocaleString('en-US'));
 }
 
-const US_ADULTS = /^(all )?(u\.? ?s\.?|united states|american|national) adults( ages? 18( and older|\+)?)?$|^adults (in|living in|across) the (u\.? ?s\.?|united states)$|^(all )?americans( ages? 18( and older|\+)?)?$/;
-export const isUsAdults = p => US_ADULTS.test(squish(p).replace(/[,;]$/, ''));
+// Any national sample counts ("US adults", "U.S. adult citizens", "registered voters", "the public"…). Only a
+// clear slice of the country fails: a party, an age band, parents, one gender, one state, and so on.
+const SUBGROUP = /\b(republicans?|democrats?|independents?|gop|liberals?|conservatives?|parents?|mothers?|fathers?|moms?|dads?|women|men|males?|females?|teens?|teenagers?|students?|young|older|seniors?|retirees?|gen ?z|millennials?|boomers?|gen ?x|under \d+|over \d+|ages? \d+ ?(-|to) ?\d+|\d+ ?(-|to) ?\d+|black|white|hispanics?|latinos?|latinas?|asians?|catholics?|protestants?|evangelicals?|christians?|jews?|jewish|muslims?|veterans?|workers?|employees?|employed|unemployed|homeowners?|renters?|college grads?|graduates?|lgbtq?|immigrants?|rural|urban|suburban|smokers?|gun owners?|trump (voters|supporters)|biden (voters|supporters)|harris (voters|supporters))\b/;
+const STATES = /\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/;
+/** True unless the population is clearly a slice of the country. A blank population passes. */
+export const isUsAdults = p => { const s = squish(p).replace(/\bages? 18 ?(and older|\+|or older)/g, ''); return !SUBGROUP.test(s) && !STATES.test(s); };
+
+/** Most of the wording's words are on the page (the AI often fixes punctuation or drops a word). */
+function wordingOnPage(wording, page) {
+  const w = squish(wording);
+  if (!w) return false;
+  if (page.includes(w)) return true;
+  const words = w.replace(/[^a-z0-9' ]+/g, ' ').split(' ').filter(x => x.length > 2);
+  if (!words.length) return false;
+  const pageWords = new Set(page.replace(/[^a-z0-9' ]+/g, ' ').split(' '));
+  return words.filter(x => pageWords.has(x)).length / words.length >= 0.8;
+}
 
 /** Cleans what the AI (or the admin) sent into a question's fields. */
 export function cleanCandidate(c) {
@@ -213,22 +228,23 @@ export function checkCandidate(raw, pageText) {
     if (v == null) { if (k !== 'unsure') reasons.push(`No ${k} number.`); return; }
     if (!inEvidence.includes(v)) reasons.push(`The ${k} number (${v}) isn't in the evidence.`);
   });
-  // 3. The original wording is on the page.
-  if (!q.original_wording || !page.includes(squish(q.original_wording))) reasons.push('The original wording isn\'t on the page.');
-  // 4. The numbers add up to about 100.
+  // 3. The original wording is (mostly) on the page.
+  if (!wordingOnPage(q.original_wording, page)) reasons.push('The original wording isn\'t on the page.');
+  // 4. The numbers add up to about 100 (some polls also list "refused" or "other", so there's some slack).
   const sum = (q.left_raw || 0) + (q.right_raw || 0) + (q.unsure_raw || 0);
-  if (!(sum >= 95 && sum <= 105)) reasons.push(`The numbers add up to ${Math.round(sum * 10) / 10}, not 95–105.`);
-  // 5. US adults only.
-  if (!isUsAdults(q.population)) reasons.push(`The population is "${q.population || 'not given'}", not US adults.`);
-  // 6. Lengths.
-  if (!q.left_label || q.left_label.length > LABEL_MAX) reasons.push(`The left label needs 1–${LABEL_MAX} characters.`);
-  if (!q.right_label || q.right_label.length > LABEL_MAX) reasons.push(`The right label needs 1–${LABEL_MAX} characters.`);
-  if (!q.short || q.short.length > SHORT_MAX) reasons.push(`The short wording needs 1–${SHORT_MAX} characters.`);
+  if (!(sum >= 90 && sum <= 110)) reasons.push(`The numbers add up to ${Math.round(sum * 10) / 10}, not about 100.`);
+  // 5. A national sample, not a slice of the country.
+  if (!isUsAdults(q.population)) reasons.push(`The population is "${q.population}", a subgroup rather than the whole country.`);
   if (q.real == null) reasons.push('Couldn\'t work out the split.');
+  // Labels or a short question that run long don't fail: they're marked so the admin can trim them before approving.
+  const tooLong = [];
+  if (!q.left_label || q.left_label.length > LABEL_MAX) tooLong.push(`left label (1–${LABEL_MAX})`);
+  if (!q.right_label || q.right_label.length > LABEL_MAX) tooLong.push(`right label (1–${LABEL_MAX})`);
+  if (!q.short || q.short.length > SHORT_MAX) tooLong.push(`short question (1–${SHORT_MAX})`);
   // The poll date and sample size count only if the page states them too.
   const dateChecked = !!q.poll_end_date && dateInText(q.poll_end_date, pageText);
   const sampleChecked = !!q.sample_size && sampleInText(q.sample_size, pageText);
   if (!dateChecked) q.poll_end_date = null;
   if (!sampleChecked) q.sample_size = null;
-  return { ok: !reasons.length, reasons, dateChecked, sampleChecked, q };
+  return { ok: !reasons.length, reasons, dateChecked, sampleChecked, tooLong, q };
 }

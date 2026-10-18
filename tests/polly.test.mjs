@@ -133,11 +133,15 @@ test('server check: each rule fails on its own', () => {
   fails({ evidence: '45% say early, 30% say late (made up)' }, /evidence snippet/);                    // 1
   fails({ left_raw: 46 }, /left number \(46\)/);                                                        // 2
   fails({ unsure_raw: 24 }, /unsure number/);                                                           // 2
-  fails({ original_wording: 'Would you rather be early?' }, /original wording/);                        // 3
+  fails({ original_wording: 'Do you prefer mornings or evenings?' }, /original wording/);                        // 3
   fails({ evidence: 'Overall, 45% of Americans say early, 30% say late', unsure_raw: null }, /add up to 75/);  // 4
-  fails({ population: 'Republicans' }, /not US adults/);                                                // 5
-  fails({ left_label: 'Ten minutes early' }, /left label/);                                             // 6
-  fails({ short: 'x'.repeat(91) }, /short wording/);                                                    // 6
+  fails({ population: 'Republicans' }, /subgroup/);                                                     // 5
+  // Long labels or a long short question pass, marked for trimming before approval.
+  const long = checkCandidate({ ...GOOD, left_label: 'Ten minutes early', short: 'x'.repeat(91) }, PAGE);
+  assert.ok(long.ok);
+  assert.equal(long.tooLong.length, 2);
+  // The wording can differ a little (punctuation, a dropped word).
+  assert.ok(checkCandidate({ ...GOOD, original_wording: 'Would you rather be 10 minutes early, or 10 minutes late' }, PAGE).ok);
   // A date or sample size the page doesn't state comes back blank (required later), not a failure.
   const r = checkCandidate({ ...GOOD, poll_end_date: '2025-08-12', sample_size: 1500 }, PAGE);
   assert.ok(r.ok);
@@ -152,8 +156,8 @@ test('dates, sample sizes and populations in page text', () => {
   assert.ok(!dateInText('2025-08-11', 'conducted Sept. 11, 2025'));
   assert.ok(sampleInText(1024, 'n=1,024'));
   assert.ok(!sampleInText(1024, 'n=10,240'));
-  ['US adults', 'U.S. adults', 'American adults', 'adults in the United States', 'Americans'].forEach(p => assert.ok(isUsAdults(p), p));
-  ['registered voters', 'US parents', 'Democrats', 'US adults under 30'].forEach(p => assert.ok(!isUsAdults(p), p));
+  ['US adults', 'U.S. adults', 'US adult citizens', 'U.S. adults ages 18 and older', 'American adults', 'adults in the United States', 'Americans', 'registered voters', 'the public', ''].forEach(p => assert.ok(isUsAdults(p), p));
+  ['US parents', 'Democrats', 'US adults under 30', 'adults ages 18-29', 'Texas adults', 'women'].forEach(p => assert.ok(!isUsAdults(p), p));
 });
 
 test('allowlist: a domain or any subdomain of it; everything else is refused', () => {

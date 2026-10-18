@@ -72,7 +72,7 @@ export async function extract(env, body) {
   const candidates = [], failed = [];
   raw.forEach(c => {
     const chk = checkCandidate(c, text);
-    const base = { ...chk.q, source_id: src.id, url, dateChecked: chk.dateChecked, sampleChecked: chk.sampleChecked, already: known.includes(chk.q.original_wording.toLowerCase()) };
+    const base = { ...chk.q, source_id: src.id, url, dateChecked: chk.dateChecked, sampleChecked: chk.sampleChecked, tooLong: chk.tooLong, already: known.includes(chk.q.original_wording.toLowerCase()) };
     if (chk.ok) candidates.push({ ...base, entry: pasted ? 'admin-pasted' : 'auto-checked' });
     else failed.push({ ...base, reasons: chk.reasons });
   });
