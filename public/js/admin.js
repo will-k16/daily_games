@@ -40,30 +40,59 @@ function go(t) {
 async function dash(box) {
   const d = await api('admin/dashboard');
   $('#compN').textContent = d.openComplaints ? `(${d.openComplaints})` : '';
-  const max = Math.max(1, ...d.hist), wmax = Math.max(1, ...d.week.map(w => w.n));
+  const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const spread = d.hist.map((n, i) => ({ n, label: i === 10 ? '1000' : String(i * 100), tip: i === 10 ? 'a perfect 1000' : `${i * 100}–${i * 100 + 99}` }));
+  const week = d.week.map(w => ({ n: w.n, label: day(w.date), tip: day(w.date) }));
   box.innerHTML = `
     <section class="card"><div class="kicker"><span>Today · ${d.date} (UTC)</span></div>
       <div class="kpis" style="margin-top:10px">
         <div class="kpi"><b>${d.todayPlayers}</b><span>Players today</span></div>
         <div class="kpi"><b>${d.players}</b><span>Players ever</span></div>
-        <div class="kpi"><b>${d.signedIn}</b><span>Signed in</span></div>
+        <div class="kpi"><b>${d.signedIn}</b><span>Accounts</span></div>
         <div class="kpi"><b>${d.openComplaints}</b><span>Open complaints</span></div>
       </div>
+      <p class="sub">“Players” only counts people who started at least one stage. Another ${d.visitsOnly} ${d.visitsOnly === 1 ? 'visit' : 'visits'} never played: mostly bots, link previews (like a text message fetching the link), and new guest IDs after signing out.</p>
       <div class="section-title">Today's stages</div>
       <div class="tbl"><table><thead><tr><th>Stage</th><th>Puzzle</th><th>Status</th><th>Finished</th><th>Avg</th><th>2nd guess</th></tr></thead>
       <tbody>${d.rooms.map(r => `<tr><td>${room(r.slot).emoji} ${room(r.slot).name}</td><td>${esc(r.small_item)} ↔ ${esc(r.big_item)}<br><span class="sub">${esc(propLabel(r.property))}</span></td>
         <td><span class="st ${r.status}">${r.status}</span></td><td>${r.plays}</td><td>${r.avg == null ? '–' : Math.round(r.avg)}</td><td>${r.plays ? Math.round(100 * (r.seconds || 0) / r.plays) + '%' : '–'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Not generated yet. It will be created on the first visit.</td></tr>'}</tbody></table></div>
       <div class="crowd" style="margin-top:6px">
-        <div><div class="section-title">Score spread today</div><div class="histo">${d.hist.map(n => `<i style="height:${Math.max(4, n / max * 100)}%" title="${n}"></i>`).join('')}</div><div class="histo-l"><span>0</span><span>500</span><span>1000</span></div></div>
-        <div><div class="section-title">Daily players (14 days)</div><div class="histo">${d.week.map(w => `<i style="height:${Math.max(4, w.n / wmax * 100)}%" title="${w.date}: ${w.n}"></i>`).join('') || '<span class="empty">No data yet</span>'}</div></div>
+        <div><div class="section-title">Score spread today</div>${bars(spread, 'finished stage', 'finished stages')}
+          <p class="sub">How many finished stages scored in each range (each player counts up to 3 times).</p></div>
+        <div><div class="section-title">Daily players (14 days)</div>${bars(week, 'player', 'players', 2)}
+          <p class="sub">People who played that day's puzzles on the day.</p></div>
       </div>
+      <div class="section-title">🍀 Your clovers</div>
+      <form class="cgrant" id="cgrant"><span>You have <b id="myClovers">${d.myClovers}</b>.</span>
+        <input class="box" name="n" type="number" step="1" value="500" aria-label="How many clovers">
+        <button class="mini-btn ok" type="submit">Give me these</button><button class="mini-btn danger" type="button" id="ctake">Take away</button></form>
     </section>
     <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">AI judge (last 24h)</h2>
       <div class="tbl"><table><thead><tr><th>Provider</th><th>Kind</th><th>OK</th><th>Failed</th><th>Avg ms</th></tr></thead>
       <tbody>${d.ai.map(a => `<tr><td>${esc(a.provider)}</td><td>${esc(a.kind)}</td><td>${a.ok}</td><td>${a.fail}</td><td>${Math.round(a.ms)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No AI calls yet.</td></tr>'}</tbody></table></div>
       ${d.rateLimited ? `<p class="sub">⏳ ${d.rateLimited} rate-limit ${d.rateLimited === 1 ? 'hit' : 'hits'} in the last 24h. Nothing to fix: the judge switched to its backup each time.</p>` : ''}
-      ${d.errors.length ? `<div class="section-title">Recent errors</div>${d.errors.map(e => `<p class="sub"><b>${esc(e.provider)}/${esc(e.kind)}</b> ${esc(e.created_at)}: ${esc(e.error)}</p>`).join('')}` : ''}
+      ${d.errors.length ? `<div class="section-title">Recent errors (last 3 days)</div>${d.errors.map(e => `<p class="sub"><b>${esc(e.provider)}/${esc(e.kind)}</b> ${esc(e.created_at)}: ${esc(e.error)}</p>`).join('')}` : ''}
     </section>`;
+  const f = $('#cgrant');
+  const grant = async sign => {
+    const n = Math.trunc(Number(f.n.value));
+    if (!(n > 0)) return toast('Type a positive whole number.');
+    try {
+      const r = await api('admin/clovers', { amount: sign * n });
+      $('#myClovers').textContent = r.clovers.balance;
+      toast(sign > 0 ? `Added ${n} clovers. Reload the game to see them.` : `Took away ${n} clovers.`);
+    } catch (e) { toast(e.message); }
+  };
+  f.onsubmit = e => { e.preventDefault(); grant(1); };
+  $('#ctake').onclick = () => grant(-1);
+}
+
+/** A bar chart with the count on top of every bar and a label underneath. `every` thins the labels out. */
+function bars(items, one, many, every = 1) {
+  const max = Math.max(1, ...items.map(x => x.n));
+  return `<div class="abars">${items.map((x, i) => `<div class="ab" title="${esc(x.tip)}: ${x.n} ${x.n === 1 ? one : many}">
+      <span class="abn">${x.n}</span><i style="height:${x.n ? Math.max(6, x.n / max * 100) : 0}%"></i>
+      <span class="abl">${i % every === every - 1 || i === items.length - 1 ? esc(x.label) : ''}</span></div>`).join('')}</div>`;
 }
 
 /* ═══════════ Calendar ═══════════ */

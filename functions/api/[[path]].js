@@ -22,7 +22,8 @@ const ROUTES = {
   'GET archive/day': (c) => game.archiveDay(c.env, c.who, c.q.get('date')),
   'POST unlimited/new': (c) => game.newUnlimited(c.env, c.who),
 
-  'GET admin/dashboard': (c) => admin.dashboard(c.env),
+  'GET admin/dashboard': (c) => admin.dashboard(c.env, c.who),
+  'POST admin/clovers': (c) => admin.grantClovers(c.env, c.who, c.body),
   'GET admin/calendar': (c) => admin.calendar(c.env, c.q),
   'POST admin/generate': (c) => admin.generateDrafts(c.env, c.body),
   'POST admin/generate-slot': (c) => admin.generateSlot(c.env, c.body),

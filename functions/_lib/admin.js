@@ -3,15 +3,18 @@ import { generatePuzzles, cleanPuzzle } from './ai.js';
 import { rescoreAnswer, rescorePuzzle } from './game.js';
 import { planSpecs, recentItems } from './plan.js';
 import { PROPS } from '../../public/js/props.js';
+import { cloverBalance } from './wardrobe.js';
 
 export function requireAdmin(who) {
   if (!who.isAdmin) throw new HttpError(403, 'Admins only.');
 }
 
-export async function dashboard(env) {
+export async function dashboard(env, who) {
   const db = env.DB, date = todayUTC(), since = new Date(Date.now() - 86400000).toISOString();
-  const [players, signed, todayPlayers, rooms, ai, complaints, week] = await Promise.all([
-    db.prepare(`SELECT COUNT(*) AS n FROM players`).first(),
+  // Every visit gets a guest ID (bots and link previews included), so "players" only counts people who
+  // started a stage. Everyone else is just a visit.
+  const [players, signed, todayPlayers, rooms, ai, complaints, week, visits] = await Promise.all([
+    db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM plays WHERE mode IN ('daily','archive')`).first(),
     db.prepare(`SELECT COUNT(*) AS n FROM players WHERE google_sub IS NOT NULL`).first(),
     db.prepare(`SELECT COUNT(DISTINCT pl.player_id) AS n FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id WHERE z.date = ? AND pl.mode = 'daily'`).bind(date).first(),
     db.prepare(`SELECT z.slot, z.small_item, z.big_item, z.property, z.status, COUNT(pl.id) AS plays, AVG(pl.score) AS avg,
@@ -20,19 +23,38 @@ export async function dashboard(env) {
     db.prepare(`SELECT provider, kind, SUM(ok) AS ok, COUNT(*) - SUM(ok) AS fail, AVG(ms) AS ms FROM ai_log WHERE created_at >= ? GROUP BY provider, kind`).bind(since).all(),
     db.prepare(`SELECT COUNT(*) AS n FROM complaints WHERE status = 'open'`).first(),
     db.prepare(`SELECT z.date, COUNT(DISTINCT pl.player_id) AS n FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id
-        WHERE pl.mode = 'daily' AND z.date >= ? GROUP BY z.date ORDER BY z.date`).bind(addDays(date, -13)).all()
+        WHERE pl.mode = 'daily' AND z.date >= ? GROUP BY z.date ORDER BY z.date`).bind(addDays(date, -13)).all(),
+    db.prepare(`SELECT COUNT(*) AS n FROM players`).first()
   ]);
+  // One entry per day for the last 14 days, zeros included, so the chart lines up with real dates.
+  const byDate = Object.fromEntries(week.results.map(w => [w.date, w.n]));
+  const days = Array.from({ length: 14 }, (_, i) => addDays(date, i - 13)).map(d => ({ date: d, n: byDate[d] || 0 }));
   const dist = (await db.prepare(`SELECT pl.score FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id
       WHERE z.date = ? AND pl.mode = 'daily' AND pl.state = 'done'`).bind(date).all()).results;
   const hist = new Array(11).fill(0);
   dist.forEach(r => hist[Math.min(10, Math.floor(r.score / 100))]++);
   // "Too many requests" just means the judge moved on to the next provider, so it's counted, not listed.
-  const errors = (await db.prepare(`SELECT provider, kind, error, created_at FROM ai_log WHERE ok = 0 AND error NOT LIKE '429%' ORDER BY id DESC LIMIT 8`).all()).results;
+  const errors = (await db.prepare(`SELECT provider, kind, error, created_at FROM ai_log WHERE ok = 0 AND error NOT LIKE '429%' AND created_at >= ? ORDER BY id DESC LIMIT 8`).bind(new Date(Date.now() - 3 * 86400000).toISOString()).all()).results;
   const limited = await db.prepare(`SELECT COUNT(*) AS n FROM ai_log WHERE ok = 0 AND error LIKE '429%' AND created_at >= ?`).bind(since).first();
   return {
-    date, players: players.n, signedIn: signed.n, todayPlayers: todayPlayers.n,
-    rooms: rooms.results, ai: ai.results, errors, rateLimited: limited.n, openComplaints: complaints.n, hist, week: week.results
+    date, players: players.n, visitsOnly: visits.n - players.n, signedIn: signed.n, todayPlayers: todayPlayers.n,
+    rooms: rooms.results, ai: ai.results, errors, rateLimited: limited.n, openComplaints: complaints.n, hist, week: days,
+    myClovers: who ? (await cloverBalance(env, who.player.id)).balance : null
   };
+}
+
+/**
+ * Gives (or takes back, with a negative amount) clovers to the admin's own account. A grant is stored as
+ * a "purchase" with a negative price, so the balance math (earned − spent) needs no special case.
+ */
+export async function grantClovers(env, who, body) {
+  const amount = Math.trunc(Number(body.amount));
+  if (!amount || Math.abs(amount) > 1000000) throw new HttpError(400, 'Pick a whole number, like 500.');
+  const bal = await cloverBalance(env, who.player.id);
+  if (bal.balance + amount < 0) throw new HttpError(400, `You only have ${bal.balance} to take away.`);
+  await env.DB.prepare(`INSERT INTO purchases (player_id, item, price, created_at) VALUES (?, ?, ?, ?)`)
+    .bind(who.player.id, 'grant:' + Date.now() + ':' + Math.random().toString(36).slice(2, 7), -amount, nowISO()).run();
+  return { ok: true, clovers: await cloverBalance(env, who.player.id) };
 }
 
 /* ───────────── Calendar ───────────── */
