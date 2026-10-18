@@ -5,9 +5,9 @@ import { itemCore } from './plan.js';
 import { boundHasMeasurement, answerMeasurementProblem } from '../../public/js/measure.js';
 
 const GROQ_MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'];
-const DEFAULT_GEMINI_MODEL = 'gemini-flash-latest';
-// Google Search grounding is free (500 searches a day) on 2.5 Flash, but not on the free tier of 3.x models.
-const DEFAULT_GEMINI_SEARCH_MODEL = 'gemini-2.5-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+// Google Search grounding needs billing on the Google project (5,000 free searches a month, then $14 per 1,000).
+const DEFAULT_GEMINI_SEARCH_MODEL = 'gemini-3.5-flash-lite';
 export const AI_CALLS_PER_PLAYER_PER_DAY = 80;
 
 const EST_SCHEMA = {
@@ -295,14 +295,21 @@ function keys(env) {
   return { groqKey: g1 || (g2.startsWith('gsk_') ? g2 : ''), geminiKey: g2 && !g2.startsWith('gsk_') ? g2 : '' };
 }
 
+// Google Search on Gemini needs billing turned on for the Google project. Without it every search
+// call fails with a quota error, so after one of those we stop trying for a while.
+let geminiSearchOffUntil = 0;
+
 /**
  * The web-search judges to try, in order. JUDGE=groq in the settings puts Groq first; otherwise
- * Gemini (real Google results) goes first whenever there's a Gemini key.
+ * Gemini (real Google results) goes first whenever there's a Gemini key and search is available.
  */
 function searchJudges(env) {
   const { groqKey, geminiKey } = keys(env);
   const list = [];
-  if (geminiKey) list.push(['gemini', p => geminiSearch(p, geminiKey, env.GEMINI_SEARCH_MODEL || DEFAULT_GEMINI_SEARCH_MODEL)]);
+  if (geminiKey && Date.now() > geminiSearchOffUntil) list.push(['gemini', async p => {
+    try { return await geminiSearch(p, geminiKey, env.GEMINI_SEARCH_MODEL || DEFAULT_GEMINI_SEARCH_MODEL); }
+    catch (e) { if (/429|quota|billing/i.test(e.message)) geminiSearchOffUntil = Date.now() + 10 * 60000; throw e; }
+  }]);
   if (groqKey) list.push(['groq', p => groqSearch(p, groqKey)]);
   if (String(env.JUDGE || '').toLowerCase() === 'groq') list.reverse();
   return list;
@@ -314,8 +321,10 @@ async function callAI(env, prompt, schema, kind, playerId, temperature = 0) {
 
   let busy = false;
   const attempts = [];
-  if (groqKey) attempts.push(['groq', () => groqAny(env, prompt, schema, groqKey, temperature)]);
+  // Gemini Flash-Lite first: it's fast, free, and knows newer things than Groq's models.
   if (geminiKey) attempts.push(['gemini', () => gemini(prompt, schema, geminiKey, env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, temperature)]);
+  if (groqKey) attempts.push(['groq', () => groqAny(env, prompt, schema, groqKey, temperature)]);
+  if (String(env.JUDGE || '').toLowerCase() === 'groq') attempts.reverse();
   for (const [name, fn] of attempts) {
     const t = Date.now();
     try {
@@ -332,7 +341,7 @@ async function callAI(env, prompt, schema, kind, playerId, temperature = 0) {
 
 /**
  * Gemini with Grounding with Google Search: the model runs real Google searches before answering.
- * Search and a JSON schema can't be combined on 2.5 models, so the JSON comes back as text and we parse it.
+ * The JSON comes back as text (search and a JSON schema don't mix on every model), and we parse it.
  */
 function geminiSearch(prompt, key, model) {
   return fetchJson('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent',
