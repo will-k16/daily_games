@@ -15,6 +15,26 @@ const GAMES = {
   summit: { name: 'Summit', pitch: 'Name something juuust right.', href: '/summit', color: '#d9482b', draw: drawSummitPreview }
 };
 
+// Games by other people. `by` is the credit shown; leave it '' if the site doesn't say who made it.
+const SIMILAR = [
+  { name: 'Krillion', url: 'https://krillion.io', pitch: 'The daily dive: name the answers nobody else thinks of.', by: '' },
+  { name: 'Chainle', url: 'https://chainle.io', pitch: 'The daily word chain.', by: 'the younger brother of Krillion’s maker' },
+  { name: 'FactMap', url: 'https://factmap.world', pitch: 'A daily game on the world map.', by: '' },
+  { name: 'NYT Games', url: 'https://www.nytco.com/games', pitch: 'Wordle, Connections, Spelling Bee and more.', by: 'The New York Times' },
+  { name: 'Sortle', url: 'https://dailysortle.com', pitch: 'Sort the dictionary to find the five-letter word.', by: '' }
+];
+
+function renderSimilar() {
+  $('#others').innerHTML = SIMILAR.map(g => {
+    const host = new URL(g.url).host.replace(/^www\./, '') + new URL(g.url).pathname.replace(/\/$/, '');
+    return `<li><a class="other" href="${esc(g.url)}" target="_blank" rel="noopener">
+      <span class="oname">${esc(g.name)} <i aria-hidden="true">↗</i></span>
+      <span class="opitch">${esc(g.pitch)}</span>
+      <span class="oby">${g.by ? `By ${esc(g.by)} · ` : 'Independent · '}${esc(host)}</span>
+      <span class="sr-only"> (opens in a new tab)</span></a></li>`;
+  }).join('');
+}
+
 async function api(path, body) {
   const opt = body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
   const res = await fetch('/api/' + path, { credentials: 'same-origin', ...opt });
@@ -163,6 +183,7 @@ async function load() {
 }
 
 stampTitle();
+renderSimilar();
 await load();
 signInReturn(accountUI());
 setInterval(tick, 1000);

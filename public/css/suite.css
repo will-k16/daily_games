@@ -64,6 +64,20 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
   .info h2 { font-size: 30px; }
 }
 
+/* ── Similar games (other people's) ── */
+.similar { margin-top: 40px; }
+.similar h2 { margin: 0; font-family: var(--font-px); font-weight: 700; font-size: 26px; }
+.similar .sub { margin-top: 4px; }
+.others { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.other { display: grid; gap: 3px; height: 100%; padding: 12px 14px; border: 2px solid var(--ink); text-decoration: none; color: var(--ink); background: var(--paper);
+  transition: transform .08s steps(2), box-shadow .08s steps(2); }
+.other:hover, .other:focus-visible { transform: translate(-3px, -3px); box-shadow: 5px 5px 0 var(--ink); outline: none; }
+.oname { font-family: var(--font-px); font-weight: 700; font-size: 20px; }
+.oname i { font-style: normal; font-size: 15px; color: var(--muted); }
+.opitch { font-size: 14px; font-weight: 700; }
+.oby { font-size: 12px; color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 /* ── Share + footer ── */
 .sharebar { margin-top: 22px; display: flex; justify-content: center; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 18px; border: 3px solid var(--ink); background: var(--ink); color: var(--paper);
