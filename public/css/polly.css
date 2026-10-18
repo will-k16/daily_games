@@ -222,6 +222,8 @@ textarea.box { width: 100%; min-height: 80px; padding: 8px 10px; border: 3px sol
 .summary .crowdbox { text-align: left; margin-top: 14px; }
 .agree { margin: 12px 0 0; font-weight: 800; }
 .countdown { margin-top: 12px; color: var(--muted); font-size: 14px; }
+.tip { display: inline-block; margin-top: 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
+.tip:hover { color: var(--ink); }
 .countdown b { font-family: var(--font-num); color: var(--ink); font-size: 15px; }
 
 /* ── Archive ── */

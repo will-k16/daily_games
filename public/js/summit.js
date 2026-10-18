@@ -557,7 +557,7 @@ function summaryHTML(c) {
       </div>
       ${c.kind === 'daily' ? '<div class="countdown">New mountain in <b class="cd">--:--:--</b></div>' : ''}
       ${bucksLineHTML(c)}
-      ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy ${sk()} a snack</a>` : ''}
+      ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy me a coffee</a>` : ''}
     </div>`;
 }
 function wireSummary(c) {

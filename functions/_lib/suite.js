@@ -1,6 +1,6 @@
 // WK Game Suite: the home page's data (per-game status and streaks, the WK streak, WK Bucks) and the
 // combined daily share text.
-import { todayUTC, addDays, isDate, dayIndex } from './util.js';
+import { tipUrl, todayUTC, addDays, isDate, dayIndex } from './util.js';
 import * as game from './game.js';
 import * as venn from './venn.js';
 import * as polly from './polly.js';
@@ -33,7 +33,7 @@ export async function today(env, who) {
     game.stats(env, who), venn.stats(env, who), polly.stats(env, who), wkStreak(env, who), bucksBalance(env, who.player.id)
   ]);
   return {
-    date, nextReset: addDays(date, 1) + 'T00:00:00Z',
+    date, nextReset: addDays(date, 1) + 'T00:00:00Z', tipUrl: tipUrl(env),
     me: { signedIn: who.signedIn, email: who.email, isAdmin: who.isAdmin, hasPassword: who.hasPassword },
     bucks, wkStreak: wk.streak,
     games: [

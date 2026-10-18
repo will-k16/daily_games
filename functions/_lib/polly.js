@@ -1,7 +1,7 @@
 // Polly: each day has 3 questions from real polls of US adults. You guess what percent of Americans picked
 // the left side, lock it in, and the real split is revealed. This file: scheduling (auto-fill, reuse),
 // gameplay (today, lock-in, reveals, archive, unlimited), crowd comparisons, stats, reports and rescoring.
-import { HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, clampStr, safeJson } from './util.js';
+import { tipUrl, HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, clampStr, safeJson } from './util.js';
 import { bucksBalance, pollyLookOf } from './bucks.js';
 import {
   SLOTS, DAY_MAX, MIN_CROWD, questionScore, crowd, bucksForQuestion, dayBonus
@@ -237,7 +237,7 @@ export async function today(env, who) {
   return {
     date, number: pollyNumber(env, date), noPoll: rows.length < SLOTS, ...state,
     me: meOf(who), bucks: await bucksBalance(env, who.player.id), notifications: await notifications(env, who),
-    streak: st.streak, played: st.played, nextReset: addDays(date, 1) + 'T00:00:00Z'
+    streak: st.streak, played: st.played, tipUrl: tipUrl(env), nextReset: addDays(date, 1) + 'T00:00:00Z'
   };
 }
 

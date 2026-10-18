@@ -66,4 +66,7 @@ export async function hash(s) {
 
 export function safeJson(s, fallback) { try { return JSON.parse(s); } catch { return fallback; } }
 
+/** The "buy me a coffee" link (TIP_URL in wrangler.toml): an https address, or '' to hide it everywhere. */
+export const tipUrl = env => { const u = String((env && env.TIP_URL) || '').trim(); return /^https:\/\/[^\s"'<>]+$/.test(u) ? u : ''; };
+
 export const clampStr = (s, n) => String(s == null ? '' : s).trim().slice(0, n);

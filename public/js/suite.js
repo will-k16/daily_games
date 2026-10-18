@@ -78,6 +78,9 @@ function render(d) {
   $('#streak').innerHTML = `WK streak <b>${d.wkStreak}</b>`;
   $('#acct').textContent = S.me.signedIn ? 'Account' : 'Sign in';
   $('#adminLink').hidden = !S.me.isAdmin;
+  // The "buy me a coffee" link shows only when TIP_URL is set.
+  $('#tipcard').hidden = $('#tipFoot').hidden = !d.tipUrl;
+  if (d.tipUrl) { $('#tipLink').href = d.tipUrl; $('#tipFoot').href = d.tipUrl; }
   $('#sharebar').hidden = !d.games.some(g => g.done > 0);
   $('#games').innerHTML = d.games.map(g => {
     const m = GAMES[g.key];

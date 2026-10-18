@@ -1,4 +1,4 @@
-import { HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, puzzleNumber, sameItem, normalize, clampStr } from './util.js';
+import { tipUrl, HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, puzzleNumber, sameItem, normalize, clampStr } from './util.js';
 import { estimate, generatePuzzles, suggestMiddle } from './ai.js';
 import { planSpecs, recentItems } from './plan.js';
 import { lookOf, bucksBalance } from './bucks.js';
@@ -146,7 +146,7 @@ export async function today(env, who, waitUntil) {
     me: { signedIn: who.signedIn, email: who.email, isAdmin: who.isAdmin, hasPassword: who.hasPassword, skipper: lookOf(who.player) },
     bucks: await bucksBalance(env, who.player.id),
     notifications: await notifications(env, who),
-    tipUrl: env.TIP_URL || '',
+    tipUrl: tipUrl(env),
     nextReset: addDays(date, 1) + 'T00:00:00Z'
   };
 }

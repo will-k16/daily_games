@@ -446,6 +446,7 @@ function renderSummary() {
       <div class="row center"><button class="btn" id="shareBtn">Share</button><button class="btn alt" id="statsBtn2">Stats</button>
         ${c.kind === 'archive' ? '<a class="btn alt" href="#/archive">More days</a>' : ''}</div>
       ${c.kind === 'daily' ? '<div class="countdown">Next poll in <b class="cd">--:--:--</b></div>' : ''}
+      ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy me a coffee</a>` : ''}
     </div>`;
   countUp($('#sumTotal'), 0, total, 1100);
   $('#shareBtn').onclick = () => doShare(c);

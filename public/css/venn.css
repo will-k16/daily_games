@@ -226,6 +226,8 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .summary .mini b { font-family: var(--font-num); }
 .summary .bucksline { justify-content: center; }
 .countdown { margin-top: 14px; color: var(--muted); font-size: 14px; }
+.tip { display: inline-block; margin-top: 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
+.tip:hover { color: var(--ink); }
 .countdown b { font-family: var(--font-num); color: var(--ink); font-size: 16px; }
 
 /* cards (archive) */

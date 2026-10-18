@@ -1,6 +1,6 @@
 // Venn: the daily game where you name things that fit two (then three) categories at once, against a
 // 90-second clock. The server keeps the clock: a play stores elapsed_ms plus resumed_at while running.
-import { HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, normalize, clampStr, safeJson } from './util.js';
+import { tipUrl, HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, normalize, clampStr, safeJson } from './util.js';
 import { judgeAnswer, generateVennPuzzle, fallbackVennPuzzle, vennHistory } from './venn-ai.js';
 import { exactMatch, suggest, sameAnswer } from './fuzzy.js';
 import { melLookOf, bucksBalance } from './bucks.js';
@@ -181,6 +181,7 @@ export async function today(env, who) {
     me: { signedIn: who.signedIn, email: who.email, isAdmin: who.isAdmin, hasPassword: who.hasPassword, mel: melLookOf(who.player) },
     bucks: await bucksBalance(env, who.player.id),
     notifications: await notifications(env, who),
+    tipUrl: tipUrl(env),
     nextReset: addDays(date, 1) + 'T00:00:00Z'
   };
 }

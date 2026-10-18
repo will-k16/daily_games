@@ -589,6 +589,7 @@ function summaryHTML(c) {
       <div class="row center"><button class="btn" id="shareBtn">Share</button><button class="btn alt" id="statsBtn2">Stats</button>
         ${c.kind === 'archive' ? '<a class="btn alt" href="#/archive">More days</a>' : ''}</div>
       ${c.kind === 'daily' ? '<div class="countdown">New rings in <b class="cd">--:--:--</b></div>' : ''}
+      ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy me a coffee</a>` : ''}
       ${earned ? `<div class="bucksline">${bucksIcon()} <b>+${earned}</b> WK Bucks ${c.kind === 'daily' ? 'today' : 'from this day'}${S.bucks ? ` · ${S.bucks.balance} to spend` : ''} <button class="btn sm alt" id="wardBtn2">Dress up ${mel()}</button></div>` : ''}
     </div>`;
 }
