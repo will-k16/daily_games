@@ -1,5 +1,6 @@
 // WK Game Suite admin: one page with a tab per game. Suite = players, WK Bucks, AI health;
-// Summit = today, calendar, complaints, answers; Venn = calendar, complaints, judgments.
+// Summit = today, calendar, complaints, answers; Venn = calendar, complaints, judgments;
+// Polly = dashboard, add (URL / pasted text / by hand), bank, calendar, reports, sources.
 import { fmt, nice } from './units.js';
 import { PROPS, ROOMS, propLabel } from './props.js';
 import { bucksIcon } from './bucks.js';
@@ -29,7 +30,8 @@ $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeM
 const SUBTABS = {
   suite: [],
   summit: [['summit', 'Today'], ['summit/cal', 'Calendar'], ['summit/comp', 'Complaints'], ['summit/ans', 'Answers']],
-  venn: [['venn', 'Calendar'], ['venn/comp', 'Complaints'], ['venn/judg', 'Judgments']]
+  venn: [['venn', 'Calendar'], ['venn/comp', 'Complaints'], ['venn/judg', 'Judgments']],
+  polly: [['polly', 'Dashboard'], ['polly/add', 'Add'], ['polly/bank', 'Bank'], ['polly/cal', 'Calendar'], ['polly/rep', 'Reports'], ['polly/src', 'Sources']]
 };
 const VIEWS = {
   suite: box => suiteTab(box),
@@ -39,7 +41,13 @@ const VIEWS = {
   'summit/ans': box => ans(box),
   venn: box => vennCal(box),
   'venn/comp': box => vennComp(box),
-  'venn/judg': box => vennJudg(box)
+  'venn/judg': box => vennJudg(box),
+  polly: box => pollyDash(box),
+  'polly/add': box => pollyAdd(box),
+  'polly/bank': box => pollyBank(box),
+  'polly/cal': box => pollyCal(box),
+  'polly/rep': box => pollyRep(box),
+  'polly/src': box => pollySrc(box)
 };
 let tab = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : 'suite';
 document.querySelectorAll('#atabs [data-t]').forEach(b => b.onclick = () => go(b.dataset.t));
@@ -50,7 +58,8 @@ function go(t) {
   document.querySelectorAll('#atabs [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === top));
   const subs = SUBTABS[top];
   $('#subtabs').innerHTML = subs.map(([k, n]) => `<button class="tbtn ${k === t ? 'on' : ''}" data-s="${k}">${n}</button>`).join('')
-    + (top === 'summit' ? '<a class="tbtn" href="/summit#/unlimited">∞ Summit unlimited</a>' : top === 'venn' ? '<a class="tbtn" href="/venn#/unlimited">∞ Venn unlimited</a>' : '');
+    + (top === 'summit' ? '<a class="tbtn" href="/summit#/unlimited">∞ Summit unlimited</a>' : top === 'venn' ? '<a class="tbtn" href="/venn#/unlimited">∞ Venn unlimited</a>'
+      : top === 'polly' ? '<a class="tbtn" href="/polly#/unlimited">∞ Polly unlimited</a>' : '');
   $('#subtabs').hidden = !subs.length;
   $('#subtabs').querySelectorAll('[data-s]').forEach(b => b.onclick = () => go(b.dataset.s));
   const box = $('#admin');
@@ -68,13 +77,15 @@ async function suiteTab(box) {
   const g = Object.fromEntries(d.games.map(x => [x.key, x]));
   $('#sumN').textContent = g.summit.openComplaints ? `(${g.summit.openComplaints})` : '';
   $('#vennN').textContent = g.venn.openComplaints ? `(${g.venn.openComplaints})` : '';
+  $('#pollyN').textContent = g.polly.openComplaints ? `(${g.polly.openComplaints})` : '';
   box.innerHTML = `
     <section class="card"><div class="kicker"><span>Today · ${d.date} (UTC)</span></div>
       <div class="section-title">Real players</div>
-      <div class="tbl"><table><thead><tr><th>Game</th><th>Today</th><th>Ever</th><th>Open complaints</th></tr></thead>
+      <div class="tbl"><table><thead><tr><th>Game</th><th>Today</th><th>Ever</th><th>Open complaints / reports</th></tr></thead>
         <tbody>${d.games.map(x => `<tr><td><b>${esc(x.name)}</b></td><td>${x.today}</td><td>${x.ever}</td><td>${x.openComplaints}</td></tr>`).join('')}
         <tr><td><b>Any game</b></td><td>–</td><td>${d.players}</td><td></td></tr></tbody></table></div>
-      <p class="sub">“Players” only counts people who started at least one stage or round. Another ${d.visitsOnly} ${d.visitsOnly === 1 ? 'visit' : 'visits'} never played: mostly bots, link previews, and new guest IDs after signing out. ${d.signedIn} ${d.signedIn === 1 ? 'account' : 'accounts'}.</p>
+      ${d.pollyBank && d.pollyBank.low ? `<div class="note warn" style="margin-top:10px">Polly's bank is low: ${d.pollyBank.fresh} approved, never-run questions left (${d.pollyBank.days} ${d.pollyBank.days === 1 ? 'day' : 'days'}). <a href="#polly/add">Add more</a>.</div>` : ''}
+      <p class="sub">“Players” only counts people who started at least one stage, round or Polly question. Another ${d.visitsOnly} ${d.visitsOnly === 1 ? 'visit' : 'visits'} never played: mostly bots, link previews, and new guest IDs after signing out. ${d.signedIn} ${d.signedIn === 1 ? 'account' : 'accounts'}.</p>
       <div class="section-title">${bucksIcon()} Your WK Bucks</div>
       <form class="cgrant" id="cgrant"><span>You have <b id="myBucks">${d.myBucks}</b>.</span>
         <input class="box" name="n" type="number" step="1" value="500" aria-label="How many WK Bucks">
@@ -549,6 +560,327 @@ async function vennJudg(box, q = '') {
     if (!confirm(`Forget the verdict for “${j.norm}”? The judge will decide again next time.`)) return;
     try { await api('admin/venn/judgments/delete', { puzzleId: j.puzzle_id, norm: j.norm }); toast('Deleted'); vennJudg(box, q); } catch (e) { toast(e.message); }
   });
+}
+
+/* ═══════════ Polly ═══════════ */
+const TOPICS = ['life', 'beliefs', 'money', 'politics'];
+const TOPIC_NAMES = { life: 'Everyday life', beliefs: 'Beliefs and society', money: 'Money and work', politics: 'Politics' };
+const ENTRY_NAMES = { 'auto-checked': 'auto-checked', 'admin-pasted': 'admin-pasted', 'admin-entered': 'admin-entered' };
+const pSplit = q => q.real == null ? '–' : `${q.real}/${100 - q.real}`;
+const niceDay = s => s ? new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '';
+const rescaleNow = (l, r) => (Number(l) + Number(r) > 0 && l !== '' && r !== '' ? Math.round(100 * Number(l) / (Number(l) + Number(r))) : '');
+let pollySources = [];
+
+async function loadPollySources() {
+  if (!pollySources.length) pollySources = (await api('admin/polly/sources')).sources;
+  return pollySources;
+}
+const badge = (t, cls = '') => `<span class="st ${cls}">${esc(t)}</span>`;
+const entryBadge = e => badge(ENTRY_NAMES[e] || e, e === 'auto-checked' ? 'approved' : e === 'admin-pasted' ? 'auto' : 'draft');
+
+function bankLowNote(b) {
+  return b.low ? `<div class="note warn" style="margin-top:10px">Bank low: ${b.fresh} approved, never-run ${b.fresh === 1 ? 'question' : 'questions'} left (${b.days} ${b.days === 1 ? 'day' : 'days'}). Add more so there's always 14 days ready.</div>` : '';
+}
+
+/** Every editable field of a question. Fields are read back with readQ(). */
+function qFields(q, sources, { compact = false } = {}) {
+  const v = k => esc(q[k] == null ? '' : q[k]);
+  const need = (k, extra = '') => (q[k] == null || q[k] === '' ? ' style="border-color:var(--bad)"' : extra);
+  return `<div class="form pq">
+    <label class="full">Short question (≤ 90, shown big)<input class="box" data-f="short" maxlength="90" value="${v('short')}"></label>
+    <label>Left label (orange, ≤ 14)<input class="box" data-f="left_label" maxlength="14" value="${v('left_label')}"></label>
+    <label>Right label (teal, ≤ 14)<input class="box" data-f="right_label" maxlength="14" value="${v('right_label')}"></label>
+    <label>Left raw %<input class="box" data-f="left_raw" type="number" step="0.1" value="${v('left_raw')}"></label>
+    <label>Right raw %<input class="box" data-f="right_raw" type="number" step="0.1" value="${v('right_raw')}"></label>
+    <label>Unsure raw % (optional)<input class="box" data-f="unsure_raw" type="number" step="0.1" value="${v('unsure_raw')}"></label>
+    <label>Real (left share, rescaled)<input class="box" data-real disabled value="${esc(rescaleNow(q.left_raw ?? '', q.right_raw ?? ''))}"></label>
+    <label class="full">Exact poll wording<textarea class="box" data-f="original_wording" style="min-height:60px">${v('original_wording')}</textarea></label>
+    <label>Source<select class="box" data-f="source_id">${sources.map(s => `<option value="${s.id}" ${s.id === Number(q.source_id) ? 'selected' : ''}>${esc(s.name)}${s.active ? '' : ' (off)'}</option>`).join('')}</select></label>
+    <label>URL<input class="box" data-f="url" value="${v('url')}"></label>
+    <label>Poll end date (exact day)<input class="box" data-f="poll_end_date" type="date" value="${v('poll_end_date')}"${need('poll_end_date')}></label>
+    <label>Sample size<input class="box" data-f="sample_size" type="number" step="1" min="1" value="${v('sample_size')}"${need('sample_size')}></label>
+    <label>Topic (not shown to players)<select class="box" data-f="topic">${TOPICS.map(t => `<option value="${t}" ${t === q.topic ? 'selected' : ''}>${TOPIC_NAMES[t]}</option>`).join('')}</select></label>
+    <label>Time-sensitive<span style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-f="time_sensitive" ${q.time_sensitive ? 'checked' : ''}><input class="box" data-f="ts_reason" placeholder="why (one line)" value="${v('ts_reason')}"></span></label>
+    ${compact ? '' : `<label class="full">Evidence (the exact text with the numbers)<textarea class="box" data-f="evidence" style="min-height:50px">${v('evidence')}</textarea></label>`}
+  </div>`;
+}
+function readQ(el) {
+  const out = {};
+  el.querySelectorAll('[data-f]').forEach(i => {
+    const k = i.dataset.f;
+    if (i.type === 'checkbox') out[k] = i.checked;
+    else if (['left_raw', 'right_raw', 'unsure_raw', 'sample_size', 'source_id'].includes(k)) out[k] = i.value === '' ? null : Number(i.value);
+    else out[k] = i.value.trim();
+  });
+  return out;
+}
+function wireReal(el) {
+  const upd = () => { const f = readQ(el); const r = el.querySelector('[data-real]'); if (r) r.value = rescaleNow(f.left_raw ?? '', f.right_raw ?? ''); };
+  el.querySelectorAll('[data-f="left_raw"], [data-f="right_raw"]').forEach(i => { i.oninput = upd; });
+}
+
+/* ── Dashboard ── */
+async function pollyDash(box) {
+  const d = await api('admin/polly/dashboard');
+  $('#pollyN').textContent = d.openReports ? `(${d.openReports})` : '';
+  box.innerHTML = `<section class="card"><div class="kicker"><span>Polly #${d.number} · ${d.date} (UTC)</span></div>
+      <div class="kpis" style="margin-top:10px">
+        <div class="kpi"><b>${d.players}</b><span>Players today</span></div>
+        <div class="kpi"><b>${d.bank.fresh}</b><span>Never-run approved (${d.bank.days} days)</span></div>
+        <div class="kpi"><b>${d.bank.unscheduled}</b><span>In the bank, unscheduled</span></div>
+        <div class="kpi"><b>${d.openReports}</b><span>Open reports</span></div>
+      </div>
+      ${bankLowNote(d.bank)}
+      <div class="section-title">Today's questions</div>
+      <div class="tbl"><table><thead><tr><th>#</th><th>Question</th><th>Real</th><th>Answers</th><th>Avg score</th><th>Avg miss</th></tr></thead>
+      <tbody>${d.slots.map(s => `<tr><td>${s.slot}</td><td>${esc(s.short)}<br><span class="sub">${esc(s.left_label)} / ${esc(s.right_label)}</span></td><td>${s.real}%</td>
+        <td>${s.plays}</td><td>${s.avg == null ? '–' : Math.round(s.avg)}</td><td>${s.miss == null ? '–' : (Math.round(s.miss * 10) / 10)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">No poll today. Approve questions and the calendar fills itself.</td></tr>'}</tbody></table></div>
+      ${d.stale.length ? `<div class="section-title">STALE warnings</div>${d.stale.map(s => `<p class="sub">${badge('STALE', 'rejected')} ${esc(s.date)} · Q${s.slot}: ${esc(s.short)} <i>(${esc(s.why)})</i></p>`).join('')}` : ''}
+    </section>`;
+}
+
+/* ── Add ── */
+let pollyAddMode = 'url';
+async function pollyAdd(box) {
+  const sources = (await loadPollySources());
+  const active = sources.filter(s => s.active);
+  const modes = [['url', 'Paste a URL'], ['text', 'Paste text instead'], ['hand', 'Enter by hand']];
+  box.innerHTML = `<section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Add questions</h2>
+      <p class="sub">Every number comes from a real poll page and is checked against it. The AI only reads the page you give it (it never searches or remembers numbers), and the server then checks each number against the page text. Allowed sites: ${active.map(s => esc(s.name)).join(', ')}.</p>
+      <div class="row">${modes.map(([k, n]) => `<button class="tbtn ${k === pollyAddMode ? 'on' : ''}" data-mode="${k}">${n}</button>`).join('')}</div>
+      <div id="addForm" style="margin-top:12px"></div></section>
+    <div id="addOut"></div>`;
+  box.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { pollyAddMode = b.dataset.mode; pollyAdd(box); });
+  const f = $('#addForm');
+  if (pollyAddMode === 'url') {
+    f.innerHTML = `<div class="row" style="margin-top:0"><input class="box" id="aUrl" style="flex:1;min-width:220px" placeholder="https://www.pewresearch.org/…"><button class="btn sm" id="aGo">Read the page</button></div>
+      <p class="sub">The server fetches the page (10 s, HTML only), keeps the first 60,000 characters of text, and sends that to the AI. If the fetch fails (login, PDF, chart image), paste the text instead.</p>`;
+    $('#aGo').onclick = () => runExtract({ url: $('#aUrl').value });
+  } else if (pollyAddMode === 'text') {
+    f.innerHTML = `<div class="form"><label>Source<select class="box" id="aSrc">${active.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>
+      <label>Source URL (must be on that site)<input class="box" id="aUrl" placeholder="https://…"></label>
+      <label class="full">Page text<textarea class="box" id="aText" style="min-height:180px" placeholder="Paste the report text here"></textarea></label></div>
+      <div class="row"><button class="btn sm" id="aGo">Read the text</button></div>`;
+    $('#aGo').onclick = () => runExtract({ url: $('#aUrl').value, text: $('#aText').value, sourceId: Number($('#aSrc').value) });
+  } else {
+    f.innerHTML = `${qFields({ topic: 'life', source_id: active[0] && active[0].id }, sources)}
+      <div class="row"><button class="btn sm" id="hSave">Save as draft</button><button class="btn sm alt" id="hApprove">Save and approve</button></div>`;
+    wireReal(f);
+    const save = async action => {
+      try { const r = await api('admin/polly/question', { ...readQ(f), action }); toast(action === 'approve' ? 'Approved and scheduled' : 'Saved as a draft'); if (r.warnings && r.warnings.length) toast(r.warnings.join(' ')); pollyAdd(box); }
+      catch (e) { toast(e.message); }
+    };
+    $('#hSave').onclick = () => save('save');
+    $('#hApprove').onclick = () => save('approve');
+  }
+
+  async function runExtract(body) {
+    const b = $('#aGo'); b.disabled = true; b.textContent = 'Reading…';
+    try { showCandidates(await api('admin/polly/extract', body)); }
+    catch (e) { $('#addOut').innerHTML = `<section class="card"><div class="note bad">${esc(e.message)}</div></section>`; }
+    finally { b.disabled = false; b.textContent = pollyAddMode === 'url' ? 'Read the page' : 'Read the text'; }
+  }
+  function showCandidates(d) {
+    const out = $('#addOut');
+    out.innerHTML = `<section class="card"><div class="kicker"><span>${esc(d.source.name)} · ${d.chars.toLocaleString('en-US')} characters read</span><a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.url)}</a></div>
+        <div class="section-title">Passed the check (${d.candidates.length})</div>
+        ${d.candidates.length ? '<p class="sub">Tick the ones to keep, fix anything, then save them as drafts. Blank date / sample size fields weren\'t on the page: type them from the source.</p>' : '<p class="empty">None passed.</p>'}
+        ${d.candidates.map((c, i) => `<div class="pcand" data-i="${i}">
+          <label class="pick"><input type="checkbox" data-keep="${i}"> Keep</label> ${entryBadge(c.entry)} ${c.time_sensitive ? badge('time-sensitive', 'auto') : ''} ${c.already ? badge('already in the bank', 'rejected') : ''}
+          <span class="sub">${c.dateChecked ? 'date checked' : 'date not on page'} · ${c.sampleChecked ? 'sample checked' : 'sample not on page'}</span>
+          ${qFields(c, sources)}</div>`).join('')}
+        ${d.candidates.length ? '<div class="row"><button class="btn" id="saveDrafts">Save as drafts</button></div>' : ''}
+      </section>
+      ${d.failed.length ? `<section class="card"><div class="section-title" style="margin-top:0">Failed the check (${d.failed.length})</div>
+        ${d.failed.map(c => `<div class="pfail"><b>${esc(c.short || c.original_wording || '(no wording)')}</b> <span class="sub">${esc(c.left_label)} ${c.left_raw ?? '?'} / ${esc(c.right_label)} ${c.right_raw ?? '?'}${c.unsure_raw != null ? ` / unsure ${c.unsure_raw}` : ''}</span>
+          <ul>${c.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>${c.evidence ? `<p class="sub">Evidence: “${esc(c.evidence)}”</p>` : ''}</div>`).join('')}</section>` : ''}`;
+    out.querySelectorAll('.pcand').forEach(wireReal);
+    const sd = $('#saveDrafts');
+    if (sd) sd.onclick = async () => {
+      const picked = [...out.querySelectorAll('.pcand')].filter(el => el.querySelector('[data-keep]').checked)
+        .map(el => ({ ...d.candidates[Number(el.dataset.i)], ...readQ(el) }));
+      if (!picked.length) return toast('Tick at least one.');
+      sd.disabled = true;
+      try { const r = await api('admin/polly/drafts', { candidates: picked }); toast(`Saved ${r.saved} ${r.saved === 1 ? 'draft' : 'drafts'}. Approve them in the bank.`); go('polly/bank'); }
+      catch (e) { toast(e.message); sd.disabled = false; }
+    };
+  }
+}
+
+/* ── Bank ── */
+let pollyBankFilter = { status: 'draft', topic: '', ts: '', entry: '', q: '' };
+async function pollyBank(box) {
+  const f = pollyBankFilter;
+  const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v !== '')).toString();
+  const d = await api('admin/polly/bank?' + qs);
+  pollySources = d.sources;
+  const sel = (k, opts) => `<select class="box" data-flt="${k}" style="width:auto">${opts.map(([v, n]) => `<option value="${v}" ${f[k] === v ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
+  box.innerHTML = `<section class="card">
+      <div class="row" style="margin-top:0">
+        ${sel('status', [['', 'Any status'], ['draft', 'Drafts'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['retired', 'Retired']])}
+        ${sel('topic', [['', 'Any topic'], ...TOPICS.map(t => [t, TOPIC_NAMES[t]])])}
+        ${sel('ts', [['', 'Time-sensitive or not'], ['1', 'Time-sensitive'], ['0', 'Not time-sensitive']])}
+        ${sel('entry', [['', 'Any entry'], ['auto-checked', 'auto-checked'], ['admin-pasted', 'admin-pasted'], ['admin-entered', 'admin-entered']])}
+        <input class="box" data-flt="q" style="flex:1;min-width:160px" placeholder="Search wording or URL" value="${esc(f.q)}"><button class="btn sm alt" id="bGo">Search</button></div>
+      ${bankLowNote(d.bank)}
+    </section>
+    <section class="card"><div class="tbl"><table><thead><tr><th>#</th><th>Status</th><th>Question</th><th>Split</th><th>Poll</th><th>Entry</th><th>Next run</th><th></th></tr></thead>
+      <tbody>${d.questions.map((q, i) => `<tr>
+        <td class="sub">${q.id}</td><td><span class="st ${q.status === 'retired' ? 'rejected' : q.status}">${q.status}</span></td>
+        <td><b>${esc(q.short)}</b><br><span class="sub">${esc(q.left_label)} / ${esc(q.right_label)} · ${esc(TOPIC_NAMES[q.topic] || q.topic)}${q.time_sensitive ? ' · time-sensitive' : ''} · ${esc(q.source)}</span>
+          ${q.status === 'draft' && q.problems.length ? `<br><span class="sub" style="color:var(--bad)">Needs: ${esc(q.problems.join(', '))}</span>` : ''}</td>
+        <td>${pSplit(q)}</td><td class="sub">${esc(niceDay(q.poll_end_date)) || '–'}<br>${q.sample_size ? Number(q.sample_size).toLocaleString('en-US') : '–'}</td>
+        <td>${entryBadge(q.entry)}</td><td class="sub">${esc(q.next_date || '')}${q.stale ? `<br>${badge('STALE', 'rejected')}` : ''}${q.runs ? `<br>ran ${q.runs}×` : ''}</td>
+        <td style="white-space:nowrap"><button class="mini-btn" data-edit="${i}">Edit</button>
+          ${q.status === 'draft' ? `<button class="mini-btn ok" data-approve="${i}" ${q.problems.length ? 'disabled title="' + esc(q.problems.join(', ')) + '"' : ''}>Approve</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">Nothing here.</td></tr>'}</tbody></table></div></section>`;
+  const read = () => { box.querySelectorAll('[data-flt]').forEach(i => { pollyBankFilter[i.dataset.flt] = i.value; }); pollyBank(box); };
+  box.querySelectorAll('select[data-flt]').forEach(s => { s.onchange = read; });
+  $('#bGo').onclick = read;
+  box.querySelector('[data-flt="q"]').onkeydown = e => { if (e.key === 'Enter') read(); };
+  box.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => pollyEditor(d.questions[Number(b.dataset.edit)], () => pollyBank(box)));
+  box.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => {
+    try { await api('admin/polly/question', { id: d.questions[Number(b.dataset.approve)].id, action: 'approve' }); toast('Approved and scheduled'); pollyBank(box); } catch (e) { toast(e.message); }
+  });
+}
+
+/** Edit any field; approve / reject / retire. `fix` (a report) saves without changing the status. */
+function pollyEditor(q, done, { report = null } = {}) {
+  const used = q.answers || 0;
+  openModal(`<h2>${report ? 'Fix this question' : `Question #${q.id}`}</h2>
+    <p class="sub" style="margin-top:0">${entryBadge(q.entry)} <span class="st ${q.status === 'retired' ? 'rejected' : q.status}">${q.status}</span> ${q.url ? `<a href="${esc(q.url)}" target="_blank" rel="noopener">open the source ↗</a>` : ''}</p>
+    <div id="pe">${qFields(q, pollySources)}</div>
+    ${used ? `<div class="note warn">${used} ${used === 1 ? 'answer' : 'answers'} so far. Changing the raw numbers rescores every play of this question.</div>` : ''}
+    ${report ? '<label class="sub" style="display:block;margin-top:10px">Note (admin only)<input class="box" id="peNote"></label>' : ''}
+    <div class="row">
+      ${report ? '<button class="btn" id="peFix">Save the fix</button>' : `<button class="btn" id="peSave">Save</button>
+      ${q.status !== 'approved' ? '<button class="btn alt" id="peApprove">Approve</button>' : ''}
+      ${q.status === 'draft' && !used ? '<button class="btn alt" id="peReject">Reject</button>' : ''}
+      ${q.status === 'approved' ? '<button class="btn alt" id="peRetire">Retire</button>' : ''}
+      ${q.status !== 'draft' && !used ? '<button class="btn alt" id="peDraft">Back to draft</button>' : ''}`}
+      <button class="btn alt" id="peCancel">Cancel</button></div>`);
+  const el = $('#pe');
+  wireReal(el);
+  const act = async action => {
+    try {
+      const r = report
+        ? await api('admin/polly/reports/resolve', { id: report.id, action: 'fix', fields: readQ(el), adminNote: $('#peNote').value })
+        : await api('admin/polly/question', { id: q.id, ...readQ(el), action });
+      closeModal();
+      toast(r.rescored ? `Saved · ${r.rescored} ${r.rescored === 1 ? 'answer' : 'answers'} rescored` : { approve: 'Approved and scheduled', reject: 'Rejected', retire: 'Retired', draft: 'Back to draft' }[action] || 'Saved');
+      done && done();
+    } catch (e) { toast(e.message); }
+  };
+  const on = (id, fn) => { const b = $(id); if (b) b.onclick = fn; };
+  on('#peSave', () => act('save')); on('#peApprove', () => act('approve')); on('#peReject', () => act('reject'));
+  on('#peRetire', () => { if (confirm('Retire it? It leaves every future day; past plays keep their scores.')) act('retire'); });
+  on('#peDraft', () => act('draft')); on('#peFix', () => act('fix')); on('#peCancel', closeModal);
+}
+
+/* ── Calendar ── */
+async function pollyCal(box) {
+  const d = await api('admin/polly/calendar');
+  const dates = [];
+  for (let x = d.from; x <= d.to; x = addDays(x, 1)) dates.push(x);
+  const at = (date, slot) => d.slots.find(s => s.date === date && s.slot === slot);
+  const editable = (date, s) => date > d.today || (date === d.today && !(s && s.answers));
+  const cell = (date, slot) => {
+    const s = at(date, slot), can = editable(date, s);
+    if (!s) return `<td class="pslot empty ${can ? 'drop' : ''}" data-date="${date}" data-slot="${slot}">${can && d.unscheduled.length
+      ? `<select class="box" data-assign="${date}|${slot}" style="height:30px;font-size:12px"><option value="">+ from the bank…</option>${d.unscheduled.map(q => `<option value="${q.id}">${esc(q.short.slice(0, 50))}</option>`).join('')}</select>` : '<span class="sub">–</span>'}</td>`;
+    return `<td class="pslot ${can ? 'drop' : ''}" data-date="${date}" data-slot="${slot}">
+      <div class="pq-chip" ${can ? 'draggable="true"' : ''} data-from="${date}|${slot}">
+        <b>${esc(s.short)}</b>
+        <div class="sub">${esc(TOPIC_NAMES[s.topic] || s.topic)}${s.time_sensitive ? ' · TS' : ''}${s.answers ? ` · ${s.answers} answers` : ''}</div>
+        <div>${s.stale ? `${badge('STALE', 'rejected')} ` : ''}${s.reused ? `${badge('reused', 'auto')} ` : ''}${s.pinned ? `${badge('pinned', 'approved')} ` : ''}${s.status !== 'approved' ? badge(s.status, 'draft') : ''}</div>
+        ${can ? `<div class="row" style="margin-top:4px;gap:4px"><button class="mini-btn" data-pin="${date}|${slot}|${s.pinned ? 'unpin' : 'pin'}">${s.pinned ? 'Unpin' : 'Pin'}</button>
+          <button class="mini-btn" data-move="${date}|${slot}">Move…</button><button class="mini-btn danger" data-unsched="${date}|${slot}">Unschedule</button></div>` : ''}
+      </div></td>`;
+  };
+  box.innerHTML = `<section class="card"><div class="kicker"><span>Past 14 days and the next 60 · today is Polly #${d.number}</span><span>${d.bank.unscheduled} unscheduled in the bank · ${d.bank.fresh} never run</span></div>
+      <p class="sub">Auto-fill puts approved questions into empty slots, oldest approval first: at most 1 politics question a day, never two from the same URL, and three different topics where it can. Drag a question onto another slot to swap or move it. Pinned questions are never moved by auto-fill. Past days and slots someone already answered are locked.</p>
+      ${bankLowNote(d.bank)}</section>
+    <section class="card"><div class="tbl"><table class="pcal"><thead><tr><th>Date</th><th>Q1</th><th>Q2</th><th>Q3</th></tr></thead>
+      <tbody>${dates.map(dt => `<tr class="${dt === d.today ? 'today' : ''}"><td><b>${dt.slice(5)}</b>${dt === d.today ? '<br><span class="badge">today</span>' : ''}</td>${[1, 2, 3].map(s => cell(dt, s)).join('')}</tr>`).join('')}</tbody></table></div></section>`;
+  const send = async body => {
+    try { const r = await api('admin/polly/schedule', body); if (r.warning) toast(r.warning); pollyCal(box); } catch (e) { toast(e.message); }
+  };
+  const pos = s => { const [date, slot] = s.split('|'); return { date, slot: Number(slot) }; };
+  box.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => { const [date, slot, act] = b.dataset.pin.split('|'); send({ action: act, a: { date, slot: Number(slot) } }); });
+  box.querySelectorAll('[data-unsched]').forEach(b => b.onclick = () => send({ action: 'unschedule', a: pos(b.dataset.unsched) }));
+  box.querySelectorAll('[data-assign]').forEach(s => s.onchange = () => { if (s.value) send({ action: 'assign', a: pos(s.dataset.assign), questionId: Number(s.value) }); });
+  box.querySelectorAll('[data-move]').forEach(b => b.onclick = () => {
+    const to = prompt('Move to which day and slot? (YYYY-MM-DD 1–3)', `${addDays(d.today, 1)} 1`);
+    if (!to) return;
+    const m = to.trim().match(/^(\d{4}-\d{2}-\d{2})\s+([123])$/);
+    if (!m) return toast('Type a date and a slot, like 2026-11-02 3');
+    send({ action: 'swap', a: pos(b.dataset.move), b: { date: m[1], slot: Number(m[2]) } });
+  });
+  // drag to swap / move
+  box.querySelectorAll('[draggable="true"]').forEach(el => {
+    el.ondragstart = e => { e.dataTransfer.setData('text/plain', el.dataset.from); e.dataTransfer.effectAllowed = 'move'; };
+  });
+  box.querySelectorAll('td.drop').forEach(td => {
+    td.ondragover = e => { e.preventDefault(); td.classList.add('over'); };
+    td.ondragleave = () => td.classList.remove('over');
+    td.ondrop = e => {
+      e.preventDefault(); td.classList.remove('over');
+      const from = e.dataTransfer.getData('text/plain');
+      if (from) send({ action: 'swap', a: pos(from), b: { date: td.dataset.date, slot: Number(td.dataset.slot) } });
+    };
+  });
+}
+
+/* ── Reports ── */
+async function pollyRep(box, status = 'open') {
+  const d = await api('admin/polly/reports?status=' + status);
+  pollySources = (await api('admin/polly/sources')).sources;
+  if (status === 'open') $('#pollyN').textContent = d.reports.length ? `(${d.reports.length})` : '';
+  box.innerHTML = `<div class="row" style="margin:0 0 12px">${['open', 'fixed', 'dismissed', 'retired'].map(s => `<button class="tbtn ${s === status ? 'on' : ''}" data-st="${s}">${s}</button>`).join('')}</div>
+    ${d.reports.map((r, i) => {
+      const q = r.question;
+      return `<section class="card" style="margin-bottom:14px">
+      <div class="kicker"><span>${esc(r.play_date || 'unlimited')} · ${esc(r.mode)} · question #${q.id}</span><span>${esc(r.created_at.slice(0, 16).replace('T', ' '))}</span></div>
+      <p style="margin:8px 0 4px"><b>${esc(q.short)}</b> <span class="sub">${esc(q.left_label)} ${q.left_raw} / ${esc(q.right_label)} ${q.right_raw}${q.unsure_raw != null ? ` / unsure ${q.unsure_raw}` : ''} → real ${q.real}%</span></p>
+      <p class="sub" style="margin:0">“${esc(q.original_wording)}” · ${esc(q.source)} · ${esc(niceDay(q.poll_end_date))} · <a href="${esc(q.url)}" target="_blank" rel="noopener">source ↗</a></p>
+      <p style="margin:8px 0">Player guessed <b>${r.guess}</b>${r.own ? ` and picked <b>${esc(r.own === 'left' ? q.left_label : q.right_label)}</b>` : ' (no side)'} · scored ${r.score}</p>
+      <div class="note warn"><b>${esc(r.reasonText)}</b>${r.note ? `: “${esc(r.note)}”` : ''}</div>
+      ${r.open_on_question > 1 ? `<p class="sub">${r.open_on_question} open reports on this question. Resolving one resolves them all.</p>` : ''}
+      ${status === 'open' ? `<div class="row"><button class="btn sm" data-fix="${i}">Fix…</button><input class="box" data-note="${i}" style="flex:1;min-width:160px;height:42px" placeholder="Note (admin only)">
+        <button class="btn sm alt" data-dismiss="${i}">Dismiss</button><button class="btn sm alt" data-retire="${i}">Retire</button></div>`
+        : `<p class="sub">Resolved ${esc((r.resolved_at || '').slice(0, 16).replace('T', ' '))}${r.admin_note ? ' · ' + esc(r.admin_note) : ''}</p>`}
+    </section>`;
+    }).join('') || '<div class="card"><p class="empty">Nothing here.</p></div>'}`;
+  box.querySelectorAll('[data-st]').forEach(b => b.onclick = () => pollyRep(box, b.dataset.st));
+  const resolve = async (i, action) => {
+    try { await api('admin/polly/reports/resolve', { id: d.reports[i].id, action, adminNote: box.querySelector(`[data-note="${i}"]`).value }); toast(action === 'dismiss' ? 'Dismissed' : 'Retired'); pollyRep(box, 'open'); }
+    catch (e) { toast(e.message); }
+  };
+  box.querySelectorAll('[data-dismiss]').forEach(b => b.onclick = () => resolve(Number(b.dataset.dismiss), 'dismiss'));
+  box.querySelectorAll('[data-retire]').forEach(b => b.onclick = () => { if (confirm('Retire this question from every future day?')) resolve(Number(b.dataset.retire), 'retire'); });
+  box.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => {
+    const r = d.reports[Number(b.dataset.fix)];
+    pollyEditor(r.question, () => pollyRep(box, 'open'), { report: r });
+  });
+}
+
+/* ── Sources (the allowlist) ── */
+async function pollySrc(box) {
+  const d = await api('admin/polly/sources');
+  pollySources = d.sources;
+  box.innerHTML = `<section class="card"><p class="sub" style="margin-top:0">Only pages on these sites (or their subdomains) can be read. A URL anywhere else is refused before anything is fetched.</p>
+    <div class="tbl" style="margin-top:10px"><table><thead><tr><th>Name</th><th>Domains</th><th>On</th><th>Questions</th><th></th></tr></thead>
+    <tbody>${d.sources.map((s, i) => `<tr><td><input data-n="${i}" value="${esc(s.name)}"></td><td><input data-d="${i}" value="${esc(s.domains.join(', '))}" style="max-width:280px"></td>
+      <td><input type="checkbox" data-a="${i}" ${s.active ? 'checked' : ''}></td><td>${s.questions}</td>
+      <td style="white-space:nowrap"><button class="mini-btn" data-save="${i}">Save</button> ${s.questions ? '' : `<button class="mini-btn danger" data-del="${i}">✕</button>`}</td></tr>`).join('')}
+      <tr><td><input id="nsName" placeholder="New source"></td><td><input id="nsDom" placeholder="example.org, polls.example.org" style="max-width:280px"></td><td></td><td></td><td><button class="mini-btn ok" id="nsAdd">Add</button></td></tr>
+    </tbody></table></div></section>`;
+  const save = async body => { try { pollySources = (await api('admin/polly/sources', body)).sources; toast('Saved'); pollySrc(box); } catch (e) { toast(e.message); } };
+  box.querySelectorAll('[data-save]').forEach(b => b.onclick = () => {
+    const i = b.dataset.save;
+    save({ id: d.sources[i].id, name: box.querySelector(`[data-n="${i}"]`).value, domains: box.querySelector(`[data-d="${i}"]`).value, active: box.querySelector(`[data-a="${i}"]`).checked });
+  });
+  box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Remove this source?')) save({ id: d.sources[b.dataset.del].id, remove: true }); });
+  $('#nsAdd').onclick = () => save({ name: $('#nsName').value, domains: $('#nsDom').value, active: true });
 }
 
 window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (t && t !== tab) go(t); });

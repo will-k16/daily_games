@@ -74,7 +74,7 @@ function redirect(location, cookies = []) {
 
 const safeReturn = r => (typeof r === 'string' && r.startsWith('/') && !r.startsWith('//')) ? r : '/';
 // Sign-in always lands on a fresh page load of the page it started from: the suite home or a game.
-const HOMES = ['/', '/summit', '/summit/', '/venn', '/venn/'];
+const HOMES = ['/', '/summit', '/summit/', '/venn', '/venn/', '/polly', '/polly/'];
 const homeFor = r => HOMES.includes(String(r || '').split(/[?#]/)[0]) ? String(r).split(/[?#]/)[0] : '/';
 
 export function googleStart(request, env) {
@@ -174,9 +174,14 @@ async function signIn(env, who, sub, email, secure) {
           (SELECT 1 FROM venn_plays q WHERE q.player_id = ? AND q.puzzle_id = venn_plays.puzzle_id AND q.mode = venn_plays.mode)`)
           .bind(account.id, anon.id, account.id),
         db.prepare(`UPDATE venn_complaints SET player_id = ? WHERE player_id = ?`).bind(account.id, anon.id),
+        db.prepare(`UPDATE polly_plays SET player_id = ? WHERE player_id = ? AND (mode = 'unlimited' OR NOT EXISTS
+          (SELECT 1 FROM polly_plays q WHERE q.player_id = ? AND q.date IS polly_plays.date AND q.mode = polly_plays.mode))`)
+          .bind(account.id, anon.id, account.id),
+        db.prepare(`UPDATE polly_reports SET player_id = ? WHERE player_id = ?`).bind(account.id, anon.id),
         db.prepare(`UPDATE OR IGNORE purchases SET player_id = ? WHERE player_id = ?`).bind(account.id, anon.id),
         db.prepare(`UPDATE players SET skipper = (SELECT skipper FROM players WHERE id = ?) WHERE id = ? AND skipper = '{}'`).bind(anon.id, account.id),
-        db.prepare(`UPDATE players SET mel = (SELECT mel FROM players WHERE id = ?) WHERE id = ? AND mel = '{}'`).bind(anon.id, account.id)
+        db.prepare(`UPDATE players SET mel = (SELECT mel FROM players WHERE id = ?) WHERE id = ? AND mel = '{}'`).bind(anon.id, account.id),
+        db.prepare(`UPDATE players SET polly = (SELECT polly FROM players WHERE id = ?) WHERE id = ? AND polly = '{}'`).bind(anon.id, account.id)
       ]);
     }
   }

@@ -39,13 +39,18 @@ before(async () => {
   await vplay(1, 1, 'daily', 'done', 100);
   await vplay(2, 2, 'daily', 'done', 100);
   await vplay(3, 3, 'archive', 'done', 70);   // floor(70 / 8) = 8
+  // Polly: a perfect daily day (14 × 3 + 8 = 50), and one archive question with no finished day (floor(70 / 14) = 5).
+  await db.prepare(`INSERT INTO polly_plays (id, player_id, date, mode, total, done, created_at) VALUES (1, 'p1', '2026-10-18', 'daily', 300, 3, ?), (2, 'p1', '2026-10-17', 'archive', 70, 1, ?)`).bind(now, now).run();
+  for (const [id, play, slot, score] of [[1, 1, 1, 100], [2, 1, 2, 100], [3, 1, 3, 100], [4, 2, 1, 70]]) {
+    await db.prepare(`INSERT INTO polly_guesses (id, play_id, slot, question_id, guess, real, score, created_at) VALUES (?, ?, ?, 1, 50, 50, ?, ?)`).bind(id, play, slot, score, now).run();
+  }
 }, { timeout: 60000 });
 
 after(async () => { if (proxy) await proxy.dispose(); try { rmSync(dir, { recursive: true, force: true }); } catch { /* still locked on Windows */ } });
 
-test('earned = Summit + Venn; a perfect Venn day is 50', async () => {
+test('earned = Summit + Venn + Polly; a perfect Venn day and a perfect Polly day are 50 each', async () => {
   const b = await bucksBalance(env, 'p1');
-  assert.equal(b.earned, 15 + 7 + 4 + 5 + 4 + 50 + 8);
+  assert.equal(b.earned, 15 + 7 + 4 + 5 + 4 + 50 + 8 + 50 + 5);
   assert.equal(b.spent, 0);
 });
 
@@ -53,7 +58,11 @@ test('admin grants are negative-price purchases; buying spends from the same bal
   await env.DB.prepare(`INSERT INTO purchases (player_id, item, price, created_at) VALUES ('p1', 'grant:1', -100, ?)`).bind(now).run();
   let b = await bucksBalance(env, 'p1');
   assert.equal(b.balance, b.earned + 100);
-  const who = { player: { id: 'p1', skipper: '{}', mel: '{}' } };
+  const who = { player: { id: 'p1', skipper: '{}', mel: '{}', polly: '{}' } };
+  const p = await buy(env, who, { slot: 'visitors', id: 'ducks' }, 'polly');
+  assert.ok(p.owned.includes('polly:visitors:ducks'));
+  assert.equal(p.look.visitors, 'ducks');
+  await env.DB.prepare(`DELETE FROM purchases WHERE item = 'polly:visitors:ducks'`).run();
   const r = await buy(env, who, { slot: 'hat', id: 'crown' }, 'mel');
   assert.ok(r.owned.includes('mel:hat:crown'));
   assert.equal(r.look.hat, 'crown');

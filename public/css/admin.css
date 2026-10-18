@@ -38,3 +38,16 @@ input.box, select.box { width: 100%; height: 40px; padding: 0 10px; border: 3px 
 .vc { display: inline-flex; align-items: center; gap: 5px; font-weight: 800; font-size: 13px; }
 .vc i, .fitbox i { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--ink); border-radius: 50%; }
 .fitbox { display: inline-flex; align-items: center; gap: 2px; margin-right: 6px; }
+
+/* Polly */
+.pq { margin-top: 8px; }
+.pcand { margin-top: 14px; padding: 12px; border: 3px solid var(--line); border-radius: 10px; background: var(--panel2); }
+.pcand .pick { display: inline-flex; gap: 6px; align-items: center; font-weight: 800; margin-right: 6px; }
+.pfail { margin-top: 10px; padding: 10px 12px; border: 2px dashed var(--line); border-radius: 8px; }
+.pfail ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--bad); }
+.pcal td.pslot { min-width: 190px; }
+.pcal td.over { outline: 3px dashed var(--accent); outline-offset: -3px; }
+.pq-chip { padding: 6px 8px; border: 2px solid var(--line); border-radius: 8px; background: var(--panel2); }
+.pq-chip[draggable="true"] { cursor: grab; }
+.pq-chip b { font-size: 13px; line-height: 1.2; display: block; }
+.pq-chip .st { font-size: 11px; padding: 0 5px; }

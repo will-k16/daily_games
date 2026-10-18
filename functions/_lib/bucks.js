@@ -1,32 +1,39 @@
-// WK Bucks: the suite-wide ledger (earned in any game, spent in any game's shop) and the two shops,
-// Skipper's wardrobe (Summit) and Mel's wardrobe (Venn). Catalogs live in public/js/wardrobe.js and
-// public/js/mel-wardrobe.js. Admin grants are purchases with a negative price, so the balance is
+// WK Bucks: the suite-wide ledger (earned in any game, spent in any game's shop) and the three shops,
+// Skipper's wardrobe (Summit), Mel's wardrobe (Venn) and Polly's shop (Polly). Catalogs live in
+// public/js/wardrobe.js, public/js/mel-wardrobe.js and public/js/polly-wardrobe.js. Admin grants are purchases with a negative price, so the balance is
 // simply earned − spent.
 import { HttpError, nowISO, safeJson } from './util.js';
 import { WARDROBE, DAY_BONUS, itemFor, itemKey, resolveLook, cleanName } from '../../public/js/wardrobe.js';
 import { MEL_WARDROBE, melItemFor, melItemKey, resolveMelLook } from '../../public/js/mel-wardrobe.js';
+import { POLLY_WARDROBE, pollyItemFor, pollyItemKey, resolvePollyLook } from '../../public/js/polly-wardrobe.js';
 
 export const lookOf = player => resolveLook(safeJson((player && player.skipper) || '{}', {}));
 export const melLookOf = player => resolveMelLook(safeJson((player && player.mel) || '{}', {}));
+export const pollyLookOf = player => resolvePollyLook(safeJson((player && player.polly) || '{}', {}));
 
 /**
- * Earned from finished Summit stages and Venn rounds (same rules as bucksFor / bucksForRound), minus
- * what's been spent.
+ * Earned from finished Summit stages, Venn rounds and Polly questions (same rules as bucksFor /
+ * bucksForRound / bucksForQuestion), minus what's been spent.
  *   Summit: 1 per 100 m on the daily, +5 for a perfect 1,000 stage, +5 for finishing all three; archive half.
  *   Venn:   floor(score / 4) per daily round, floor(score / 8) per archive round.
+ *   Polly:  floor(score / 7) per daily question + 8 for all three; floor(score / 14) + 4 on the archive.
  */
 export async function bucksBalance(env, playerId) {
   const db = env.DB;
-  const [stages, days, venn, spent] = await Promise.all([
+  const [stages, days, venn, polly, pollyDays, spent] = await Promise.all([
     db.prepare(`SELECT COALESCE(SUM(CASE WHEN mode = 'daily' THEN score / 100 + (CASE WHEN score >= 1000 THEN 5 ELSE 0 END)
         WHEN mode = 'archive' THEN score / 200 ELSE 0 END), 0) AS n FROM plays WHERE player_id = ? AND state = 'done'`).bind(playerId).first(),
     db.prepare(`SELECT COUNT(*) AS n FROM (SELECT z.date FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id
         WHERE pl.player_id = ? AND pl.mode = 'daily' AND pl.state = 'done' GROUP BY z.date HAVING COUNT(*) >= 3)`).bind(playerId).first(),
     db.prepare(`SELECT COALESCE(SUM(CASE WHEN mode = 'daily' THEN COALESCE(score, 0) / 4 WHEN mode = 'archive' THEN COALESCE(score, 0) / 8 ELSE 0 END), 0) AS n
         FROM venn_plays WHERE player_id = ? AND state = 'done'`).bind(playerId).first(),
+    db.prepare(`SELECT COALESCE(SUM(CASE WHEN pl.mode = 'daily' THEN g.score / 7 WHEN pl.mode = 'archive' THEN g.score / 14 ELSE 0 END), 0) AS n
+        FROM polly_guesses g JOIN polly_plays pl ON pl.id = g.play_id WHERE pl.player_id = ?`).bind(playerId).first(),
+    db.prepare(`SELECT COALESCE(SUM(CASE WHEN mode = 'daily' THEN 8 WHEN mode = 'archive' THEN 4 ELSE 0 END), 0) AS n
+        FROM polly_plays WHERE player_id = ? AND done >= 3`).bind(playerId).first(),
     db.prepare(`SELECT COALESCE(SUM(price), 0) AS n FROM purchases WHERE player_id = ?`).bind(playerId).first()
   ]);
-  const earned = stages.n + days.n * DAY_BONUS + venn.n;
+  const earned = stages.n + days.n * DAY_BONUS + venn.n + polly.n + pollyDays.n;
   return { earned, spent: spent.n, balance: earned - spent.n };
 }
 
@@ -38,7 +45,8 @@ async function owned(env, playerId) {
 
 const SHOPS = {
   skipper: { column: 'skipper', catalog: WARDROBE, itemFor, itemKey, lookOf, resolve: resolveLook },
-  mel: { column: 'mel', catalog: MEL_WARDROBE, itemFor: melItemFor, itemKey: melItemKey, lookOf: melLookOf, resolve: resolveMelLook }
+  mel: { column: 'mel', catalog: MEL_WARDROBE, itemFor: melItemFor, itemKey: melItemKey, lookOf: melLookOf, resolve: resolveMelLook },
+  polly: { column: 'polly', catalog: POLLY_WARDROBE, itemFor: pollyItemFor, itemKey: pollyItemKey, lookOf: pollyLookOf, resolve: resolvePollyLook }
 };
 
 function shop(name) { return SHOPS[name]; }

@@ -3,9 +3,11 @@ import { identify, googleStart, googleCallback, devLogin, logout, register, pass
 import * as bucks from '../_lib/bucks.js';
 import * as game from '../_lib/game.js';
 import * as venn from '../_lib/venn.js';
+import * as polly from '../_lib/polly.js';
 import * as suite from '../_lib/suite.js';
 import * as admin from '../_lib/admin.js';
 import * as vennAdmin from '../_lib/venn-admin.js';
+import * as pollyAdmin from '../_lib/polly-admin.js';
 
 const ROUTES = {
   // Suite
@@ -48,6 +50,21 @@ const ROUTES = {
   'POST mel/buy': (c) => bucks.buy(c.env, c.who, c.body, 'mel'),
   'POST mel/wear': (c) => bucks.wear(c.env, c.who, c.body, 'mel'),
 
+  // Polly
+  'GET polly/today': (c) => polly.today(c.env, c.who),
+  'POST polly/lock': (c) => polly.lock(c.env, c.who, c.body),
+  'GET polly/summary': (c) => polly.summary(c.env, c.who, c.q),
+  'POST polly/report': (c) => polly.report(c.env, c.who, c.body),
+  'GET polly/stats': (c) => polly.stats(c.env, c.who),
+  'GET polly/archive': (c) => polly.archiveList(c.env, c.who),
+  'GET polly/archive/day': (c) => polly.archiveDay(c.env, c.who, c.q.get('date')),
+  'POST polly/archive/lock': (c) => polly.archiveLock(c.env, c.who, c.body),
+  'POST polly/unlimited/next': (c) => polly.unlimitedNext(c.env, c.who),
+  'POST polly/unlimited/lock': (c) => polly.unlimitedLock(c.env, c.who, c.body),
+  'GET polly': (c) => bucks.get(c.env, c.who, 'polly'),
+  'POST polly/buy': (c) => bucks.buy(c.env, c.who, c.body, 'polly'),
+  'POST polly/wear': (c) => bucks.wear(c.env, c.who, c.body, 'polly'),
+
   // Admin: suite + Summit
   'GET admin/suite': (c) => admin.suite(c.env, c.who),
   'POST admin/bucks': (c) => admin.grantBucks(c.env, c.who, c.body),
@@ -73,7 +90,20 @@ const ROUTES = {
   'POST admin/venn/complaints/resolve': (c) => vennAdmin.resolveComplaint(c.env, c.body),
   'GET admin/venn/judgments': (c) => vennAdmin.judgments(c.env, c.q),
   'POST admin/venn/judgments': (c) => vennAdmin.saveJudgment(c.env, c.body),
-  'POST admin/venn/judgments/delete': (c) => vennAdmin.deleteJudgment(c.env, c.body)
+  'POST admin/venn/judgments/delete': (c) => vennAdmin.deleteJudgment(c.env, c.body),
+
+  // Admin: Polly
+  'GET admin/polly/dashboard': (c) => pollyAdmin.dashboard(c.env),
+  'POST admin/polly/extract': (c) => pollyAdmin.extract(c.env, c.body),
+  'POST admin/polly/drafts': (c) => pollyAdmin.saveDrafts(c.env, c.body),
+  'POST admin/polly/question': (c) => pollyAdmin.saveQuestion(c.env, c.body),
+  'GET admin/polly/bank': (c) => pollyAdmin.bank(c.env, c.q),
+  'GET admin/polly/calendar': (c) => pollyAdmin.calendar(c.env),
+  'POST admin/polly/schedule': (c) => pollyAdmin.schedule(c.env, c.body),
+  'GET admin/polly/reports': (c) => pollyAdmin.reports(c.env, c.q),
+  'POST admin/polly/reports/resolve': (c) => pollyAdmin.resolveReport(c.env, c.body),
+  'GET admin/polly/sources': (c) => pollyAdmin.sources(c.env),
+  'POST admin/polly/sources': (c) => pollyAdmin.saveSource(c.env, c.body)
 };
 
 // The pause sent with navigator.sendBeacon as the page hides arrives as text/plain (a beacon can't

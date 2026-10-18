@@ -3,6 +3,7 @@
 import { bucksIcon } from './bucks.js';
 import { showAccount, signInReturn } from './account.js';
 import { drawVennPreview } from './venn-scene.js';
+import { drawPollyPreview } from './polly-scene.js';
 import { bayer } from './pixel.js';
 
 const $ = s => document.querySelector(s);
@@ -11,6 +12,7 @@ const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const S = { me: { signedIn: false }, data: null, previews: [] };
 
 const GAMES = {
+  polly: { name: 'Polly', pitch: 'Guess what America said.', href: '/polly', color: '#1f8a8a', draw: (cv, n) => drawPollyPreview(cv, n) },
   venn: { name: 'Venn', pitch: 'Find what fits both.', href: '/venn', color: '#2f8f4e', draw: (cv, n) => drawVennPreview(cv, n) },
   summit: { name: 'Summit', pitch: 'Name something juuust right.', href: '/summit', color: '#d9482b', draw: drawSummitPreview }
 };
@@ -64,6 +66,7 @@ window.addEventListener('pageshow', e => { if (e.persisted) stampTitle(); });
 
 /* ── Status lines ── */
 function status(g) {
+  if (g.key === 'polly') return g.noPoll && !g.done ? 'No poll today' : g.done === 0 ? 'Not played yet' : g.done < g.of ? `${g.done} of ${g.of} answered` : `${g.total}/${g.max}`;
   if (g.key === 'venn') return g.done === 0 ? 'Not played yet' : g.done === 1 ? 'Round 1 done' : `${g.total} / ${g.max}`;
   if (g.done === 0) return 'Not played yet';
   if (g.done < g.of) return `${g.done} of ${g.of} stages`;

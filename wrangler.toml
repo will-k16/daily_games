@@ -13,6 +13,8 @@ migrations_dir = "migrations"
 LAUNCH_DATE = "2026-10-08"
 # First Venn day (UTC): the day Venn is deployed. Venn #1 is this date.
 VENN_LAUNCH_DATE = "2026-10-18"
+# First Polly day (UTC): the day Polly is deployed. Polly #1 is this date.
+POLLY_LAUNCH_DATE = "2026-10-18"
 # Comma-separated Google emails that can open /admin
 ADMIN_EMAILS = "will.kolander@gmail.com"
 # Optional "buy me a coffee" style link. Leave empty to hide.
