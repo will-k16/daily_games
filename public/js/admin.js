@@ -662,6 +662,7 @@ async function pollyDash(box) {
         <div class="kpi"><b>${a.queued || 0}</b><span>Pages waiting to be read</span></div>
       </div>
       ${bankLowNote(d.bank)}
+      ${d.bank.expired ? `<p class="sub">${d.bank.expired} approved ${d.bank.expired === 1 ? 'question is' : 'questions are'} too old to run (time-sensitive and over 3 months past the poll). In the <a href="#polly/bank">Bank</a>, untick time-sensitive if it isn't really, or retire it.</p>` : ''}
       ${d.gaps.length ? `<div class="note warn" style="margin-top:10px">Not full yet in the next 7 days: ${d.gaps.map(g => esc(day(g))).join(', ')}.</div>` : '<p class="sub">The next 7 days are full.</p>'}
       <p class="sub">Auto-find last ran ${esc(a.lastRun ? new Date(a.lastRun).toLocaleString() : 'never')}.
         <a href="#polly/auto">Auto-find</a> · ${a.drafts ? `<a href="#polly/bank">Review ${a.drafts} ${a.drafts === 1 ? 'draft' : 'drafts'}</a> · ` : ''}<a href="#polly/cal">Calendar</a></p>
@@ -876,13 +877,16 @@ async function pollyCal(box) {
       <div class="pq-chip" ${can ? 'draggable="true"' : ''} data-from="${date}|${slot}">
         <b>${esc(s.short)}</b>
         <div class="sub">${esc(TOPIC_NAMES[s.topic] || s.topic)}${s.time_sensitive ? ' · TS' : ''}${s.answers ? ` · ${s.answers} answers` : ''}</div>
-        <div>${s.stale ? `${badge('STALE', 'rejected')} ` : ''}${s.reused ? `${badge('reused', 'auto')} ` : ''}${s.pinned ? `${badge('pinned', 'approved')} ` : ''}${s.status !== 'approved' ? badge(s.status, 'draft') : ''}</div>
+        <div>${s.stale ? `<span title="${esc(s.stale)}">${badge('STALE', 'rejected')}</span> ` : ''}${s.reused ? `${badge('reused', 'auto')} ` : ''}${s.pinned ? `${badge('pinned', 'approved')} ` : ''}${s.status !== 'approved' ? badge(s.status, 'draft') : ''}</div>
         ${can ? `<div class="row" style="margin-top:4px;gap:4px"><button class="mini-btn" data-pin="${date}|${slot}|${s.pinned ? 'unpin' : 'pin'}">${s.pinned ? 'Unpin' : 'Pin'}</button>
-          <button class="mini-btn" data-move="${date}|${slot}">Move…</button><button class="mini-btn danger" data-unsched="${date}|${slot}">Unschedule</button></div>` : ''}
+          <button class="mini-btn" data-move="${date}|${slot}">Move…</button><button class="mini-btn" data-unsched="${date}|${slot}" title="Move to the back of the line; the last scheduled question takes this slot">Unschedule</button>
+          <button class="mini-btn danger" data-retireq="${s.id}" title="Never use this question again">Retire</button></div>` : ''}
+        ${s.stale ? `<div class="sub" style="color:var(--bad)">${esc(s.stale)}</div>` : ''}
       </div></td>`;
   };
   box.innerHTML = `<section class="card"><div class="kicker"><span>Past 14 days and the next 60 · today is Polly #${d.number}</span><span>${d.bank.unscheduled} unscheduled in the bank · ${d.bank.fresh} never run</span></div>
-      <p class="sub">Auto-fill puts approved questions into empty slots, oldest approval first: at most 1 politics question a day, never two from the same URL, and three different topics where it can. Drag a question onto another slot to swap or move it. Pinned questions are never moved by auto-fill. Past days and slots someone already answered are locked.</p>
+      <p class="sub">Auto-fill puts approved questions into empty slots, oldest approval first: at most 1 politics question a day, never two from the same URL, and three different topics where it can. Drag a question onto another slot to swap or move it. Unschedule moves a question to the back of the line (the slot takes the last scheduled question, so the day stays full); Retire removes it for good. Pinned questions are never moved by auto-fill. Past days and slots someone already answered are locked.</p>
+      <p class="sub"><b>STALE</b> means a time-sensitive question would run more than 3 months after its poll ended (or any question more than 10 years after). Auto-fill no longer puts a question on a day where it would be stale, and takes stale ones back off; you'll only see it on a question you pinned there yourself, or one already answered today.</p>
       ${bankLowNote(d.bank)}</section>
     <section class="card"><div class="tbl"><table class="pcal"><thead><tr><th>Date</th><th>Q1</th><th>Q2</th><th>Q3</th></tr></thead>
       <tbody>${dates.map(dt => `<tr class="${dt === d.today ? 'today' : ''}"><td><b>${dt.slice(5)}</b>${dt === d.today ? '<br><span class="badge">today</span>' : ''}</td>${[1, 2, 3].map(s => cell(dt, s)).join('')}</tr>`).join('')}</tbody></table></div></section>`;
@@ -892,6 +896,10 @@ async function pollyCal(box) {
   const pos = s => { const [date, slot] = s.split('|'); return { date, slot: Number(slot) }; };
   box.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => { const [date, slot, act] = b.dataset.pin.split('|'); send({ action: act, a: { date, slot: Number(slot) } }); });
   box.querySelectorAll('[data-unsched]').forEach(b => b.onclick = () => send({ action: 'unschedule', a: pos(b.dataset.unsched) }));
+  box.querySelectorAll('[data-retireq]').forEach(b => b.onclick = async () => {
+    if (!confirm('Retire this question? It leaves every future day and is never used again. Past plays keep their scores.')) return;
+    try { await api('admin/polly/question', { id: Number(b.dataset.retireq), action: 'retire', fields: false }); toast('Retired'); pollyCal(box); } catch (e) { toast(e.message); }
+  });
   box.querySelectorAll('[data-assign]').forEach(s => s.onchange = () => { if (s.value) send({ action: 'assign', a: pos(s.dataset.assign), questionId: Number(s.value) }); });
   box.querySelectorAll('[data-move]').forEach(b => b.onclick = () => {
     const to = prompt('Move to which day and slot? (YYYY-MM-DD 1–3)', `${addDays(d.today, 1)} 1`);

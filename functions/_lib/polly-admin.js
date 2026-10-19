@@ -22,10 +22,13 @@ function adminQ(q, sources = []) {
 
 /** Approved questions that have never run (scheduled or not), and how many days they cover. */
 export async function bankInfo(env) {
-  const r = await env.DB.prepare(`SELECT COUNT(*) AS n, SUM(NOT EXISTS (SELECT 1 FROM polly_schedule s WHERE s.question_id = q.id)) AS unscheduled
-      FROM polly_questions q WHERE q.status = 'approved' AND q.last_run_date IS NULL`).first();
-  const n = r.n || 0;
-  return { fresh: n, unscheduled: r.unscheduled || 0, days: Math.floor(n / SLOTS), low: n < BANK_LOW_DAYS * SLOTS };
+  const today = todayUTC();
+  const rows = (await env.DB.prepare(`SELECT q.time_sensitive, q.poll_end_date, NOT EXISTS (SELECT 1 FROM polly_schedule s WHERE s.question_id = q.id) AS unscheduled
+      FROM polly_questions q WHERE q.status = 'approved' AND q.last_run_date IS NULL`).all()).results;
+  // Questions already too old to run (time-sensitive past 3 months, or over 10 years) can't fill a day, so they don't count.
+  const usable = rows.filter(r => !staleReason(r, today));
+  const n = usable.length;
+  return { fresh: n, unscheduled: usable.filter(r => r.unscheduled).length, expired: rows.length - n, days: Math.floor(n / SLOTS), low: n < BANK_LOW_DAYS * SLOTS };
 }
 
 async function staleList(env, from, to) {
@@ -304,8 +307,26 @@ export async function schedule(env, body) {
   }
   if (action === 'unschedule') {
     if (!ra) throw new HttpError(404, 'That slot is empty.');
-    await db.prepare(`DELETE FROM polly_schedule WHERE date = ? AND slot = ?`).bind(A.date, A.slot).run();
-    return { ok: true };
+    // It goes to the back of the line: the slot takes the question from the furthest-out scheduled day (one that
+    // fits this day's rules), and auto-fill then puts the unscheduled question at the end of the schedule.
+    await db.batch([
+      db.prepare(`DELETE FROM polly_schedule WHERE date = ? AND slot = ?`).bind(A.date, A.slot),
+      db.prepare(`UPDATE polly_questions SET approved_at = ? WHERE id = ?`).bind(nowISO(), ra.question_id)
+    ]);
+    const day = (await db.prepare(`SELECT q.id, q.topic, q.url FROM polly_schedule s JOIN polly_questions q ON q.id = s.question_id WHERE s.date = ?`).bind(A.date).all()).results;
+    const later = (await db.prepare(`SELECT s.date, s.slot, q.id, q.topic, q.url, q.time_sensitive, q.poll_end_date FROM polly_schedule s JOIN polly_questions q ON q.id = s.question_id
+        WHERE s.date > ? AND s.date != ? AND s.pinned = 0 AND s.reused = 0 AND q.id != ? ORDER BY s.date DESC, s.slot DESC LIMIT 200`).bind(todayUTC(), A.date, ra.question_id).all()).results;
+    const pull = later.find(c => fitsDay(c, day) && !staleReason(c, A.date));
+    if (pull) {
+      await db.batch([
+        db.prepare(`DELETE FROM polly_schedule WHERE date = ? AND slot = ?`).bind(pull.date, pull.slot),
+        db.prepare(`INSERT INTO polly_schedule (date, slot, question_id, pinned, reused) VALUES (?, ?, ?, 0, 0)`).bind(A.date, A.slot, pull.id)
+      ]);
+    }
+    await autoFill(env);
+    const now = await get(A);
+    return { ok: true, warning: !now ? 'Back in the bank. Nothing else in the bank fits that slot, so it stays empty for now.'
+      : now.question_id === ra.question_id ? 'Back in the bank, but it was the only question that fits, so it went straight back in. Retire it to remove it for good.' : '' };
   }
   if (action === 'assign') {
     if (ra) throw new HttpError(409, 'That slot is taken. Unschedule it first.');

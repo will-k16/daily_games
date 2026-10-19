@@ -131,3 +131,24 @@ test('calendar swap, pin and unschedule; past days and answered slots are locked
   await assert.rejects(() => admin.schedule(env, { action: 'unschedule', a: { date: todayUTC(), slot: 1 } }), /already answered/);
   await assert.rejects(() => admin.schedule(env, { action: 'unschedule', a: { date: addDays(todayUTC(), -1), slot: 1 } }), /Past days/);
 });
+
+test('unschedule puts a different question in the slot; the old one waits at the back of the bank', async () => {
+  for (let i = 30; i < 33; i++) await admin.saveQuestion(env, Q(i, ['life', 'money', 'beliefs'][i % 3]));
+  await polly.autoFill(env);
+  const day = (await env.DB.prepare(`SELECT date FROM polly_schedule WHERE date > ? AND pinned = 0 ORDER BY date LIMIT 1`).bind(todayUTC()).first()).date;
+  const before = (await polly.dayRows(env, day))[0];
+  assert.ok(before, 'the day has a question');
+  const r = await admin.schedule(env, { action: 'unschedule', a: { date: day, slot: before.slot } });
+  const after = (await polly.dayRows(env, day)).find(x => x.slot === before.slot);
+  assert.ok(!after || after.id !== before.id, r.warning);
+});
+
+test('a time-sensitive question never lands on a day where it would be stale', async () => {
+  const r = await admin.saveQuestion(env, Q(40, 'politics', { time_sensitive: true, poll_end_date: addDays(todayUTC(), -120) }));
+  assert.equal(r.question.status, 'approved');
+  await polly.autoFill(env);
+  const n = await env.DB.prepare(`SELECT COUNT(*) AS n FROM polly_schedule WHERE question_id = ?`).bind(r.question.id).first();
+  assert.equal(n.n, 0);
+  const b = await admin.bankInfo(env);
+  assert.ok(b.expired >= 1);
+});

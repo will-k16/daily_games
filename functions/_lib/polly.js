@@ -4,7 +4,7 @@
 import { tipUrl, HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, clampStr, safeJson } from './util.js';
 import { bucksBalance, pollyLookOf } from './bucks.js';
 import {
-  SLOTS, DAY_MAX, MIN_CROWD, questionScore, crowd, bucksForQuestion, dayBonus
+  SLOTS, DAY_MAX, MIN_CROWD, questionScore, crowd, bucksForQuestion, dayBonus, staleReason
 } from '../../public/js/polly-score.js';
 
 export const HORIZON = 60;            // auto-fill looks this many days ahead (today included)
@@ -98,18 +98,28 @@ export async function autoFill(env, today = todayUTC()) {
     const played = await db.prepare(`SELECT 1 FROM polly_plays WHERE date = ? AND done > 0 LIMIT 1`).bind(r.date).first();
     if (!played) await db.prepare(`DELETE FROM polly_schedule WHERE date = ?`).bind(r.date).run();
   }
+  const end = addDays(today, HORIZON - 1);
+  const rowsAhead = async () => (await db.prepare(`SELECT s.date, s.slot, s.pinned, q.id, q.topic, q.url, q.time_sensitive, q.poll_end_date FROM polly_schedule s
+      JOIN polly_questions q ON q.id = s.question_id WHERE s.date BETWEEN ? AND ?`).bind(today, end).all()).results;
+  // A question that would be stale on its day goes back to the bank (unless the admin pinned it there, or someone
+  // already answered it today), so a time-sensitive question only ever runs within 3 months of its poll.
+  const drop = [];
+  for (const r of await rowsAhead()) {
+    if (r.pinned || !staleReason(r, r.date)) continue;
+    if (r.date === today && await db.prepare(`SELECT 1 FROM polly_guesses g JOIN polly_plays pl ON pl.id = g.play_id WHERE pl.date = ? AND g.slot = ? LIMIT 1`).bind(r.date, r.slot).first()) continue;
+    drop.push(db.prepare(`DELETE FROM polly_schedule WHERE date = ? AND slot = ?`).bind(r.date, r.slot));
+  }
+  if (drop.length) await db.batch(drop);
   const pool = await bankPool(env);
   if (!pool.length) return 0;
-  const end = addDays(today, HORIZON - 1);
-  const taken = (await db.prepare(`SELECT s.date, s.slot, q.id, q.topic, q.url FROM polly_schedule s JOIN polly_questions q ON q.id = s.question_id
-      WHERE s.date BETWEEN ? AND ?`).bind(today, end).all()).results;
+  const taken = await rowsAhead();
   const stmts = [];
   for (let i = 0; i < HORIZON && pool.length; i++) {
     const date = addDays(today, i);
     const day = taken.filter(t => t.date === date);
     const empty = [1, 2, 3].filter(s => !day.some(t => t.slot === s));
     if (!empty.length) continue;
-    const picks = pickForDay(pool, day, empty.length);
+    const picks = pickForDay(pool.filter(q => !staleReason(q, date)), day, empty.length);
     picks.forEach((q, j) => {
       stmts.push(db.prepare(`INSERT OR IGNORE INTO polly_schedule (date, slot, question_id, pinned, reused) VALUES (?, ?, ?, 0, 0)`).bind(date, empty[j], q.id));
       pool.splice(pool.indexOf(q), 1);
