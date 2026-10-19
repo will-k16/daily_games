@@ -30,7 +30,7 @@ $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeM
 const SUBTABS = {
   suite: [],
   summit: [['summit', 'Today'], ['summit/cal', 'Calendar'], ['summit/comp', 'Complaints'], ['summit/ans', 'Answers']],
-  venn: [['venn', 'Calendar'], ['venn/comp', 'Complaints'], ['venn/judg', 'Judgments']],
+  venn: [['venn', 'Dashboard'], ['venn/cal', 'Calendar'], ['venn/comp', 'Complaints'], ['venn/judg', 'Judgments']],
   polly: [['polly', 'Dashboard'], ['polly/auto', 'Find polls'], ['polly/add', 'Add'], ['polly/bank', 'Bank'], ['polly/cal', 'Calendar'], ['polly/rep', 'Reports'], ['polly/src', 'Sources']]
 };
 const VIEWS = {
@@ -39,7 +39,8 @@ const VIEWS = {
   'summit/cal': box => cal(box),
   'summit/comp': box => comp(box),
   'summit/ans': box => ans(box),
-  venn: box => vennCal(box),
+  venn: box => vennDash(box),
+  'venn/cal': box => vennCal(box),
   'venn/comp': box => vennComp(box),
   'venn/judg': box => vennJudg(box),
   polly: box => pollyDash(box),
@@ -349,6 +350,55 @@ async function ans(box, q = '', pending = false) {
 }
 
 
+/* ═══════════ Venn: dashboard ═══════════ */
+async function vennDash(box) {
+  const d = await api('admin/venn/dashboard');
+  $('#vennN').textContent = d.openComplaints ? `(${d.openComplaints})` : '';
+  const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const rSpread = d.rHist.map((n, i) => ({ n, label: i === 9 ? '90+' : String(i * 10), tip: i === 9 ? '90–100' : `${i * 10}–${i * 10 + 9}` }));
+  const dSpread = d.dHist.map((n, i) => ({ n, label: i === 9 ? '180+' : String(i * 20), tip: i === 9 ? '180–200' : `${i * 20}–${i * 20 + 19}` }));
+  const week = d.week.map(w => ({ n: w.n, label: day(w.date), tip: day(w.date) }));
+  const pct = (a, b) => (b ? Math.round(100 * a / b) + '%' : '–');
+  const stIcon = s => (s === 'approved' ? badge('ready', 'approved') : s === 'draft' ? badge('draft', 'draft') : badge('empty', 'empty'));
+  const notReady = d.next.filter(n => n.rounds.some(r => r !== 'approved'));
+  box.innerHTML = `<section class="card"><div class="kicker"><span>Venn #${d.number} · ${d.date} (UTC)</span></div>
+      <div class="kpis" style="margin-top:10px">
+        <div class="kpi"><b>${d.players}</b><span>Players today</span></div>
+        <div class="kpi"><b>${d.finished}</b><span>Finished both rounds</span></div>
+        <div class="kpi"><b>${d.avgDay == null ? '–' : d.avgDay}</b><span>Average day (of 200)</span></div>
+        <div class="kpi"><b>${d.ever}</b><span>Players ever</span></div>
+        <div class="kpi"><b>${d.openComplaints}</b><span>Open complaints</span></div>
+      </div>
+      ${d.openComplaints ? `<p class="sub"><a href="#venn/comp">Review ${d.openComplaints} open ${d.openComplaints === 1 ? 'complaint' : 'complaints'} →</a></p>` : ''}
+      <div class="section-title">Today's rounds</div>
+      <div class="tbl"><table><thead><tr><th>Round</th><th>Circles</th><th>Par</th><th>Started</th><th>Finished</th><th>Avg found</th><th>Avg score</th><th>Made par</th></tr></thead>
+      <tbody>${d.rounds.map(r => `<tr><td>Round ${r.round}<br><span class="st ${r.status}">${r.status}</span></td><td><div class="vcs">${circlesHTML(r.circles)}</div></td>
+        <td>${r.par}<br><span class="sub">typical ${r.typical}</span></td><td>${r.plays}</td><td>${r.done || 0}</td>
+        <td>${r.avgCount == null ? '–' : Math.round(r.avgCount * 10) / 10}</td><td>${r.avgScore == null ? '–' : Math.round(r.avgScore)}</td><td>${pct(r.madePar || 0, r.done || 0)}</td></tr>`).join('')
+        || '<tr><td colspan="8" class="empty">Not made yet. Today\'s rounds are created on the first visit.</td></tr>'}</tbody></table></div>
+      <div class="crowd" style="margin-top:6px">
+        <div><div class="section-title">Round scores today</div>${bars(rSpread, 'round', 'rounds')}
+          <p class="sub">Every finished round today, by score (each player counts up to 2 times).</p></div>
+        <div><div class="section-title">Day totals today</div>${bars(dSpread, 'player', 'players', 2)}
+          <p class="sub">Players who finished both rounds, by day total out of 200.</p></div>
+      </div>
+      <div class="section-title">Daily players (14 days)</div>${bars(week, 'player', 'players', 2)}
+      <p class="sub">People who started at least one round that day.</p>
+    </section>
+    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Puzzles and the judge</h2>
+      <div class="kpis" style="margin-top:10px">
+        <div class="kpi"><b>${d.judge.ok}</b><span>Judge calls (24h)</span></div>
+        <div class="kpi"><b>${d.judge.fail}</b><span>Judge failures (24h)</span></div>
+        <div class="kpi"><b>${d.judge.ms == null ? '–' : d.judge.ms + ' ms'}</b><span>Average judge time</span></div>
+        <div class="kpi"><b>${d.cached}</b><span>Cached verdicts</span></div>
+      </div>
+      <div class="section-title">The next 7 days</div>
+      <div class="tbl"><table><thead><tr><th>Date</th><th>Round 1</th><th>Round 2</th></tr></thead>
+        <tbody>${d.next.map(n => `<tr><td>${esc(day(n.date))}</td><td>${stIcon(n.rounds[0])}</td><td>${stIcon(n.rounds[1])}</td></tr>`).join('')}</tbody></table></div>
+      <p class="sub">${notReady.length ? `${notReady.length} of the next 7 days aren't fully approved. A draft is used as-is; an empty round is made by the AI on the spot (or from the built-in bank). ` : 'The next 7 days are all approved. '}<a href="#venn/cal">Calendar</a> · <a href="#venn/judg">Judgments</a> · <a href="/venn#/unlimited">Venn unlimited</a></p>
+    </section>`;
+}
+
 /* ═══════════ Venn: calendar ═══════════ */
 const VENN_COLORS = ['#f2c230', '#3b82d6', '#d9412b'];
 const circlesHTML = cs => cs.map((c, i) => `<span class="vc"><i style="background:${VENN_COLORS[i]}"></i>${esc(c)}</span>`).join('');
@@ -411,12 +461,12 @@ async function vennCal(box) {
       try { const r = await api('admin/venn/generate', j); made++; bank += r.fromBank; } catch (e) { failed++; toast(e.message); }
     }
     toast(`Made ${made} ${made === 1 ? 'draft' : 'drafts'}${bank ? ` (${bank} from the built-in bank because the AI was busy)` : ''}${failed ? `. ${failed} failed.` : ''}`);
-    go('venn');
+    go('venn/cal');
   };
   box.querySelectorAll('[data-vgen]').forEach(b => b.onclick = async () => {
     const [date, round] = b.dataset.vgen.split('|');
     b.disabled = true; b.textContent = 'Writing…';
-    try { const r = await api('admin/venn/generate', { date, round: Number(round) }); toast(`${r.fromBank ? 'AI busy, used the bank: ' : 'New draft: '}${r.puzzle.circles.join(' + ')}`); go('venn'); }
+    try { const r = await api('admin/venn/generate', { date, round: Number(round) }); toast(`${r.fromBank ? 'AI busy, used the bank: ' : 'New draft: '}${r.puzzle.circles.join(' + ')}`); go('venn/cal'); }
     catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Generate'; }
   });
   box.querySelectorAll('[data-vapprove]').forEach(b => b.onclick = () => vennStatus(Number(b.dataset.vapprove), 'approved'));
@@ -436,7 +486,7 @@ async function vennCal(box) {
       $('#modalBody').querySelectorAll('[data-ed]').forEach(x => x.onclick = () => vennEditor(vennAll.find(p => p.id === Number(x.dataset.ed))));
       $('#modalBody').querySelectorAll('[data-del]').forEach(x => x.onclick = async () => {
         if (!confirm('Delete this puzzle for good?')) return;
-        try { await api('admin/venn/puzzle/delete', { id: Number(x.dataset.del) }); closeModal(); toast('Deleted'); go('venn'); } catch (e) { toast(e.message); }
+        try { await api('admin/venn/puzzle/delete', { id: Number(x.dataset.del) }); closeModal(); toast('Deleted'); go('venn/cal'); } catch (e) { toast(e.message); }
       });
     };
   });
@@ -444,7 +494,7 @@ async function vennCal(box) {
 
 async function vennStatus(id, status) {
   const p = vennAll.find(x => x.id === id);
-  try { await api('admin/venn/puzzle', { ...p, status }); toast(status === 'approved' ? 'Approved' : 'Updated'); go('venn'); }
+  try { await api('admin/venn/puzzle', { ...p, status }); toast(status === 'approved' ? 'Approved' : 'Updated'); go('venn/cal'); }
   catch (e) { toast(e.message); }
 }
 
@@ -479,7 +529,7 @@ function vennEditor(p) {
       answers: $('#veAns').value.split('\n').map(s => s.trim()).filter(Boolean), note: $('#veNote').value
     };
     $('#veSave').disabled = true;
-    try { const r = await api('admin/venn/puzzle', body); closeModal(); toast(r.warning ? 'Saved. ' + r.warning : 'Saved'); go('venn'); }
+    try { const r = await api('admin/venn/puzzle', body); closeModal(); toast(r.warning ? 'Saved. ' + r.warning : 'Saved'); go('venn/cal'); }
     catch (e) { toast(e.message); $('#veSave').disabled = false; }
   };
 }

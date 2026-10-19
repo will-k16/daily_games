@@ -84,6 +84,7 @@ const ROUTES = {
   'POST admin/answers/delete': (c) => admin.deleteAnswer(c.env, c.body),
 
   // Admin: Venn
+  'GET admin/venn/dashboard': (c) => vennAdmin.dashboard(c.env),
   'GET admin/venn/calendar': (c) => vennAdmin.calendar(c.env, c.q),
   'POST admin/venn/generate': (c) => vennAdmin.generate(c.env, c.body),
   'POST admin/venn/puzzle': (c) => vennAdmin.savePuzzle(c.env, c.body),

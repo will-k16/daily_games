@@ -182,3 +182,48 @@ export async function deleteJudgment(env, body) {
   await db.prepare(`DELETE FROM venn_judgments WHERE puzzle_id = ? AND norm = ?`).bind(pid, norm).run();
   return { ok: true };
 }
+
+/* ───────────── Dashboard ───────────── */
+
+/** Today's rounds and players, score spreads, 14 days of players, the judge's health, and the puzzle supply ahead. */
+export async function dashboard(env) {
+  const db = env.DB, date = todayUTC(), from = addDays(date, -13), since = new Date(Date.now() - 86400000).toISOString();
+  const [players, finished, ever, rounds, open, week, scores, totals, ahead, judge, cached] = await Promise.all([
+    db.prepare(`SELECT COUNT(DISTINCT pl.player_id) AS n FROM venn_plays pl JOIN venn_puzzles z ON z.id = pl.puzzle_id WHERE z.date = ? AND pl.mode = 'daily'`).bind(date).first(),
+    db.prepare(`SELECT COUNT(*) AS n, AVG(t) AS avg FROM (SELECT pl.player_id, SUM(pl.score) AS t, COUNT(*) AS c FROM venn_plays pl JOIN venn_puzzles z ON z.id = pl.puzzle_id
+        WHERE z.date = ? AND pl.mode = 'daily' AND pl.state = 'done' GROUP BY pl.player_id HAVING c >= 2)`).bind(date).first(),
+    db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM venn_plays WHERE mode IN ('daily','archive')`).first(),
+    db.prepare(`SELECT z.id, z.round, z.status, z.circles, z.par, z.typical, COUNT(pl.id) AS plays, SUM(pl.state = 'done') AS done, AVG(CASE WHEN pl.state = 'done' THEN pl.count END) AS avgCount,
+          AVG(CASE WHEN pl.state = 'done' THEN pl.score END) AS avgScore, SUM(pl.state = 'done' AND pl.count >= z.par) AS madePar
+        FROM venn_puzzles z LEFT JOIN venn_plays pl ON pl.puzzle_id = z.id AND pl.mode = 'daily'
+        WHERE z.date = ? AND z.status IN ('approved','auto') GROUP BY z.id ORDER BY z.round`).bind(date).all(),
+    db.prepare(`SELECT COUNT(*) AS n FROM venn_complaints WHERE status = 'open'`).first(),
+    db.prepare(`SELECT z.date, COUNT(DISTINCT pl.player_id) AS n FROM venn_plays pl JOIN venn_puzzles z ON z.id = pl.puzzle_id
+        WHERE pl.mode = 'daily' AND z.date >= ? GROUP BY z.date`).bind(from).all(),
+    db.prepare(`SELECT pl.score FROM venn_plays pl JOIN venn_puzzles z ON z.id = pl.puzzle_id WHERE z.date = ? AND pl.mode = 'daily' AND pl.state = 'done'`).bind(date).all(),
+    db.prepare(`SELECT SUM(pl.score) AS t FROM venn_plays pl JOIN venn_puzzles z ON z.id = pl.puzzle_id
+        WHERE z.date = ? AND pl.mode = 'daily' AND pl.state = 'done' GROUP BY pl.player_id HAVING COUNT(*) >= 2`).bind(date).all(),
+    db.prepare(`SELECT date, round, status FROM venn_puzzles WHERE date > ? AND date <= ? AND status IN ('approved','auto','draft')`).bind(date, addDays(date, 7)).all(),
+    db.prepare(`SELECT SUM(ok) AS ok, COUNT(*) - SUM(ok) AS fail, AVG(CASE WHEN ok = 1 THEN ms END) AS ms FROM ai_log WHERE kind = 'venn-judge' AND created_at >= ?`).bind(since).first(),
+    db.prepare(`SELECT COUNT(*) AS n FROM venn_judgments`).first()
+  ]);
+  const byDate = Object.fromEntries(week.results.map(w => [w.date, w.n]));
+  const rHist = new Array(10).fill(0), dHist = new Array(10).fill(0);
+  scores.results.forEach(r => { rHist[Math.min(9, Math.floor((r.score || 0) / 10))]++; });
+  totals.results.forEach(r => { dHist[Math.min(9, Math.floor((r.t || 0) / 20))]++; });
+  // The next 7 days: each round approved, only a draft (it'll be used as-is), or empty (made on the spot).
+  const next = Array.from({ length: 7 }, (_, i) => addDays(date, i + 1)).map(d => ({
+    date: d,
+    rounds: [1, 2].map(r => {
+      const list = ahead.results.filter(a => a.date === d && a.round === r);
+      return list.some(a => a.status === 'approved' || a.status === 'auto') ? 'approved' : list.length ? 'draft' : 'empty';
+    })
+  }));
+  return {
+    date, number: vennNumber(env, date), players: players.n, finished: finished.n, avgDay: finished.avg == null ? null : Math.round(finished.avg),
+    ever: ever.n, openComplaints: open.n,
+    rounds: rounds.results.map(r => ({ ...r, circles: safeJson(r.circles, []) })),
+    week: Array.from({ length: 14 }, (_, i) => addDays(date, i - 13)).map(d => ({ date: d, n: byDate[d] || 0 })),
+    rHist, dHist, next, judge: { ok: judge.ok || 0, fail: judge.fail || 0, ms: judge.ms == null ? null : Math.round(judge.ms) }, cached: cached.n
+  };
+}
