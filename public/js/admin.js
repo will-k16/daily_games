@@ -31,7 +31,7 @@ const SUBTABS = {
   suite: [],
   summit: [['summit', 'Today'], ['summit/cal', 'Calendar'], ['summit/comp', 'Complaints'], ['summit/ans', 'Answers']],
   venn: [['venn', 'Calendar'], ['venn/comp', 'Complaints'], ['venn/judg', 'Judgments']],
-  polly: [['polly', 'Dashboard'], ['polly/auto', 'Auto-find'], ['polly/add', 'Add'], ['polly/bank', 'Bank'], ['polly/cal', 'Calendar'], ['polly/rep', 'Reports'], ['polly/src', 'Sources']]
+  polly: [['polly', 'Dashboard'], ['polly/auto', 'Find polls'], ['polly/add', 'Add'], ['polly/bank', 'Bank'], ['polly/cal', 'Calendar'], ['polly/rep', 'Reports'], ['polly/src', 'Sources']]
 };
 const VIEWS = {
   suite: box => suiteTab(box),
@@ -580,7 +580,7 @@ const badge = (t, cls = '') => `<span class="st ${cls}">${esc(t)}</span>`;
 const entryBadge = e => badge(ENTRY_NAMES[e] || e, e === 'auto-checked' ? 'approved' : e === 'admin-pasted' ? 'auto' : 'draft');
 
 function bankLowNote(b) {
-  return b.low ? `<div class="note warn" style="margin-top:10px">Bank low: ${b.fresh} approved, never-run ${b.fresh === 1 ? 'question' : 'questions'} left (${b.days} ${b.days === 1 ? 'day' : 'days'}). Add more, or let <a href="#polly/auto">Auto-find</a> fetch them.</div>` : '';
+  return b.low ? `<div class="note warn" style="margin-top:10px">Bank low: ${b.fresh} approved, never-run ${b.fresh === 1 ? 'question' : 'questions'} left (${b.days} ${b.days === 1 ? 'day' : 'days'}). Add more, or press <a href="#polly/auto">Find polls</a>.</div>` : '';
 }
 
 /** Every editable field of a question. Fields are read back with readQ(). */
@@ -665,60 +665,57 @@ async function pollyDash(box) {
       ${d.bank.expired ? `<p class="sub">${d.bank.expired} approved ${d.bank.expired === 1 ? 'question is' : 'questions are'} too old to run (time-sensitive and over 3 months past the poll). In the <a href="#polly/bank">Bank</a>, untick time-sensitive if it isn't really, or retire it.</p>` : ''}
       ${d.gaps.length ? `<div class="note warn" style="margin-top:10px">Not full yet in the next 7 days: ${d.gaps.map(g => esc(day(g))).join(', ')}.</div>` : '<p class="sub">The next 7 days are full.</p>'}
       <p class="sub">Auto-find last ran ${esc(a.lastRun ? new Date(a.lastRun).toLocaleString() : 'never')}.
-        <a href="#polly/auto">Auto-find</a> · ${a.drafts ? `<a href="#polly/bank">Review ${a.drafts} ${a.drafts === 1 ? 'draft' : 'drafts'}</a> · ` : ''}<a href="#polly/cal">Calendar</a></p>
+        <a href="#polly/auto">Find polls</a> · ${a.drafts ? `<a href="#polly/bank">Review ${a.drafts} ${a.drafts === 1 ? 'draft' : 'drafts'}</a> · ` : ''}<a href="#polly/cal">Calendar</a></p>
       ${d.stale.length ? `<div class="section-title">STALE warnings</div>${d.stale.map(s => `<p class="sub">${badge('STALE', 'rejected')} ${esc(s.date)} · Q${s.slot}: ${esc(s.short)} <i>(${esc(s.why)})</i></p>`).join('')}` : ''}
     </section>`;
 }
 
 /* ── Auto-find ── */
 const ago = s => { if (!s) return 'never'; const m = Math.round((Date.now() - Date.parse(s)) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
-async function pollyAutoTab(box, data) {
+async function pollyAutoTab(box, data, result) {
   const d = data || await api('admin/polly/auto');
   const c = d.counts || {};
-  const pageRow = p => `<tr><td><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title || p.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}</a><br><span class="sub">${esc(p.published || '')}${p.note ? ' · ' + esc(p.note) : ''}</span></td>
-    <td><span class="st ${p.status === 'done' ? 'approved' : p.status === 'queued' ? 'auto' : p.status === 'failed' ? 'rejected' : 'draft'}">${esc(p.status)}</span></td>
-    <td>${p.added || 0}</td><td>${p.drafted || 0}</td><td>${p.failed || 0}</td></tr>`;
-  box.innerHTML = `<section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Find polls automatically</h2>
-      <p class="sub">Polly reads the pollsters' feeds below, queues their new report pages, and runs each page through the same check as a pasted URL (the AI reads only that page; the server finds every number on it). It does this on its own every few hours while the bank is low, whenever someone opens Polly, or right now with the button.</p>
+  const drafts = d.drafts || 0;
+  const pageRow = p => `<tr><td><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title || p.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}</a>${p.note ? `<br><span class="sub">${esc(p.note)}</span>` : ''}</td>
+    <td>${p.status === 'queued' ? 'not read yet' : p.status === 'failed' ? 'couldn’t read it' : (p.added || 0) + (p.drafted || 0)}</td></tr>`;
+  box.innerHTML = `<section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Find polls</h2>
+      <p class="sub">Finds about 10 new questions from Pew, Gallup and AP-NORC reports and puts them in the <a href="#polly/bank">Bank</a> for you to approve or reject. Every number is checked against the report page. Takes up to a minute.</p>
+      <div class="row"><button class="btn" id="auRun">Find polls now</button>
+        ${drafts ? `<a class="btn alt sm" href="#polly/bank">Review ${drafts} waiting →</a>` : ''}</div>
+      ${result ? `<div class="note ${result.found ? '' : 'warn'}" style="margin-top:12px">${result.found
+        ? `Added <b>${result.found}</b> ${result.found === 1 ? 'question' : 'questions'} to the Bank (from ${result.read} ${result.read === 1 ? 'report' : 'reports'}). <a href="#polly/bank">Review them →</a>`
+        : `Read ${result.read} ${result.read === 1 ? 'report' : 'reports'} but none had a usable all-Americans result this time. ${result.left ? 'Press again to keep going.' : 'There may be no new reports right now; try again tomorrow, or paste links below.'}`}</div>` : ''}
+      <p class="sub">It also runs on its own every few hours while you have fewer than 14 days of questions.</p>
+    </section>
+    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Have links already?</h2>
+      <p class="sub">Paste poll report links (one per line), then press Find polls now.</p>
+      <textarea class="box" id="auUrls" style="min-height:80px" placeholder="https://www.pewresearch.org/…&#10;https://news.gallup.com/poll/…"></textarea>
+      <div class="row"><button class="btn sm alt" id="auQueue">Add these links</button></div>
+    </section>
+    <details class="card"><summary class="prompt" style="font-size:18px;cursor:pointer">Details and settings</summary>
       <label class="row" style="gap:8px"><input type="checkbox" id="auAuto" ${d.autoApprove ? 'checked' : ''}>
-        <span><b>Approve the sure ones on their own</b> (off by default). <span class="sub">When this is off, everything Auto-find finds goes to the <a href="#polly/bank">Bank</a> as a draft for you to approve or reject. When on, questions whose numbers, poll date and sample size were all found on the page (and that fit the limits and aren't time-sensitive) skip the review.</span></span></label>
-      <div class="kpis" style="margin-top:12px">
-        <div class="kpi"><b>${d.bank.fresh}</b><span>Never-run approved (${d.bank.days} ${d.bank.days === 1 ? 'day' : 'days'})</span></div>
-        <div class="kpi"><b>${c.queued || 0}</b><span>Pages waiting</span></div>
-        <div class="kpi"><b>${c.done || 0}</b><span>Pages read</span></div>
-        <div class="kpi"><b>${ago(d.lastRun)}</b><span>Last run</span></div>
-      </div>
-      <div class="row"><button class="btn" id="auRun">Find polls now</button><label class="sub"><input type="checkbox" id="auForce"> re-read the feeds too</label></div>
-      <div id="auOut"></div>
-    </section>
-    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Paste many links</h2>
-      <p class="sub">One or more poll page URLs (one per line). They're queued and read by "Find polls now" or the next automatic run.</p>
-      <textarea class="box" id="auUrls" style="min-height:90px" placeholder="https://www.pewresearch.org/…&#10;https://news.gallup.com/poll/…"></textarea>
-      <div class="row"><button class="btn sm" id="auQueue">Queue them</button></div>
-    </section>
-    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Feeds</h2>
-      <p class="sub">RSS / Atom feeds or sitemaps that list each pollster's new reports. Only pages on the source's own site are taken.</p>
-      <div class="tbl"><table><thead><tr><th>Source</th><th>Feed</th><th>On</th><th>Last read</th><th></th></tr></thead>
-      <tbody>${d.feeds.map(f => `<tr><td>${esc(f.source || '?')}</td><td><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.url)}</a> <span class="sub">${esc(f.kind)}</span>${f.last_error ? `<br><span class="sub" style="color:var(--bad)">${esc(f.last_error)}</span>` : ''}</td>
-        <td><input type="checkbox" data-fon="${f.id}" ${f.active ? 'checked' : ''}></td><td class="sub">${ago(f.last_checked)}</td><td><button class="mini-btn danger" data-fdel="${f.id}">✕</button></td></tr>`).join('')}
+        <span><b>Skip review for the sure ones</b> <span class="sub">(off: everything waits in the Bank). When on, questions whose numbers, poll date and sample size were all found on the page, that fit the limits and aren’t time-sensitive go straight onto the calendar.</span></span></label>
+      <p class="sub">Last run ${ago(d.lastRun)} · ${c.done || 0} reports read so far · ${c.queued || 0} found but not read yet.</p>
+      <div class="section-title">Where it looks</div>
+      <div class="tbl"><table><thead><tr><th>Source</th><th>Feed</th><th>On</th><th></th></tr></thead>
+      <tbody>${d.feeds.map(f => `<tr><td>${esc(f.source || '?')}</td><td><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.url)}</a>${f.last_error ? `<br><span class="sub" style="color:var(--bad)">${esc(f.last_error)}</span>` : ''}</td>
+        <td><input type="checkbox" data-fon="${f.id}" ${f.active ? 'checked' : ''}></td><td><button class="mini-btn danger" data-fdel="${f.id}">✕</button></td></tr>`).join('')}
         <tr><td><select class="box" id="nfSrc" style="height:32px">${d.sources.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></td>
-          <td><input id="nfUrl" placeholder="https://…/feed/ or …/sitemap.xml" style="max-width:340px"></td><td></td><td></td><td><button class="mini-btn ok" id="nfAdd">Add</button></td></tr></tbody></table></div>
-    </section>
-    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Recent pages</h2>
-      <div class="tbl"><table><thead><tr><th>Page</th><th>Status</th><th>Approved</th><th>Drafts</th><th>Failed check</th></tr></thead>
-      <tbody>${d.pages.map(pageRow).join('') || '<tr><td colspan="5" class="empty">Nothing read yet. Press "Find polls now".</td></tr>'}</tbody></table></div>
-    </section>`;
+          <td><input id="nfUrl" placeholder="An RSS feed or sitemap URL" style="max-width:340px"></td><td></td><td><button class="mini-btn ok" id="nfAdd">Add</button></td></tr></tbody></table></div>
+      <div class="section-title">Reports it has looked at</div>
+      <div class="tbl"><table><thead><tr><th>Report</th><th>Questions found</th></tr></thead>
+      <tbody>${d.pages.map(pageRow).join('') || '<tr><td colspan="2" class="empty">None yet.</td></tr>'}</tbody></table></div>
+    </details>`;
   const again = async (path, body, msg) => { try { const r = await api(path, body); if (msg) toast(msg(r)); pollyAutoTab(box, r); } catch (e) { toast(e.message); } };
-  $('#auAuto').onchange = e => again('admin/polly/auto/settings', { autoApprove: e.target.checked }, r => r.autoApprove ? 'Sure ones will be approved on their own' : 'Everything will wait as a draft');
+  $('#auAuto').onchange = e => again('admin/polly/auto/settings', { autoApprove: e.target.checked }, r => r.autoApprove ? 'Sure ones skip review' : 'Everything waits in the Bank');
   $('#auRun').onclick = async () => {
-    const b = $('#auRun'); b.disabled = true; b.textContent = 'Reading pages… (up to a minute)';
+    const b = $('#auRun'); b.disabled = true; b.textContent = 'Finding polls… (up to a minute)';
     try {
-      const r = await api('admin/polly/auto/run', { maxPages: 3, forceFeeds: $('#auForce').checked });
-      toast(`Read ${r.read} ${r.read === 1 ? 'page' : 'pages'}: ${r.added} approved, ${r.drafted} drafts${r.queued ? `, ${r.queued} new pages found` : ''}. ${r.left} waiting.`);
-      pollyAutoTab(box, r);
+      const r = await api('admin/polly/auto/run', { target: 10 });
+      pollyAutoTab(box, r, { found: r.added + r.drafted, read: r.read, left: r.left });
     } catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Find polls now'; }
   };
-  $('#auQueue').onclick = () => again('admin/polly/auto/queue', { urls: $('#auUrls').value }, r => `Queued ${r.queued}${r.refused.length ? `. Not on the allowlist: ${r.refused.length}` : ''}`);
+  $('#auQueue').onclick = () => again('admin/polly/auto/queue', { urls: $('#auUrls').value }, r => `Added ${r.queued} ${r.queued === 1 ? 'link' : 'links'}${r.refused.length ? `. ${r.refused.length} not from an allowed pollster` : ''}. Press Find polls now.`);
   box.querySelectorAll('[data-fon]').forEach(i => i.onchange = () => again('admin/polly/feeds', { id: Number(i.dataset.fon), active: i.checked }));
   box.querySelectorAll('[data-fdel]').forEach(b => b.onclick = () => { if (confirm('Remove this feed?')) again('admin/polly/feeds', { id: Number(b.dataset.fdel), remove: true }); });
   $('#nfAdd').onclick = () => again('admin/polly/feeds', { sourceId: Number($('#nfSrc').value), url: $('#nfUrl').value }, () => 'Feed added');

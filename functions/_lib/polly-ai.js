@@ -73,7 +73,7 @@ const CANDIDATE = {
   properties: {
     original_wording: { type: 'STRING' }, short: { type: 'STRING' },
     left_label: { type: 'STRING' }, right_label: { type: 'STRING' },
-    left_raw: { type: 'NUMBER' }, right_raw: { type: 'NUMBER' }, unsure_raw: { type: 'NUMBER', nullable: true },
+    left_raw: { type: 'NUMBER' }, right_raw: { type: 'NUMBER', nullable: true }, unsure_raw: { type: 'NUMBER', nullable: true },
     population: { type: 'STRING' }, poll_end_date: { type: 'STRING', nullable: true }, sample_size: { type: 'NUMBER', nullable: true },
     topic: { type: 'STRING', enum: TOPICS }, time_sensitive: { type: 'BOOLEAN' }, ts_reason: { type: 'STRING' }, evidence: { type: 'STRING' }
   },
@@ -89,12 +89,14 @@ function extractPrompt(source, url, date, text) {
     'Hard rules:',
     '- Use ONLY facts written in the page text below. Never add, estimate, round, combine or recall numbers. If the page doesn\'t state a number, don\'t output that question.',
     '- Only results for the whole country: a national sample of US adults (adult citizens, registered voters or "Americans" are fine too). Skip any subgroup (Republicans, Democrats, parents, young adults, women, one state, etc.).',
-    '- Only results with exactly two sides, plus an optional don\'t-know / no-answer group. A multi-option question can be used only if the page itself reports it as two groups (e.g. "Total agree" / "Total disagree").',
+    '- Two kinds of results count: (a) exactly two sides, plus an optional don\'t-know group (a multi-option question counts only if the page itself reports it as two groups, e.g. "Total agree" / "Total disagree"); (b) ONE share of all US adults who do or say something ("44% of U.S. adults have used ChatGPT"). For (b), the left side is that group (e.g. "Have used"), the right side is everyone else (e.g. "Haven\'t"), and right_raw is null.',
+    '- Charts that break a result out by group (men / women, parties, ages) often also give the total for all US adults ("U.S. adults", "Total", "All adults"): use only that total.',
+    '- Look through the WHOLE page and return every result that qualifies, up to the limit.',
     '- Side labels are the poll\'s own options, shortened to 14 characters or fewer, never loaded words ("Approve" / "Disapprove", not "Supports" / "Opposes" if the poll said approve).',
     '- "short": a plain question of 90 characters or fewer that means exactly what the poll asked.',
     '- "original_wording": the exact question wording as written on the page (copy it character for character).',
     '- "evidence": an exact snippet copied from the page that contains the numbers for both sides and for every other answer group (no preference, don\'t know, not sure, refused, other). Copy it exactly.',
-    '- "left_raw", "right_raw": the two sides\' percentages exactly as written on the page. "unsure_raw": everyone who picked neither side, added up (e.g. "No preference 21%" + "Not sure 6%" = 27); null if the page gives none.',
+    '- "left_raw", "right_raw": the two sides\' percentages exactly as written on the page (right_raw null for a one-share result). "unsure_raw": everyone who picked neither side, added up (e.g. "No preference 21%" + "Not sure 6%" = 27); null if the page gives none.',
     '- "population": who was asked, as the page says it (e.g. "US adults").',
     '- "poll_end_date": the last day the poll was in the field, as YYYY-MM-DD, only if the page states an exact day; otherwise null.',
     '- "sample_size": the number of people asked, only if the page states it; otherwise null.',
@@ -239,12 +241,14 @@ export function checkCandidate(raw, pageText) {
   const page = squish(pageText), reasons = [];
   // 1. The evidence snippet is on the page.
   if (!q.evidence || !page.includes(squish(q.evidence))) reasons.push('The evidence snippet isn\'t on the page.');
-  // 2. Both sides' numbers are written inside the evidence.
+  // 2. The numbers are written inside the evidence. A one-share result ("44% of U.S. adults have used ChatGPT")
+  //    has only the left number on the page; the right side is everyone else (100 minus it).
   const inEvidence = numbersIn(q.evidence);
-  [['left', q.left_raw], ['right', q.right_raw]].forEach(([k, v]) => {
-    if (v == null) reasons.push(`No ${k} number.`);
-    else if (!inEvidence.includes(v)) reasons.push(`The ${k} number (${v}) isn't in the evidence.`);
-  });
+  if (q.left_raw == null) reasons.push('No left number.');
+  else if (!inEvidence.includes(q.left_raw)) reasons.push(`The left number (${q.left_raw}) isn't in the evidence.`);
+  if (q.right_raw == null && q.left_raw != null && q.left_raw < 100) { q.right_raw = Math.round((100 - q.left_raw) * 10) / 10; q.real = rescale(q.left_raw, q.right_raw); q.one_share = true; }
+  else if (q.right_raw == null) reasons.push('No right number.');
+  else if (!inEvidence.includes(q.right_raw)) reasons.push(`The right number (${q.right_raw}) isn't in the evidence.`);
   // 3. The original wording is (mostly) on the page.
   if (!wordingOnPage(q.original_wording, page)) reasons.push('The original wording isn\'t on the page.');
   // 4. Everyone who didn't pick a side ("no preference", "don't know", "refused", "other"…) counts as unsure.

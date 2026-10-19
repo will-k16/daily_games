@@ -213,3 +213,14 @@ test('everyone who picked neither side counts as unsure, so a source is never dr
   assert.ok(s.ok, s.reasons.join(' '));
   assert.equal(s.q.unsure_raw, 25);
 });
+
+test('a one-share result ("44% of U.S. adults…") counts: the other side is everyone else', () => {
+  const page = 'Overall, 44% of U.S. adults say they have ever used ChatGPT, according to a survey of 5,123 U.S. adults.';
+  const r = checkCandidate({ ...GOOD, original_wording: 'Have you ever used ChatGPT?', short: 'Have you ever used ChatGPT?', left_label: 'Have used', right_label: "Haven't",
+    left_raw: 44, right_raw: null, unsure_raw: null, evidence: 'Overall, 44% of U.S. adults say they have ever used ChatGPT' }, page + ' Have you ever used ChatGPT?');
+  assert.ok(r.ok, r.reasons.join(' '));
+  assert.equal(r.q.right_raw, 56);
+  assert.equal(r.q.real, 44);
+  // The one number still has to be on the page.
+  assert.ok(!checkCandidate({ ...GOOD, left_raw: 45, right_raw: null, evidence: 'Overall, 44% of U.S. adults say they have ever used ChatGPT' }, page).ok);
+});

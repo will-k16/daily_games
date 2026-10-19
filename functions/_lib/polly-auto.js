@@ -148,20 +148,29 @@ function finish(env, url, status, added, drafted, failed, note) {
 }
 
 /** One batch: read due feeds, then up to `maxPages` queued pages (newest first). */
-export async function discover(env, { maxPages = 3, forceFeeds = false } = {}) {
+/**
+ * One batch: read due feeds, then queued pages (newest first) until `target` new questions are in the bank, `maxPages`
+ * pages are read, or time runs out. When the queue runs low the feeds are read again straight away.
+ */
+export async function discover(env, { maxPages = 3, forceFeeds = false, target = Infinity, budgetMs = 50000 } = {}) {
+  const started = Date.now();
   await setMeta(env, 'last_run', nowISO());
-  const queued = await refreshFeeds(env, { force: forceFeeds });
+  let queued = await refreshFeeds(env, { force: forceFeeds });
   const sources = await allSources(env);
   const autoApprove = (await meta(env, 'auto_approve', '0')) === '1';
-  const pages = (await env.DB.prepare(`SELECT * FROM polly_pages WHERE status = 'queued' AND attempts < ? ORDER BY published IS NULL, published DESC, found_at DESC LIMIT ?`)
-    .bind(MAX_ATTEMPTS, maxPages).all()).results;
-  let added = 0, drafted = 0, read = 0;
-  for (const p of pages) {
+  const next = () => env.DB.prepare(`SELECT * FROM polly_pages WHERE status = 'queued' AND attempts < ? ORDER BY published IS NULL, published DESC, found_at DESC LIMIT 1`)
+    .bind(MAX_ATTEMPTS).first();
+  let added = 0, drafted = 0, read = 0, refreshed = forceFeeds;
+  while (read < maxPages && added + drafted < target && Date.now() - started < budgetMs) {
+    let p = await next();
+    if (!p && !refreshed) { refreshed = true; queued += await refreshFeeds(env, { force: true }); p = await next(); }
+    if (!p) break;
     try {
       const r = await processPage(env, p, sources, autoApprove);
       added += r.added; drafted += r.drafted; read++;
     } catch (e) {
       // The AI was busy: leave it queued for the next run (up to 3 tries).
+      read++;
       await env.DB.prepare(`UPDATE polly_pages SET note = ? WHERE url = ?`).bind(clampStr(e.message, 300), p.url).run();
       if (/429|swamped|busy/i.test(e.message)) break;
     }
@@ -190,23 +199,25 @@ export async function maybeDiscover(env) {
 
 export async function status(env) {
   const db = env.DB;
-  const [feeds, pages, counts, auto, lastRun, lastAuto, srcs] = await Promise.all([
+  const [feeds, pages, counts, draftsRow, auto, lastRun, lastAuto, srcs] = await Promise.all([
     db.prepare(`SELECT f.*, s.name AS source FROM polly_feeds f LEFT JOIN polly_sources s ON s.id = f.source_id ORDER BY s.name, f.id`).all(),
     db.prepare(`SELECT * FROM polly_pages ORDER BY COALESCE(checked_at, found_at) DESC LIMIT 40`).all(),
     db.prepare(`SELECT status, COUNT(*) AS n FROM polly_pages GROUP BY status`).all(),
+    db.prepare(`SELECT COUNT(*) AS n FROM polly_questions WHERE status = 'draft'`).first(),
     meta(env, 'auto_approve', '0'), meta(env, 'last_run', ''), meta(env, 'last_auto', ''),
     activeSources(env)
   ]);
   return {
-    autoApprove: auto === '1', lastRun, lastAuto,
+    autoApprove: auto === '1', lastRun, lastAuto, drafts: draftsRow.n,
     counts: Object.fromEntries(counts.results.map(r => [r.status, r.n])),
     feeds: feeds.results.map(f => ({ ...f, active: !!f.active })), pages: pages.results,
     sources: srcs.map(s => ({ id: s.id, name: s.name })), bank: await bankInfo(env)
   };
 }
 
+/** "Find polls now": keeps reading pages until about 10 new questions are in the bank (at most 12 pages, under a minute). */
 export async function run(env, body) {
-  const r = await discover(env, { maxPages: Math.max(1, Math.min(5, Number(body.maxPages) || 3)), forceFeeds: !!body.forceFeeds });
+  const r = await discover(env, { maxPages: 12, target: Math.max(1, Math.min(20, Number(body.target) || 10)), forceFeeds: !!body.forceFeeds });
   return { ...r, ...(await status(env)) };
 }
 

@@ -114,7 +114,9 @@ export function fieldsFrom(body, sources, fallbackEntry = 'admin-entered') {
   let entry = ENTRIES.includes(body.entry) ? body.entry : fallbackEntry;
   if (entry !== 'admin-entered') {
     const ev = numbersIn(c.evidence);
-    if (![c.left_raw, c.right_raw].every(v => v != null && ev.includes(v))) entry = 'admin-entered';
+    // The right side may be "everyone else" (100 minus a one-share result), so only it can be off the page.
+    const rightOk = c.right_raw != null && (ev.includes(c.right_raw) || Math.abs(c.left_raw + c.right_raw - 100) < 0.05);
+    if (c.left_raw == null || !ev.includes(c.left_raw) || !rightOk) entry = 'admin-entered';
   }
   return {
     topic: TOPICS.includes(c.topic) ? c.topic : 'life', short: c.short, left_label: c.left_label, right_label: c.right_label,
