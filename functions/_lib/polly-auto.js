@@ -13,6 +13,7 @@ const FEED_MAX_BYTES = 600000; // big sitemaps are read only this far
 const RECENT_DAYS = 60;        // pages older than this (when the feed dates them) are left alone
 const PER_FEED = 15;           // newest pages taken from each feed per read
 const MAX_ATTEMPTS = 3;
+const DRAFT_CAP = 40;            // background runs pause while this many drafts are waiting for review
 
 /* ───────────── Settings ───────────── */
 
@@ -151,7 +152,7 @@ export async function discover(env, { maxPages = 3, forceFeeds = false } = {}) {
   await setMeta(env, 'last_run', nowISO());
   const queued = await refreshFeeds(env, { force: forceFeeds });
   const sources = await allSources(env);
-  const autoApprove = (await meta(env, 'auto_approve', '1')) === '1';
+  const autoApprove = (await meta(env, 'auto_approve', '0')) === '1';
   const pages = (await env.DB.prepare(`SELECT * FROM polly_pages WHERE status = 'queued' AND attempts < ? ORDER BY published IS NULL, published DESC, found_at DESC LIMIT ?`)
     .bind(MAX_ATTEMPTS, maxPages).all()).results;
   let added = 0, drafted = 0, read = 0;
@@ -177,6 +178,9 @@ export async function maybeDiscover(env) {
     const last = await meta(env, 'last_auto', '');
     if (last && Date.now() - Date.parse(last) < BACKGROUND_HOURS * 3600000) return;
     if (!(await bankInfo(env)).low) return;
+    // Plenty already waiting for review: don't pile up more drafts.
+    const drafts = await env.DB.prepare(`SELECT COUNT(*) AS n FROM polly_questions WHERE status = 'draft'`).first();
+    if (drafts.n >= DRAFT_CAP) return;
     await setMeta(env, 'last_auto', nowISO());
     await discover(env, { maxPages: 2 });
   } catch (e) { console.error('polly discover', e && e.message); }
@@ -190,7 +194,7 @@ export async function status(env) {
     db.prepare(`SELECT f.*, s.name AS source FROM polly_feeds f LEFT JOIN polly_sources s ON s.id = f.source_id ORDER BY s.name, f.id`).all(),
     db.prepare(`SELECT * FROM polly_pages ORDER BY COALESCE(checked_at, found_at) DESC LIMIT 40`).all(),
     db.prepare(`SELECT status, COUNT(*) AS n FROM polly_pages GROUP BY status`).all(),
-    meta(env, 'auto_approve', '1'), meta(env, 'last_run', ''), meta(env, 'last_auto', ''),
+    meta(env, 'auto_approve', '0'), meta(env, 'last_run', ''), meta(env, 'last_auto', ''),
     activeSources(env)
   ]);
   return {

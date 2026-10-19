@@ -681,7 +681,7 @@ async function pollyAutoTab(box, data) {
   box.innerHTML = `<section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Find polls automatically</h2>
       <p class="sub">Polly reads the pollsters' feeds below, queues their new report pages, and runs each page through the same check as a pasted URL (the AI reads only that page; the server finds every number on it). It does this on its own every few hours while the bank is low, whenever someone opens Polly, or right now with the button.</p>
       <label class="row" style="gap:8px"><input type="checkbox" id="auAuto" ${d.autoApprove ? 'checked' : ''}>
-        <span><b>Approve the sure ones on their own.</b> <span class="sub">Only when the numbers, the poll date and the sample size were all found on the page, it fits the length limits, and it isn't time-sensitive. Everything else waits in the bank as a draft.</span></span></label>
+        <span><b>Approve the sure ones on their own</b> (off by default). <span class="sub">When this is off, everything Auto-find finds goes to the <a href="#polly/bank">Bank</a> as a draft for you to approve or reject. When on, questions whose numbers, poll date and sample size were all found on the page (and that fit the limits and aren't time-sensitive) skip the review.</span></span></label>
       <div class="kpis" style="margin-top:12px">
         <div class="kpi"><b>${d.bank.fresh}</b><span>Never-run approved (${d.bank.days} ${d.bank.days === 1 ? 'day' : 'days'})</span></div>
         <div class="kpi"><b>${c.queued || 0}</b><span>Pages waiting</span></div>
@@ -811,22 +811,34 @@ async function pollyBank(box) {
       ${bankLowNote(d.bank)}
     </section>
     <section class="card"><div class="tbl"><table><thead><tr><th>#</th><th>Status</th><th>Question</th><th>Split</th><th>Poll</th><th>Entry</th><th>Next run</th><th></th></tr></thead>
-      <tbody>${d.questions.map((q, i) => `<tr>
+      <tbody>${d.questions.map((q, i) => `<tr data-row="${i}">
         <td class="sub">${q.id}</td><td><span class="st ${q.status === 'retired' ? 'rejected' : q.status}">${q.status}</span></td>
         <td><b>${esc(q.short)}</b><br><span class="sub">${esc(q.left_label)} / ${esc(q.right_label)} · ${esc(TOPIC_NAMES[q.topic] || q.topic)}${q.time_sensitive ? ' · time-sensitive' : ''} · ${esc(q.source)}</span>
+          ${q.status === 'draft' ? `<br><span class="sub">“${esc(q.original_wording)}” · ${q.left_raw} / ${q.right_raw}${q.unsure_raw != null ? ` / unsure ${q.unsure_raw}` : ''} · <a href="${esc(q.url)}" target="_blank" rel="noopener">source ↗</a></span>` : ''}
           ${q.status === 'draft' && q.problems.length ? `<br><span class="sub" style="color:var(--bad)">Needs: ${esc(q.problems.join(', '))}</span>` : ''}</td>
         <td>${pSplit(q)}</td><td class="sub">${esc(niceDay(q.poll_end_date)) || '–'}<br>${q.sample_size ? Number(q.sample_size).toLocaleString('en-US') : '–'}</td>
         <td>${entryBadge(q.entry)}</td><td class="sub">${esc(q.next_date || '')}${q.stale ? `<br>${badge('STALE', 'rejected')}` : ''}${q.runs ? `<br>ran ${q.runs}×` : ''}</td>
         <td style="white-space:nowrap"><button class="mini-btn" data-edit="${i}">Edit</button>
-          ${q.status === 'draft' ? `<button class="mini-btn ok" data-approve="${i}" ${q.problems.length ? 'disabled title="' + esc(q.problems.join(', ')) + '"' : ''}>Approve</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">Nothing here.</td></tr>'}</tbody></table></div></section>`;
+          ${q.status === 'draft' ? (q.problems.length ? `<button class="mini-btn ok" data-edit="${i}" title="${esc(q.problems.join(', '))}">Fix &amp; approve</button>` : `<button class="mini-btn ok" data-approve="${i}">Approve</button>`)
+            + ` <button class="mini-btn danger" data-reject="${i}">Reject</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">Nothing here.</td></tr>'}</tbody></table></div></section>`;
   const read = () => { box.querySelectorAll('[data-flt]').forEach(i => { pollyBankFilter[i.dataset.flt] = i.value; }); pollyBank(box); };
   box.querySelectorAll('select[data-flt]').forEach(s => { s.onchange = read; });
   $('#bGo').onclick = read;
   box.querySelector('[data-flt="q"]').onkeydown = e => { if (e.key === 'Enter') read(); };
   box.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => pollyEditor(d.questions[Number(b.dataset.edit)], () => pollyBank(box)));
-  box.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => {
-    try { await api('admin/polly/question', { id: d.questions[Number(b.dataset.approve)].id, action: 'approve' }); toast('Approved and scheduled'); pollyBank(box); } catch (e) { toast(e.message); }
-  });
+  // Approve / reject in place, so going down the list of drafts is quick.
+  const decide = async (i, action) => {
+    const row = box.querySelector(`[data-row="${i}"]`);
+    row.querySelectorAll('button').forEach(x => { x.disabled = true; });
+    try {
+      await api('admin/polly/question', { id: d.questions[i].id, action, fields: false });
+      row.querySelector('.st').outerHTML = `<span class="st ${action === 'approve' ? 'approved' : 'rejected'}">${action === 'approve' ? 'approved' : 'rejected'}</span>`;
+      row.style.opacity = '.45';
+      toast(action === 'approve' ? 'Approved and scheduled' : 'Rejected');
+    } catch (e) { toast(e.message); row.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
+  };
+  box.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => decide(Number(b.dataset.approve), 'approve'));
+  box.querySelectorAll('[data-reject]').forEach(b => b.onclick = () => decide(Number(b.dataset.reject), 'reject'));
 }
 
 /** Edit any field; approve / reject / retire. `fix` (a report) saves without changing the status. */

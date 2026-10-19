@@ -87,5 +87,5 @@ test('pasted links are queued (off-list ones refused); status reports feeds and 
   const s = await status(env);
   assert.equal(s.feeds.length, 3);
   assert.ok(s.pages.length >= 2);
-  assert.equal(s.autoApprove, true);
+  assert.equal(s.autoApprove, false);                   // off by default: everything waits for the admin
 });
