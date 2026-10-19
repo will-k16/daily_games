@@ -72,6 +72,7 @@ AI keys: Gemini at https://aistudio.google.com/apikey (Flash-Lite answers in abo
 
 ## Running it day to day
 
+- **Fastest way to fill the calendars:** each game's admin tab has an **Import** sub-tab. Copy that game's prompt from [prompts/PROMPTS.md](prompts/PROMPTS.md) into an LLM (paste in the **Copy avoid list** text so nothing repeats), paste its answer back, press **Check**, then **Add to calendar**. Summit and Venn days are approved onto the next empty days; Polly questions are checked against their source pages (verified ones are approved, the rest wait as drafts).
 - `/admin` → **Suite**: real players per game, your WK Bucks (grant or take back), AI calls/errors and rate-limit hits.
 - `/admin` → **Summit**: today's stages, calendar (generate / approve / edit / reject), complaints (fix a value and rescore), answers.
 - `/admin` → **Polly** → **Auto-find**: Polly finds its own questions. It reads the pollsters' feeds (Pew's RSS, Gallup's poll sitemap and AP-NORC's RSS to start; add more there), queues new report pages, and runs each through the same AI-read-then-server-check as a pasted URL. Questions whose numbers, poll date and sample size were all found on the page, that fit the length limits and aren't time-sensitive are approved on their own (toggle it off to review everything); the rest wait as drafts. It runs in the background every few hours while the bank is low (whenever someone opens Polly), or press **Find polls now**. You can also paste many links at once there.

@@ -29,9 +29,9 @@ $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeM
 /* ═══════════ Tabs ═══════════ */
 const SUBTABS = {
   suite: [],
-  summit: [['summit', 'Today'], ['summit/cal', 'Calendar'], ['summit/comp', 'Complaints'], ['summit/ans', 'Answers']],
-  venn: [['venn', 'Dashboard'], ['venn/cal', 'Calendar'], ['venn/comp', 'Complaints'], ['venn/judg', 'Judgments']],
-  polly: [['polly', 'Dashboard'], ['polly/auto', 'Find polls'], ['polly/add', 'Add'], ['polly/bank', 'Bank'], ['polly/cal', 'Calendar'], ['polly/rep', 'Reports'], ['polly/src', 'Sources']]
+  summit: [['summit', 'Today'], ['summit/cal', 'Calendar'], ['summit/import', 'Import'], ['summit/comp', 'Complaints'], ['summit/ans', 'Answers']],
+  venn: [['venn', 'Dashboard'], ['venn/cal', 'Calendar'], ['venn/import', 'Import'], ['venn/comp', 'Complaints'], ['venn/judg', 'Judgments']],
+  polly: [['polly', 'Dashboard'], ['polly/auto', 'Find polls'], ['polly/import', 'Import'], ['polly/add', 'Add'], ['polly/bank', 'Bank'], ['polly/cal', 'Calendar'], ['polly/rep', 'Reports'], ['polly/src', 'Sources']]
 };
 const VIEWS = {
   suite: box => suiteTab(box),
@@ -41,6 +41,9 @@ const VIEWS = {
   'summit/ans': box => ans(box),
   venn: box => vennDash(box),
   'venn/cal': box => vennCal(box),
+  'summit/import': box => importTab(box, 'summit'),
+  'venn/import': box => importTab(box, 'venn'),
+  'polly/import': box => importTab(box, 'polly'),
   'venn/comp': box => vennComp(box),
   'venn/judg': box => vennJudg(box),
   polly: box => pollyDash(box),
@@ -349,6 +352,75 @@ async function ans(box, q = '', pending = false) {
   });
 }
 
+
+/* ═══════════ Import: paste in puzzles (every game) ═══════════ */
+const IMPORT = {
+  summit: { name: 'Summit', unit: 'days', prompt: 'Summit', hint: 'One DAY block per day, one line per stage: easy | weight | a paper clip = 1 g | a grand piano = 450 kg' },
+  venn: { name: 'Venn', unit: 'days', prompt: 'Venn', hint: 'One DAY block per day: R1 / R2 circles, typical, answers.' },
+  polly: { name: 'Polly', unit: 'questions', prompt: 'Polly', hint: 'One QUESTION block per question. Each source page is opened and its numbers checked (15 per paste).' }
+};
+const draftKey = g => 'wk.import.' + g;
+async function importTab(box, game) {
+  const m = IMPORT[game];
+  const saved = (() => { try { return sessionStorage.getItem(draftKey(game)) || ''; } catch { return ''; } })();
+  box.innerHTML = `<section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Paste ${m.name} puzzles</h2>
+      <p class="sub">1. Copy the <b>${m.prompt}</b> prompt from <code>prompts/PROMPTS.md</code> into an LLM. Press <b>Copy avoid list</b> and paste it where the prompt says, so nothing repeats.<br>
+        2. Paste the LLM's answer below, edit anything you like, and press <b>Check</b>.<br>
+        3. Press <b>Add to calendar</b>. ${game === 'polly' ? 'Questions whose numbers are found on their source page are approved and scheduled; the rest wait in the Bank as drafts.' : 'Days without a date fill the next days that have nothing approved yet, starting tomorrow; a day with a date goes on that date. They\'re approved straight away.'}</p>
+      <p class="sub">${esc(m.hint)}</p>
+      <div class="row" style="margin-top:6px"><button class="mini-btn" id="imAvoid">Copy avoid list</button></div>
+      <textarea class="box" id="imText" spellcheck="false" style="min-height:280px;font-family:ui-monospace,Consolas,monospace;font-size:13px;margin-top:10px" placeholder="Paste the LLM's answer here">${esc(saved)}</textarea>
+      <div class="row"><button class="btn sm alt" id="imCheck">Check</button><button class="btn sm" id="imAdd">Add to calendar</button><button class="mini-btn" id="imClear">Clear</button></div>
+      <div id="imOut"></div></section>`;
+  const ta = $('#imText');
+  ta.oninput = () => { try { sessionStorage.setItem(draftKey(game), ta.value); } catch { /* fine */ } };
+  $('#imClear').onclick = () => { ta.value = ''; ta.oninput(); $('#imOut').innerHTML = ''; };
+  $('#imAvoid').onclick = async () => {
+    try {
+      const r = await api('admin/import/avoid?game=' + game);
+      await navigator.clipboard.writeText(r.text || '(nothing yet)');
+      toast(`Copied ${r.text ? r.text.split(/;|\n/).length : 0} things to avoid`);
+    } catch (e) { toast(e.message); }
+  };
+  const run = async dryRun => {
+    if (!ta.value.trim()) return toast('Paste the LLM\'s answer first.');
+    if (!dryRun && !confirm(game === 'polly' ? 'Check these questions against their sources and add them?' : 'Add these to the calendar, approved?')) return;
+    const b = dryRun ? $('#imCheck') : $('#imAdd'), label = b.textContent;
+    b.disabled = true; b.textContent = dryRun ? 'Checking…' : (game === 'polly' ? 'Opening the sources…' : 'Adding…');
+    try {
+      const r = await api('admin/import/' + game, { text: ta.value, dryRun });
+      $('#imOut').innerHTML = importReport(game, r);
+      if (!dryRun) toast(game === 'polly' ? `${r.added} approved, ${r.drafted} drafts` : `Added ${r.added} ${game === 'venn' ? 'rounds' : 'stages'}`);
+    } catch (e) { toast(e.message); }
+    finally { b.disabled = false; b.textContent = label; }
+  };
+  $('#imCheck').onclick = () => run(true);
+  $('#imAdd').onclick = () => run(false);
+}
+
+function importReport(game, r) {
+  const errs = list => (list && list.length ? `<div class="sub" style="color:var(--bad)">${list.map(esc).join('<br>')}</div>` : '');
+  const day = d => d ? new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '–';
+  if (game === 'polly') {
+    const n = k => r.items.filter(i => i.status === k).length;
+    const head = r.dryRun ? `${n('ready')} ready to check, ${n('skip')} with problems.` : `${r.added} approved and scheduled, ${r.drafted} saved as drafts${n('skip') ? `, ${n('skip')} skipped` : ''}${n('later') ? `, ${n('later')} left for the next paste` : ''}.`;
+    const st = { ready: ['ready', 'approved'], approved: ['approved', 'approved'], draft: ['draft', 'draft'], skip: ['skipped', 'rejected'], later: ['next paste', 'empty'] };
+    return `<div class="note ${r.dryRun ? '' : 'good'}" style="margin-top:12px">${head}${!r.dryRun && r.drafted ? ' <a href="#polly/bank">Review the drafts →</a>' : ''}</div>
+      <div class="tbl" style="margin-top:10px"><table><thead><tr><th>Question</th><th>Split</th><th>Result</th></tr></thead><tbody>${r.items.map(i => `<tr>
+        <td><b>${esc(i.q.short || '(no question)')}</b><br><span class="sub">${esc(i.q.url || '')}</span>${errs(i.errors)}${i.notes && i.notes.length ? `<div class="sub">${i.notes.map(esc).join('<br>')}</div>` : ''}</td>
+        <td>${esc(i.q.left_label || '?')} ${i.q.left_raw ?? '?'} / ${esc(i.q.right_label || '?')} ${i.q.right_raw ?? '(rest)'}</td>
+        <td>${badge(...(st[i.status] || ['?', 'draft']))}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  const good = r.days.filter(d => !d.errors.length && d.date);
+  const head = r.dryRun ? `${good.length} ${good.length === 1 ? 'day' : 'days'} ready${r.days.length - good.length ? `, ${r.days.length - good.length} with problems (they'll be skipped)` : ''}. Nothing has been added yet.`
+    : `Added ${r.added} ${game === 'venn' ? 'rounds' : 'stages'} across ${good.length} ${good.length === 1 ? 'day' : 'days'}. <a href="#${game === 'venn' ? 'venn/cal' : 'summit/cal'}">See the calendar →</a>`;
+  const body = d => game === 'venn'
+    ? d.rounds.map(x => `<div><b>Round ${x.round}</b> · par ${x.par} (typical ${x.typical}) · ${x.answers.length} answers${x.warning ? ` · <span style="color:var(--bad)">${esc(x.warning)}</span>` : ''}<div class="vcs">${circlesHTML(x.circles)}</div></div>`).join('')
+    : d.stages.map(s => `<div><b>${['', 'Easy', 'Medium', 'Hard'][s.slot]}</b> · ${esc(propLabel(s.property))}: ${esc(s.smallItem)} (${esc(show(s.property, s.smallValue))}) ↔ ${esc(s.bigItem)} (${esc(show(s.property, s.bigValue))})</div>`).join('');
+  return `<div class="note ${r.dryRun ? '' : 'good'}" style="margin-top:12px">${head}</div>
+    <div class="tbl" style="margin-top:10px"><table><thead><tr><th>Goes on</th><th>Puzzles</th></tr></thead><tbody>${r.days.map(d => `<tr>
+      <td style="white-space:nowrap">${d.errors.length ? badge('problem', 'rejected') : esc(day(d.date))}</td><td>${body(d)}${errs(d.errors)}</td></tr>`).join('')}</tbody></table></div>`;
+}
 
 /* ═══════════ Venn: dashboard ═══════════ */
 async function vennDash(box) {

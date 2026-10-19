@@ -9,6 +9,7 @@ import * as admin from '../_lib/admin.js';
 import * as vennAdmin from '../_lib/venn-admin.js';
 import * as pollyAdmin from '../_lib/polly-admin.js';
 import * as pollyAuto from '../_lib/polly-auto.js';
+import * as importer from '../_lib/importer.js';
 
 const ROUTES = {
   // Suite
@@ -111,7 +112,13 @@ const ROUTES = {
   'POST admin/polly/auto/run': (c) => pollyAuto.run(c.env, c.body),
   'POST admin/polly/auto/queue': (c) => pollyAuto.queue(c.env, c.body),
   'POST admin/polly/auto/settings': (c) => pollyAuto.settings(c.env, c.body),
-  'POST admin/polly/feeds': (c) => pollyAuto.saveFeed(c.env, c.body)
+  'POST admin/polly/feeds': (c) => pollyAuto.saveFeed(c.env, c.body),
+
+  // Admin: paste-in puzzles for every game
+  'POST admin/import/summit': (c) => importer.importSummit(c.env, c.body),
+  'POST admin/import/venn': (c) => importer.importVenn(c.env, c.body),
+  'POST admin/import/polly': (c) => importer.importPolly(c.env, c.body),
+  'GET admin/import/avoid': (c) => importer.avoidList(c.env, c.q)
 };
 
 // The pause sent with navigator.sendBeacon as the page hides arrives as text/plain (a beacon can't
