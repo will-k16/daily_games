@@ -204,10 +204,10 @@ async function load() {
 stampTitle();
 renderSimilar();
 const theme = season();
-decorate(theme, { sheet: $('.sheet'), masthead: $('.masthead') });
+decorate(theme, { masthead: $('.masthead') });
 renderDesk($('#desk'), theme);
 // Switching light/dark redraws them in the right ink (without replaying the bats).
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { renderDesk($('#desk'), theme); decorate(theme, { sheet: $('.sheet'), masthead: $('.masthead') }); document.querySelectorAll('.bat').forEach(b => b.remove()); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { renderDesk($('#desk'), theme); decorate(theme, { masthead: $('.masthead') }); document.querySelectorAll('.bat').forEach(b => b.remove()); });
 await load();
 signInReturn(accountUI());
 setInterval(tick, 1000);

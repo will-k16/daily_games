@@ -1,7 +1,7 @@
 // The home page's little extras: the pixel "desk" along the bottom (one thing from each game, plus seasonal
 // pieces), and the seasonal decorations (Halloween: cobwebs, a spider, a few bats). Everything is drawn on tiny
 // canvases and scaled up crisp, like the games' sprites.
-import { canvas, outline, bayer } from './pixel.js';
+import { canvas, outline, bayer, mix } from './pixel.js';
 
 const INK = '#1b1915';
 // On dark paper the outlines and the dark critters switch to light ink, so nothing disappears.
@@ -47,20 +47,6 @@ function beanie() {
   return outline(c, EDGE);
 }
 
-/** A curl of Mel's vine with a yellow flower (Venn). */
-function vine() {
-  const c = canvas(22, 14), x = c.getContext('2d');
-  let last = null;
-  for (let t = 0; t <= 1.001; t += .02) {
-    const cx = 2 + t * 17, cy = 8 + Math.sin(t * Math.PI * 3) * 3.5;
-    if (last) { line(x, last[0], last[1], cx, cy, '#2f6b3a'); line(x, last[0], last[1] - 1, cx, cy - 1, '#4aa356'); }
-    last = [cx, cy];
-  }
-  [[6, 4, -1], [13, 11, 1]].forEach(([lx, ly, d]) => { rect(x, lx, ly, 3, 2, '#62bb62'); px(x, lx + (d > 0 ? 3 : -1), ly + (d > 0 ? 1 : 0), '#62bb62'); px(x, lx + 1, ly + (d > 0 ? 1 : 0), '#3f8a46'); });
-  [[18, 3], [17, 4], [19, 4], [18, 5]].forEach(([fx, fy]) => px(x, fx, fy, '#f2c230')); px(x, 18, 4, '#fff6c8');
-  return outline(c, EDGE);
-}
-
 /** Polly's brass hand bell (Polly). */
 function bell() {
   const c = canvas(14, 17), x = c.getContext('2d');
@@ -71,18 +57,6 @@ function bell() {
   rect(x, 0, 13, 14, 2, '#8a6420'); rect(x, 1, 13, 4, 1, '#e0b45a');
   rect(x, 6, 15, 2, 2, '#2b2b2b');
   return outline(c, EDGE);
-}
-
-/** A coffee-cup ring left on the paper. */
-function coffeeRing() {
-  const c = canvas(20, 10), x = c.getContext('2d');
-  for (let a = 0; a < 120; a++) {
-    const an = a / 120 * Math.PI * 2, rx = 8.5, ry = 3.6;
-    const cx = Math.round(10 + Math.cos(an) * rx), cy = Math.round(5 + Math.sin(an) * ry);
-    if (bayer(cx, cy) < .8) px(x, cx, cy, a % 9 < 6 ? '#8a5a3a' : '#a8744f');
-  }
-  [[4, 3], [14, 7], [12, 2]].forEach(([dx, dy]) => px(x, dx, dy, '#b38a6a'));
-  return c;
 }
 
 /** A carved jack-o'-lantern (Halloween). */
@@ -119,29 +93,175 @@ function witchHat() {
   return outline(c, EDGE);
 }
 
+/** Three books in the games' colors, stacked a little crooked. */
+function books() {
+  const c = canvas(32, 15), x = c.getContext('2d');
+  const book = (bx, by, w, col, tilt) => {
+    rect(x, bx, by, w, 4, col); rect(x, bx, by, w, 1, mix(col, '#ffffff', .25)); rect(x, bx + w - 3, by + 1, 3, 2, '#f3ead8');
+    for (let i = 0; i < 3; i++) px(x, bx + w - 3 + i, by + 2, '#d8cfbd');
+    rect(x, bx + 3, by + 1, 6, 2, mix(col, '#000000', .25)); px(x, bx + 4 + tilt, by + 2, '#f2c230');
+  };
+  book(1, 10, 30, '#d9482b', 0);   // Summit red
+  book(3, 6, 26, '#2f8f4e', 1);    // Venn green
+  book(0, 2, 27, '#1f8a8a', 2);    // Polly teal
+  return outline(c, EDGE);
+}
+
+/** A mug with a little steam (and "WK" on it). */
+function mug() {
+  const c = canvas(16, 19), x = c.getContext('2d');
+  [[5, 0], [6, 1], [5, 2], [6, 3], [9, 1], [10, 2], [9, 3], [10, 4]].forEach(([sx, sy]) => px(x, sx, sy, '#c9c1b2'));
+  rect(x, 2, 6, 10, 12, '#f3ead8'); rect(x, 2, 6, 10, 2, '#5b371f'); rect(x, 2, 6, 1, 12, '#ffffff'); rect(x, 11, 8, 1, 10, '#d8cfbd');
+  rect(x, 12, 9, 3, 1, '#f3ead8'); rect(x, 14, 9, 1, 6, '#f3ead8'); rect(x, 12, 14, 3, 1, '#f3ead8');
+  rect(x, 4, 11, 1, 3, '#d9482b'); px(x, 5, 13, '#d9482b'); rect(x, 6, 11, 1, 3, '#d9482b'); px(x, 7, 13, '#d9482b'); rect(x, 8, 11, 1, 3, '#d9482b');
+  return outline(c, EDGE);
+}
+
+/** Mel's vine growing out of a little clay pot. */
+function plant() {
+  const c = canvas(20, 26), x = c.getContext('2d');
+  rect(x, 4, 17, 12, 2, '#c4643a'); rect(x, 5, 19, 10, 7, '#b0532c'); rect(x, 5, 19, 2, 7, '#c4643a'); rect(x, 5, 17, 10, 1, '#5b371f');
+  let last = [10, 17];
+  for (let t = 0; t <= 1.001; t += .04) {
+    const p = [10 + Math.sin(t * Math.PI * 2.4) * 5, 17 - t * 16];
+    line(x, last[0], last[1], p[0], p[1], '#2f6b3a'); last = p;
+  }
+  [[4, 11, 1], [13, 6, -1], [5, 3, 1]].forEach(([lx, ly]) => { rect(x, lx, ly, 3, 2, '#62bb62'); px(x, lx + 1, ly, '#4aa356'); });
+  [[14, 1], [13, 2], [15, 2], [14, 3]].forEach(([fx, fy]) => px(x, fx, fy, '#f2c230')); px(x, 14, 2, '#fff6c8');
+  return outline(c, EDGE);
+}
+
+/** A wind-up desk clock (puzzles reset at midnight). */
+function clock() {
+  const c = canvas(16, 17), x = c.getContext('2d');
+  ellipse(x, 3, 2, 2, 1, '#c9a227'); ellipse(x, 12, 2, 2, 1, '#c9a227');
+  ellipse(x, 8, 8, 6, 6, '#d9482b'); ellipse(x, 8, 8, 4, 4, '#f6efe2');
+  line(x, 8, 8, 8, 5, INK); line(x, 8, 8, 10, 9, INK);
+  line(x, 4, 13, 2, 16, '#5b371f'); line(x, 12, 13, 14, 16, '#5b371f');
+  return outline(c, EDGE);
+}
+
+/** A bendy desk lamp. */
+function lamp() {
+  const c = canvas(28, 32), x = c.getContext('2d'), g = '#2f6b3a', gl = '#3f8a46';
+  ellipse(x, 20, 30, 6, 1, g); rect(x, 15, 29, 11, 1, gl);
+  line(x, 20, 29, 13, 16, '#46414f'); line(x, 21, 29, 14, 16, '#46414f');
+  line(x, 13, 16, 9, 6, '#46414f'); line(x, 14, 16, 10, 6, '#46414f');
+  for (let i = 0; i < 7; i++) rect(x, 3 + i, 4 + i, 9 - i, 1, i < 2 ? gl : g);
+  rect(x, 2, 10, 3, 2, '#fff1a8');
+  return outline(c, EDGE);
+}
+
+/** A cup of pencils (and a ruler). */
+function pencilCup() {
+  const c = canvas(13, 22), x = c.getContext('2d');
+  [[3, 0, '#f2c230', '#e7798c'], [6, 2, '#d9482b', '#3a3230'], [9, 1, '#1f8a8a', '#f6efe2']].forEach(([px0, top, col, tip]) => { rect(x, px0, top + 1, 2, 12, col); rect(x, px0, top, 2, 1, tip); });
+  rect(x, 1, 3, 2, 10, '#d8cfbd'); for (let y = 4; y < 12; y += 2) px(x, 2, y, '#8a857c');
+  rect(x, 1, 11, 11, 11, '#5d8aa8'); rect(x, 1, 11, 11, 1, '#86aec7'); rect(x, 1, 11, 2, 11, '#86aec7'); rect(x, 10, 12, 2, 10, '#3f6a86');
+  return outline(c, EDGE);
+}
+
+/** A crumpled-up paper ball. */
+function paperBall() {
+  const c = canvas(8, 7), x = c.getContext('2d');
+  ellipse(x, 4, 3, 3, 3, '#f6f1e6'); [[2, 2], [4, 1], [5, 4], [3, 4], [6, 2]].forEach(([cx, cy]) => px(x, cx, cy, '#c9c1b2')); px(x, 2, 1, '#ffffff');
+  return outline(c, EDGE);
+}
+
+/** Two dice. */
+function dice() {
+  const c = canvas(14, 7), x = c.getContext('2d');
+  rect(x, 0, 1, 6, 6, '#f6f1e6'); rect(x, 0, 1, 6, 1, '#ffffff'); [[1, 2], [4, 5], [2, 3]].forEach(([cx, cy]) => px(x, cx, cy, INK));
+  rect(x, 7, 0, 6, 6, '#d9482b'); rect(x, 7, 0, 6, 1, '#e8674c'); [[8, 1], [11, 1], [8, 4], [11, 4]].forEach(([cx, cy]) => px(x, cx, cy, '#f6efe2'));
+  return outline(c, EDGE);
+}
+
 const THINGS = {
-  beanie: { draw: beanie, label: 'Skipper’s beanie' },
-  vine: { draw: vine, label: 'A bit of Mel’s vine' },
+  books: { draw: books, label: 'Three game books' },
+  mug: { draw: mug, label: 'A WK mug' },
   bell: { draw: bell, label: 'Polly’s bell' },
-  coffee: { draw: coffeeRing, label: 'A coffee ring' },
+  clock: { draw: clock, label: 'A desk clock: new puzzles at midnight UTC' },
+  plant: { draw: plant, label: 'Mel’s vine in a pot' },
+  beanie: { draw: beanie, label: 'Skipper’s beanie' },
+  lamp: { draw: lamp, label: 'A desk lamp' },
+  pencils: { draw: pencilCup, label: 'A cup of pencils' },
+  ball: { draw: paperBall, label: 'A crumpled-up first draft' },
+  dice: { draw: dice, label: 'A pair of dice' },
   pumpkin: { draw: pumpkin, label: 'A jack-o’-lantern' },
   hat: { draw: witchHat, label: 'A witch’s hat' }
 };
 
-/** Fills the desk along the bottom of the page. Each thing wiggles on hover or tap. */
+/* ───────────── the desk itself ───────────── */
+const DW = 256, DH = 80, TOP = 42;          // low-res size; the desktop's surface starts at TOP
+
+/** The wooden desk, plus everything that lies flat on it (papers and a pencil, the coffee ring, candy corn). */
+function deskBase(theme) {
+  const c = canvas(DW, DH), x = c.getContext('2d');
+  const wood = '#b97c48', woodL = '#cf9560', woodD = '#8a5530', woodDD = '#6a3f22';
+  // legs and the drawer
+  [[8, 6], [DW - 14, 6]].forEach(([lx, w]) => { rect(x, lx, TOP + 12, w, DH - TOP - 12, woodD); rect(x, lx, TOP + 12, 1, DH - TOP - 12, wood); });
+  rect(x, 92, TOP + 12, 72, 14, woodD); rect(x, 94, TOP + 13, 68, 11, wood); rect(x, 94, TOP + 13, 68, 1, woodL);
+  rect(x, 125, TOP + 18, 6, 2, '#e0b45a'); px(x, 125, TOP + 18, '#fff1a8');
+  // a sticky note on the drawer
+  rect(x, 140, TOP + 14, 9, 8, '#f2d14a'); rect(x, 140, TOP + 14, 9, 1, '#e0b43a'); rect(x, 142, TOP + 17, 5, 1, '#8a6420'); rect(x, 142, TOP + 19, 3, 1, '#8a6420');
+  // the desktop: a lit top seen from just above, then the front edge
+  rect(x, 2, TOP, DW - 4, 8, wood); rect(x, 2, TOP, DW - 4, 1, woodL);
+  for (let y = TOP + 2; y < TOP + 8; y += 2) for (let gx = 4 + (y * 7) % 13; gx < DW - 8; gx += 19 + (gx % 7)) rect(x, gx, y, 6 + (gx % 5), 1, '#a86f3e');
+  rect(x, 0, TOP + 8, DW, 4, woodD); rect(x, 0, TOP + 8, DW, 1, woodDD); rect(x, 0, TOP + 11, DW, 1, woodDD);
+  // papers and a pencil
+  for (let i = 0; i < 6; i++) rect(x, 40 + i, TOP + 1 + i, 30, 1, '#ece4d0');
+  for (let i = 0; i < 6; i++) rect(x, 50 - i, TOP + 1 + i, 32, 1, i === 0 ? '#ffffff' : '#f6f1e6');
+  [TOP + 3, TOP + 5].forEach((ly, k) => rect(x, 52 - (ly - TOP), ly, 20 - k * 6, 1, '#b9b2a3'));
+  line(x, 50, TOP + 6, 76, TOP + 2, '#f2c230'); line(x, 50, TOP + 7, 76, TOP + 3, '#d9a520'); px(x, 49, TOP + 7, '#3a3230'); px(x, 77, TOP + 2, '#e7798c');
+  // a closed notebook under the lamp
+  for (let i = 0; i < 6; i++) rect(x, 210 - i, TOP + 1 + i, 30, 1, i === 0 ? '#2f8f4e' : '#277a42');
+  rect(x, 204, TOP + 6, 30, 1, '#f6f1e6'); rect(x, 222 - 3, TOP + 2, 2, 4, '#f2c230');
+  // a coffee ring next to the mug
+  for (let a = 0; a < 40; a++) {
+    const an = a / 40 * Math.PI * 2, cx = Math.round(108 + Math.cos(an) * 5), cy = Math.round(TOP + 4 + Math.sin(an) * 1.6);
+    if (a % 7) px(x, cx, cy, '#8a5a3a');
+  }
+  if (theme === 'halloween') {
+    [[198, TOP + 3], [205, TOP + 5], [190, TOP + 6], [212, TOP + 2]].forEach(([cx, cy]) => {
+      px(x, cx, cy, '#f6efe2'); rect(x, cx, cy + 1, 2, 1, '#e8743b'); rect(x, cx, cy + 2, 3, 1, '#f2c230');
+    });
+  }
+  return outline(c, EDGE);
+}
+
+/** Where each thing sits: x and the row its base rests on (low-res), in back-to-front order. */
+function layout(theme) {
+  const spooky = theme === 'halloween';
+  return [
+    ['lamp', 224, TOP + 3], ['plant', 172, TOP + 4], ['books', 10, TOP + 5], ['pencils', 80, TOP + 4],
+    [spooky ? 'pumpkin' : 'beanie', spooky ? 14 : 18, TOP - 9],
+    ['clock', 150, TOP + 6], ['mug', 94, TOP + 6], ['bell', 126, TOP + 6],
+    spooky ? ['hat', 190, TOP + 8] : null, spooky ? ['beanie', 54, TOP + 8] : null,
+    ['ball', 116, TOP + 8], ['dice', 160, TOP + 9], ['ball', 214, TOP + 9], ['ball', 44, TOP + 9]
+  ].filter(Boolean);
+}
+
+/** The desk along the bottom of the page. Each thing on it wiggles on hover or tap. */
 export function renderDesk(el, theme) {
   setInk();
-  const order = theme === 'halloween' ? ['hat', 'beanie', 'coffee', 'pumpkin', 'vine', 'bell'] : ['beanie', 'coffee', 'vine', 'bell'];
-  el.innerHTML = order.map(k => `<span class="thing" data-k="${k}" title="${THINGS[k].label}"></span>`).join('');
-  el.querySelectorAll('.thing').forEach(t => {
-    const cv = THINGS[t.dataset.k].draw();
+  el.innerHTML = '';
+  const base = deskBase(theme);
+  base.className = 'desk-base';
+  el.appendChild(base);
+  for (const [k, lx, by] of layout(theme)) {
+    const cv = THINGS[k].draw();
+    const t = document.createElement('span');
+    t.className = 'thing'; t.title = THINGS[k].label;
+    t.style.left = (lx / (DW + 2) * 100) + '%';
+    t.style.bottom = ((DH + 2 - by) / (DH + 2) * 100) + '%';
+    t.style.width = (cv.width / (DW + 2) * 100) + '%';
     cv.setAttribute('aria-hidden', 'true');
-    cv.style.setProperty('--w', cv.width);
     t.appendChild(cv);
     const wiggle = () => { t.classList.remove('wig'); void t.offsetWidth; t.classList.add('wig'); };
     t.addEventListener('mouseenter', wiggle);
     t.addEventListener('click', wiggle);
-  });
+    el.appendChild(t);
+  }
 }
 
 /* ───────────── Halloween ───────────── */
@@ -182,20 +302,19 @@ function batSheet() {
   return c;
 }
 
-/** Cobwebs in the top corners, a spider that drops on hover, three bats that fly past once, and a stamp by the title. */
-export function decorate(theme, { sheet, masthead }) {
+/** Cobwebs in the window's top corners, a spider that drops on hover, and three bats that fly past once. */
+export function decorate(theme, { masthead }) {
   setInk();
   document.documentElement.dataset.season = theme || '';
   document.querySelectorAll('.season-deco').forEach(n => n.remove());
   if (theme !== 'halloween') return;
   const web = cobweb().toDataURL(), sp = spider().toDataURL(), bats = batSheet().toDataURL();
-  sheet.insertAdjacentHTML('afterbegin', `
+  document.body.insertAdjacentHTML('afterbegin', `
     <div class="season-deco web left" aria-hidden="true" style="background-image:url(${web})"></div>
     <div class="season-deco web right" aria-hidden="true" style="background-image:url(${web})">
       <span class="spider"><i class="thread"></i><img src="${sp}" alt=""></span>
     </div>`);
   masthead.insertAdjacentHTML('beforeend', `
-    <div class="season-deco bats" aria-hidden="true">${[0, 1, 2].map(i => `<i class="bat" style="--i:${i};background-image:url(${bats})"></i>`).join('')}</div>
-    <span class="season-deco stamp" aria-hidden="true">Happy Halloween</span>`);
+    <div class="season-deco bats" aria-hidden="true">${[0, 1, 2].map(i => `<i class="bat" style="--i:${i};background-image:url(${bats})"></i>`).join('')}</div>`);
 }
 
