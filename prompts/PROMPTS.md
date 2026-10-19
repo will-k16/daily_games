@@ -1,6 +1,8 @@
 # Puzzle prompts
 
-How to use these:
+Prompts for filling each game's calendar (Summit, Venn, Polly), plus one at the end for **inventing a new game** for the suite.
+
+How to use the puzzle prompts:
 
 1. Open **/admin** → the game → **Import**, and press **Copy avoid list**.
 2. Copy the game's prompt below (everything inside the grey box) into an LLM. Replace the parts in `[[DOUBLE BRACKETS]]`, and paste the avoid list where it says.
@@ -190,3 +192,78 @@ Repeat the QUESTION block for every question.
 ```
 
 The site checks at most 15 questions per paste (it opens each source page), so paste bigger batches in parts.
+
+
+---
+
+## New game ideas
+
+For brainstorming the **next game** for the suite (not puzzles for an existing one). It gives the LLM everything: what's already in the suite, every existing game to stay away from, the 12 things that make these games fun, the checklist, the suite's limits, and the exact shape of the answer. Works best with a strong reasoning model. Ask for more, or ask it to go deeper on one idea, in the same chat.
+
+```text
+You are a game designer helping me invent the NEXT daily game for my small web arcade, "WK Game Suite". I want ideas that are genuinely NEW: not a reskin or a close variant of any game listed below.
+
+=== MY SUITE TODAY ===
+- Summit ("Name something juuust right."): you see two real things that differ hugely in one property (a paper clip, 1 g, and a grand piano, 450 kg) and name a third real thing whose value sits at the geometric middle. An AI judge estimates your answer's value; the score is graded by how close you got, and your first guess only tells you how close, not which direction (the "fog"), so the second guess is a deduction. Three stages, easy to hard. Mascot: Skipper the goat in a cable car.
+- Venn ("Find what fits both."): 90 seconds to type as many things as you can that fit two overlapping categories (round 1), then three (round 2). An AI judge checks each answer instantly; you score against a par. Mascot: Mel the chameleon in a jungle of vine rings.
+- Polly ("Guess what America said."): three real US poll questions a day; pick your side, then drag a bar to guess what percent of Americans picked each side. Every number comes from a real, verified poll page. Mascot: Polly the cockatoo, a town crier in a pixel town square.
+Each game: one short puzzle a day (new at midnight UTC), the same for everyone, about 5 minutes, graded scoring, a spoiler-free emoji share line, streaks, stats, an archive, a pixel-art mascot and world that react to your score, and a shop of cosmetics paid in "WK Bucks" earned by playing.
+
+=== GAMES THAT ALREADY EXIST (your ideas must be clearly distinct from ALL of these) ===
+Games linked from my home page: Krillion (name the answers nobody else thinks of; rarer valid answers score more), Chainle (the daily word chain), FactMap (a daily game on the world map), Sortie! (answer prompts to fly as far as you can), and NYT Games (Wordle, Connections, Spelling Bee, Strands, Letter Boxed, Tiles, Vertex, the Mini crossword).
+Other well-known daily games: Noillirk (guess the most common answer), Contexto and Semantle (guess the secret word with "how close" ranks), Globle, Worldle, Travle and Tradle (geography by distance or shape), GeoGuessr and TimeGuessr (where and when a photo is from), Wikitrivia (order events in time), Pinpoint (guess the category from clues revealed one at a time), Redactle (guess a blacked-out Wikipedia article), Heardle, Bandle and Framed (songs or movies from clips), Quordle, Waffle, Squaredle and Nerdle (word or number grids), Costcodle (guess the price), Flagle, Metazooa (guess the animal), Murdle (logic mysteries), and Family Feud style "guess what others said" games.
+Ideas I've already considered (don't give me these either): a compound-word chain between two words (HONEY → MOON → LIGHT → SHIP), putting cards in order on a timeline, naming the most obscure member of a category scored by Wikipedia pageviews, tapping where a place is on a world map, guessing something from a ladder of clues with a warmth meter, sorting five things by a property in four tries, picking the exact color of famous things on a color picker, and uncovering a blacked-out Wikipedia intro.
+If an idea is even partly like one of these, either drop it or say exactly what makes it different and why that difference changes how it feels to play.
+
+=== WHAT MAKES THESE GAMES FUN (every idea must use these) ===
+1. One rule, one sentence. If it needs a tutorial, it loses people on day one.
+2. Every guess teaches you something. Bare right/wrong turns into luck or binary search; feedback (colors, ranks, "how close", direction or no direction) turns each guess into evidence you can reason from.
+3. Graded scoring, not pass/fail. Partial credit means a bad day still feels like playing. The curve should be steep near perfect, so a top score feels earned.
+4. The answer is yours. Open input (typing anything, judged by an AI) lets people show taste and knowledge, so the reveal is a story about them. Multiple choice can't do that. Cheap AI judging of open input is this suite's biggest advantage; use it where it helps.
+5. The reveal is the payoff. The best moment comes AFTER you answer: the true value, the source, what others said, a surprising fact. A number in a box is half a game.
+6. Everyone gets the same short puzzle once a day. Scarcity makes it a ritual. About 3–6 minutes, ideally three stages.
+7. A ramp inside the day: easy, then medium, then hard. A quick win first, and ending on the hard one makes the share line interesting.
+8. A spoiler-free share line that tells a story: it shows the journey (misses, near misses, second tries), not just a total, and makes someone who hasn't played curious.
+9. Near misses. "So close" motivates more than a win. Graded scoring and labels like "Exact!" or "Close! Fits 2 of 3" create them.
+10. Skill that grows. Calibration, vocabulary, geography, etc. improve with play, so streaks feel like progress, not just habit.
+11. A believable source of truth. Scoring only feels fair if players trust the answer key: real data (polls, Wikipedia, Wikidata, official figures) or an AI judge with an appeal button.
+12. A character and a world. A pixel mascot that reacts to your score turns a number into a feeling and makes the game feel handmade.
+
+=== THE CHECKLIST (each idea must get a yes on all ten; show it) ===
+1. Can the rule be said in one sentence?
+2. Does each guess give feedback you can reason from?
+3. Is the score graded, with a steep top end?
+4. Is there open input (or at least a choice that expresses something personal)?
+5. Is the reveal worth waiting for? Does it teach something?
+6. Is a day 3–6 minutes?
+7. Is there a believable answer key that doesn't need a big crowd?
+8. Can an AI draft a day that I approve in about a minute, with a built-in fallback bank of puzzles?
+9. Does it cover a skill my other games don't?
+10. Is there a mascot and world whose reaction makes the score feel like something?
+
+=== MY LIMITS ===
+- Tiny audience (a handful of players). A score must NOT depend on other players (no "rarest answer among players" scoring). Use an outside answer key and show the crowd only as a bonus once 5+ people have played.
+- One person runs it. Puzzles are drafted by an AI and approved by me, or pasted in from an LLM; approving a day should take a minute.
+- Free tier only: Cloudflare Pages + Workers + a SQLite database, Gemini/Groq for AI calls (cached), free public APIs (Wikipedia, Wikidata, public-domain maps). No paid APIs, no licensed images, music or video.
+- Plain HTML/CSS/JS, phone-first, pixel-art style (low-res canvases scaled up crisp), no sound.
+- Skills my suite already covers: magnitude/estimation (Summit), recall under time pressure (Venn), modelling people (Polly). Skills it's missing: time, place, words and association, deduction from clues, taste and obscurity, ordering, visual memory, logic, numbers, cause and effect, prediction, language. Prefer ideas that cover something missing, but surprise me.
+
+=== AVOID ===
+Pass/fail scoring; scoring against a crowd that doesn't exist yet; long or open-ended sessions; licensed media; Wordle clones; anything where the answer has to live in the browser (the server keeps answers); trivia that's just "do you know this fact" with no reasoning; anything that needs an account to be fun.
+
+=== WHAT I WANT ===
+Give me [[NUMBER, e.g. 6]] distinct game ideas. For EACH one, use exactly these headings:
+- Name and one-sentence rule (the pitch, max 8 words, plus the rule).
+- A day: how one day plays, step by step, with a concrete example puzzle (real items and real values).
+- Feedback: what each guess tells the player, and why it's reasoned rather than lucky.
+- Scoring: the exact formula or table, the day total, and why the top end is steep.
+- The reveal: what the player sees after answering, and the "huh!" it creates.
+- Answer key and puzzle making: where the truth comes from, how an AI drafts a day, what the server checks automatically, what the fallback bank is, and how long I'd spend approving a day.
+- Mascot and world: an animal or character, its pixel world, and how it reacts to good and bad scores; three shop items.
+- Share line: a realistic example in a code block.
+- Closest existing game: name it, and say exactly why this is different to play.
+- Checklist: the ten checks above, each with yes/no and one short reason.
+- Risks: what could make it unfun or unfair, and the fix.
+Then end with a short ranking of all of them (fun ceiling, build effort, admin effort, which skill it adds) and your pick for which one I should build first and why.
+Be concrete, not generic: real examples, real numbers, real data sources. No marketing language.
+```
