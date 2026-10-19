@@ -13,18 +13,18 @@ const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const S = { me: { signedIn: false }, data: null, previews: [] };
 
 const GAMES = {
-  polly: { name: 'Polly', pitch: 'Guess what America said.', href: '/polly', color: '#1f8a8a', draw: (cv, n) => drawPollyPreview(cv, n) },
-  venn: { name: 'Venn', pitch: 'Find what fits both.', href: '/venn', color: '#2f8f4e', draw: (cv, n) => drawVennPreview(cv, n) },
-  summit: { name: 'Summit', pitch: 'Name something juuust right.', href: '/summit', color: '#d9482b', draw: drawSummitPreview }
+  polly: { name: 'Polly', pitch: 'Guess what America said', href: '/polly', color: '#1f8a8a', draw: (cv, n) => drawPollyPreview(cv, n) },
+  venn: { name: 'Venn', pitch: 'Find what fits both', href: '/venn', color: '#2f8f4e', draw: (cv, n) => drawVennPreview(cv, n) },
+  summit: { name: 'Summit', pitch: 'Name something juuust right', href: '/summit', color: '#d9482b', draw: drawSummitPreview }
 };
 
 // Games by other people. `by` is the credit shown; leave it '' if the site doesn't say who made it.
 const SIMILAR = [
-  { name: 'Krillion', url: 'https://krillion.io', pitch: 'The daily dive: name the answers nobody else thinks of.', by: '' },
-  { name: 'Chainle', url: 'https://chainle.io', pitch: 'The daily word chain.', by: 'the younger brother of Krillion’s maker' },
-  { name: 'FactMap', url: 'https://factmap.world', pitch: 'A daily game on the world map.', by: '' },
-  { name: 'NYT Games', url: 'https://www.nytco.com/games', pitch: 'Wordle, Connections, Spelling Bee and more.', by: 'The New York Times' },
-  { name: 'Sortie!', url: 'https://dailysortie.com', pitch: 'The daily flight challenge: answer prompts to fly as far as you can.', by: '' }
+  { name: 'Krillion', url: 'https://krillion.io', pitch: 'The daily dive: name the most obscure answer', by: '' },
+  { name: 'Chainle', url: 'https://chainle.io', pitch: 'Find the word that connects the others', by: 'the younger brother of Krillion’s maker' },
+  { name: 'FactMap', url: 'https://factmap.world', pitch: 'A daily game on the world map', by: '' },
+  { name: 'NYT Games', url: 'https://www.nytco.com/games', pitch: 'Wordle, Connections, Spelling Bee and more', by: 'The New York Times' },
+  { name: 'Sortie!', url: 'https://dailysortie.com', pitch: 'Answer prompts to fly as far as you can.', by: '' }
 ];
 
 function renderSimilar() {
