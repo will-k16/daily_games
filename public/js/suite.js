@@ -5,6 +5,7 @@ import { showAccount, signInReturn } from './account.js';
 import { drawVennPreview } from './venn-scene.js';
 import { drawPollyPreview } from './polly-scene.js';
 import { bayer } from './pixel.js';
+import { renderDesk, decorate, season } from './desk.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -161,10 +162,22 @@ window.addEventListener('pageshow', () => { const w = $('#wipe'); w.classList.re
 function tick() {
   if (!S.data) return;
   const ms = new Date(S.data.nextReset).getTime() - Date.now();
-  const b = $('#reset b');
-  if (ms <= 0) { b.textContent = '00:00:00'; load(); return; }
+  if (ms <= 0) { showClock('00:00:00'); load(); return; }
   const s = Math.floor(ms / 1000);
-  b.textContent = [Math.floor(s / 3600), Math.floor(s % 3600 / 60), s % 60].map(v => String(v).padStart(2, '0')).join(':');
+  showClock([Math.floor(s / 3600), Math.floor(s % 3600 / 60), s % 60].map(v => String(v).padStart(2, '0')).join(':'));
+}
+
+/** The countdown as split-flap tiles: a digit that changes flips over (two frames). */
+function showClock(text) {
+  $('#resetText').textContent = text;
+  const box = $('#flaps');
+  if (box.children.length !== text.length) box.innerHTML = [...text].map(ch => (ch === ':' ? '<i class="colon">:</i>' : '<i class="flap"></i>')).join('');
+  [...text].forEach((ch, i) => {
+    const el = box.children[i];
+    if (ch === ':' || el.textContent === ch) return;
+    el.textContent = ch;
+    if (!reduced()) { el.classList.remove('flip'); void el.offsetWidth; el.classList.add('flip'); }
+  });
 }
 
 /* ── Combined share ── */
@@ -190,6 +203,11 @@ async function load() {
 
 stampTitle();
 renderSimilar();
+const theme = season();
+decorate(theme, { sheet: $('.sheet'), masthead: $('.masthead') });
+renderDesk($('#desk'), theme);
+// Switching light/dark redraws them in the right ink (without replaying the bats).
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { renderDesk($('#desk'), theme); decorate(theme, { sheet: $('.sheet'), masthead: $('.masthead') }); document.querySelectorAll('.bat').forEach(b => b.remove()); });
 await load();
 signInReturn(accountUI());
 setInterval(tick, 1000);

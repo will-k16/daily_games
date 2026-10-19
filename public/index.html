@@ -22,7 +22,7 @@
       <button class="pill acct" id="acct" type="button">Sign in</button>
     </div>
     <h1 class="title" id="title" aria-label="WK GAME SUITE">WK GAME SUITE</h1>
-    <p class="reset" id="reset">New puzzles in <b>--:--:--</b></p>
+    <p class="reset" id="reset">New puzzles in <b class="flaps" aria-live="off"><span class="sr-only" id="resetText">--:--:--</span><span class="flapset" id="flaps" aria-hidden="true"></span></b></p>
   </header>
 
   <main class="games" id="games"></main>
@@ -41,6 +41,8 @@
     <p>Made by one person, free, no ads.</p>
     <a class="btn alt sm" id="tipLink" href="#" target="_blank" rel="noopener">☕ Buy me a coffee</a>
   </aside>
+
+  <div class="desk" id="desk" aria-hidden="true"></div>
 
   <footer class="foot"><a href="/privacy">Privacy</a><a href="#" id="tipFoot" target="_blank" rel="noopener" hidden>Buy me a coffee</a><a href="/admin" id="adminLink" hidden>Admin</a></footer>
 </div>
