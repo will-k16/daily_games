@@ -4,7 +4,8 @@ export const ROUND_MS = 90000;                 // 90 seconds per round
 export const GRACE_MS = 2000;                  // answers arriving later than 90 s + this are refused
 export const ROUND_MAX = 100;
 export const DAY_MAX = 200;
-export const MIN_PAR = { 1: 3, 2: 2 };
+export const MIN_PAR = { 1: 5, 2: 3 };
+export const MAX_PAR = { 1: 15, 2: 10 };    // so one inflated estimate can't make a day impossible
 export const MIN_ANSWERS = { 1: 25, 2: 8 };    // a draft must list at least this many real answers
 export const MAX_ANSWER = 60;                  // characters
 export const MIN_CROWD = 5;                    // players needed before "how everyone did" shows
@@ -21,10 +22,13 @@ export function roundScore(n, par) {
   return Math.round(25 + 75 * (n - P) / P);
 }
 
-/** Par = floor(0.6 × typical), never below 3 (round 1) or 2 (round 2). */
+/**
+ * Par = the typical count (what an ordinary player finds in 90 seconds): 5–15 for round 1, 3–10 for round 2.
+ * It used to be 60% of typical, but real players kept reaching double par; par should be about what most people get.
+ */
 export function parFor(typical, round) {
   const min = MIN_PAR[round] || MIN_PAR[1];
-  return Math.max(min, Math.floor(0.6 * (Number(typical) || 0)));
+  return Math.min(MAX_PAR[round] || MAX_PAR[1], Math.max(min, Math.round(Number(typical) || 0)));
 }
 
 /** WK Bucks for one finished round: a quarter of the score on the daily, an eighth on the archive. */

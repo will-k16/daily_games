@@ -507,7 +507,7 @@ async function vennCal(box) {
   };
   box.innerHTML = `
     <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Generate Venn drafts</h2>
-      <p class="sub">The AI writes a two-circle round 1 and a three-circle round 2 for each day with an empty round, one at a time (about 5–10 seconds each). Every draft has to keep at least 25 well-known answers (8 for round 2) after a strict review; if the AI is busy or nothing passes, the draft comes from the built-in bank instead. Par = 60% of the AI's “typical” count (min 3 / 2). Days with nothing approved use their draft; with no draft the AI makes one on the spot, then the built-in bank.</p>
+      <p class="sub">The AI writes a two-circle round 1 and a three-circle round 2 for each day with an empty round, one at a time (about 5–10 seconds each). Every draft has to keep at least 25 well-known answers (8 for round 2) after a strict review; if the AI is busy or nothing passes, the draft comes from the built-in bank instead. Par = the AI's “typical” count (at least 5 / 3). Days with nothing approved use their draft; with no draft the AI makes one on the spot, then the built-in bank.</p>
       <div class="row"><label class="sub">From <input type="date" id="vgFrom" class="box" style="width:auto" value="${addDays(d.today, 1)}"></label>
         <label class="sub">Days <select id="vgDays" class="box" style="width:auto">${[1, 3, 5, 7].map(n => `<option ${n === 3 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <button class="btn sm" id="vgGo">Generate</button></div>
@@ -592,7 +592,7 @@ function vennEditor(p) {
   };
   drawCircles();
   $('#veRound').onchange = drawCircles;
-  $('#veTyp').oninput = () => { if (!p.par) $('#vePar').value = Math.max(Number($('#veRound').value) === 2 ? 2 : 3, Math.floor(.6 * Number($('#veTyp').value || 0))); };
+  $('#veTyp').oninput = () => { if (!p.par) $('#vePar').value = Math.max(Number($('#veRound').value) === 2 ? 3 : 5, Math.round(Number($('#veTyp').value || 0))); };
   $('#veCancel').onclick = closeModal;
   $('#veSave').onclick = async () => {
     const body = {
