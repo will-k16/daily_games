@@ -360,6 +360,42 @@ export function skipperPortrait(mood = 'smile', blink = false, ear = 0, look = {
   return outline(c);
 }
 
+/**
+ * Skipper standing on all fours, facing you: the portrait head (horns, hat, glasses, scarf) on a stocky body
+ * with four legs, hooves and a flicky tail. 52×70. opts: { mood, blink, ear, step (0/1, alternates the legs
+ * while walking), tail (0/1, tail up) }.
+ */
+export function skipperStanding(look = {}, { mood = 'smile', blink = false, ear = 0, step = 0, tail = 0 } = {}) {
+  const c = canvas(52, 70), x = c.getContext('2d');
+  const o = outfit(look);
+  const fur = o.fur[0], furS = o.fur[1], furD = mix(furS, '#000000', .18), furL = mix(fur, '#ffffff', .35);
+  const hoof = '#3a2a20', hoofL = '#5e4636';
+  const b = canvas(52, 70), y = b.getContext('2d');
+  // tail: a little tuft poking up behind the body on the right
+  rect(y, 39, 37 - tail, 3, 5 + tail, furS); rect(y, 40, 35 - tail * 2, 2, 3, fur);
+  // back legs (behind, darker, a touch shorter)
+  const leg = (lx, top, len, col, lift) => {
+    rect(y, lx, top, 4, len - lift, col);
+    rect(y, lx, top + len - lift, 4, 3, hoof); rect(y, lx, top + len - lift, 4, 1, hoofL); px(y, lx + 2, top + len - lift + 2, '#000000');
+  };
+  leg(12, 52, 13, furD, step ? 0 : 1);
+  leg(36, 52, 13, furD, step ? 1 : 0);
+  // body: a round barrel, lit on top, shaded underneath, with a pale belly
+  ellipse(y, 26, 49, 16, 10, furS);
+  ellipse(y, 26, 47, 15, 8, fur);
+  ellipse(y, 22, 43, 8, 3, furL);
+  ellipse(y, 26, 55, 9, 3, mix(fur, furS, .5));
+  // front legs, with knobbly knees
+  leg(17, 54, 13, furS, step ? 1 : 0);
+  leg(31, 54, 13, furS, step ? 0 : 1);
+  px(y, 17, 59, fur); px(y, 31, 59, fur);
+  const body = outline(b, '#1e232b');
+  x.drawImage(body, -1, -1);
+  // the head sits on the shoulders; the scarf covers the neck
+  x.drawImage(skipperPortrait(mood, blink, ear, look), 3, 0);
+  return c;
+}
+
 function drawHat(x, hat, furS) {
   const [a, b] = hat.c || [];
   if (hat.kind === 'beanie') {
