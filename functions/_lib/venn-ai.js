@@ -196,7 +196,7 @@ function genPrompt(round, date, history, ask) {
     '- Each category is ONE full, plain phrase that is unambiguous on its own: "Things colored orange", never just "Orange". No examples, no extra labels.',
     `- Facts are judged as of ${date || 'today'}.`,
     `- "answers" (per puzzle): list ${ask} different COMMON things that fit all ${n} categories: words a kid or grandparent would know, like "carrot", "pumpkin", "basketball". Plain everyday names, one thing each, no variants, no species or variety names, no fictional characters. If you can't easily list ${ask} common answers, the categories are too narrow: pick broader ones.`,
-    `- "typical": how many answers an ordinary player finds in 90 seconds. This becomes PAR, the number most people should just reach, so don't lowball it: real players type fast and find more than you'd think. On a broad round-1 pair most players find 10–15; on a round-2 center most find about half of the common answers. Typical ${round === 2 ? '6–12' : '9–16'} is normal.`,
+    `- "typical": how many answers an ordinary player finds in 90 seconds. Par is worked out from it, so be honest and don't lowball it: real players type fast and find more than you'd think. On a broad round-1 pair most players find 10–15; on a round-2 center most find about half of the common answers. Typical ${round === 2 ? '6–12' : '9–16'} is normal.`,
     '- "note": one short sentence for the admin about what makes it fun.',
     '- Avoid categories that overlap almost completely.',
     history.categories.length ? '- Do NOT use any of these recently used categories (or close rewordings): ' + history.categories.slice(0, 100).join('; ') + '.' : ''

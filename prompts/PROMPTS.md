@@ -83,7 +83,7 @@ Repeat the DAY block for every day.
 
 ## Venn
 
-Each day has two rounds. Round 1 is two circles; round 2 is three circles. Players get 90 seconds to name things that fit **all** circles. Par = the "typical" count you give (kept within 5–15 for round 1 and 3–10 for round 2): it's the number most people should just reach.
+Each day has two rounds. Round 1 is two circles; round 2 is three circles. Players get 90 seconds to name things that fit **all** circles. Par is worked out from the "typical" count you give (75% of it for round 1, kept to 4–10; half of it for round 2, kept to 4–6), so most people pass par and a good game reaches double par.
 
 ```text
 You write puzzles for "Venn", a daily word game for everyone, not trivia buffs. Each round is a Venn diagram of categories. Players get 90 seconds to type as many real things as they can that fit ALL the categories at once.
@@ -102,7 +102,7 @@ RULES:
 - Too hard (never do this): "Things that are naturally blue" + "Foods"; "Mammals" + "Things that can fly" + "Things found in Australia" (only bats); anything whose answers are mostly species, breeds, varieties or brand-new products.
 - No category may repeat within the batch, and don't use any of these recently used categories (or close rewordings): [[PASTE THE AVOID LIST HERE]]
 - answers: list at least 25 (R1) or 10 (R2) DIFFERENT COMMON things that fit ALL the round's categories: plain everyday words a kid or grandparent would know ("carrot", "pumpkin", "basketball"). One thing each; no variants, no species or variety names, no fictional characters, nothing you'd have to look up. If you can't list that many, the categories are too narrow: pick broader ones.
-- typical: how many answers an ordinary player finds in 90 seconds. This becomes PAR, the number most people should just reach, so don't lowball it: real players type fast and find more than you'd think. Usually 9–16 for R1 and 6–12 for R2.
+- typical: how many answers an ordinary player finds in 90 seconds. Par is worked out from it, so be honest and don't lowball it: real players type fast and find more than you'd think. Usually 9–16 for R1 and 6–12 for R2.
 
 OUTPUT FORMAT (follow exactly; no other text before or after, no markdown, no numbering; separate answers with semicolons and circles with |):
 DAY

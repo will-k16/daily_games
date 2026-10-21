@@ -5,7 +5,7 @@
 //   Polly:  a "QUESTION" block per question; the server opens each source page and checks the numbers are on it
 import { HttpError, nowISO, todayUTC, addDays, isDate, clampStr } from './util.js';
 import { PROPS } from '../../public/js/props.js';
-import { parFor, MIN_ANSWERS } from '../../public/js/venn-score.js';
+import { parFor, MIN_ANSWERS, PAR_SHARE } from '../../public/js/venn-score.js';
 import { rescale, LABEL_MAX, SHORT_MAX } from '../../public/js/polly-score.js';
 import * as summitAdmin from './admin.js';
 import * as vennAdmin from './venn-admin.js';
@@ -141,7 +141,7 @@ export function parseVenn(text) {
       if (x.circles.length !== need) { day.errors.push(`Round ${n} needs exactly ${need} circles (split them with |).`); continue; }
       if (new Set(x.circles.map(catKey)).size !== need) { day.errors.push(`Round ${n}: the circles have to be different.`); continue; }
       if (!(x.typical > 0) && !(x.par > 0)) { day.errors.push(`Round ${n} needs a typical count (or a par).`); continue; }
-      const typical = x.typical > 0 ? x.typical : Math.ceil(x.par / .6);
+      const typical = x.typical > 0 ? x.typical : Math.round(x.par / PAR_SHARE[n]);
       const answers = [...new Set(x.answers || [])];
       day.rounds.push({ round: n, circles: x.circles, typical, par: x.par > 0 ? x.par : parFor(typical, n), answers, note: x.note || '',
         warning: answers.length < MIN_ANSWERS[n] ? `only ${answers.length} answers listed (aim for ${MIN_ANSWERS[n]}+)` : '' });

@@ -4,8 +4,9 @@ export const ROUND_MS = 90000;                 // 90 seconds per round
 export const GRACE_MS = 2000;                  // answers arriving later than 90 s + this are refused
 export const ROUND_MAX = 100;
 export const DAY_MAX = 200;
-export const MIN_PAR = { 1: 5, 2: 3 };
-export const MAX_PAR = { 1: 15, 2: 10 };    // so one inflated estimate can't make a day impossible
+export const PAR_SHARE = { 1: 0.75, 2: 0.5 };  // par = this share of the AI's typical count (its counts run high)
+export const MIN_PAR = { 1: 4, 2: 4 };
+export const MAX_PAR = { 1: 10, 2: 6 };     // so one inflated estimate can't make a day impossible
 export const MIN_ANSWERS = { 1: 25, 2: 8 };    // a draft must list at least this many real answers
 export const MAX_ANSWER = 60;                  // characters
 export { MIN_CROWD } from './charts.js';     // players needed before "how everyone did" shows
@@ -23,12 +24,13 @@ export function roundScore(n, par) {
 }
 
 /**
- * Par = the typical count (what an ordinary player finds in 90 seconds): 5–15 for round 1, 3–10 for round 2.
- * It used to be 60% of typical, but real players kept reaching double par; par should be about what most people get.
+ * Par = 75% of the AI's typical count for round 1 (kept to 4–10) and 50% for round 2 (kept to 4–6).
+ * History: 60% of typical was far too easy (most players doubled par); 100% (2026-10-20) was too hard (nobody did).
+ * Against real plays, this puts most players past par and lets a good game reach double par.
  */
 export function parFor(typical, round) {
-  const min = MIN_PAR[round] || MIN_PAR[1];
-  return Math.min(MAX_PAR[round] || MAX_PAR[1], Math.max(min, Math.round(Number(typical) || 0)));
+  const r = PAR_SHARE[round] ? round : 1;
+  return Math.min(MAX_PAR[r], Math.max(MIN_PAR[r], Math.round((Number(typical) || 0) * PAR_SHARE[r])));
 }
 
 /** WK Bucks for one finished round: a quarter of the score on the daily, an eighth on the archive. */

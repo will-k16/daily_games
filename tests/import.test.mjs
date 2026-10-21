@@ -99,7 +99,7 @@ test('Venn days: circles, par from typical, answers, warnings', () => {
   assert.equal(days.length, 2);
   const [r1, r2] = days[0].rounds;
   assert.deepEqual(r1.circles, ['Things colored orange', 'Foods people eat']);
-  assert.equal(r1.par, 9);                  // par = typical
+  assert.equal(r1.par, 7);                  // par = 75% of typical 9
   assert.match(r1.warning, /only 10 answers/);
   assert.equal(r2.circles.length, 3);
   assert.equal(r2.answers.filter(a => a === 'crow').length, 1);

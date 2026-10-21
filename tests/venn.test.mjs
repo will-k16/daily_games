@@ -27,16 +27,17 @@ test('round score: other pars, and 5 per answer under par (at most 20)', () => {
   assert.equal(roundScore(4, 2), 100);
 });
 
-test('par = typical, at least 5 (round 1) or 3 (round 2)', () => {
-  assert.equal(parFor(10, 1), 10);
-  assert.equal(parFor(12.4, 1), 12);
-  assert.equal(parFor(4, 1), 5);
-  assert.equal(parFor(0, 1), 5);
-  assert.equal(parFor(7, 2), 7);
-  assert.equal(parFor(2, 2), 3);
-  assert.equal(parFor(0, 2), 3);
-  assert.equal(parFor(22, 1), 15);           // capped
-  assert.equal(parFor(14, 2), 10);
+test('par = 75% of typical for round 1 (4–10) and 50% for round 2 (4–6)', () => {
+  assert.equal(parFor(10, 1), 8);            // 7.5 rounds up
+  assert.equal(parFor(9, 1), 7);
+  assert.equal(parFor(4, 1), 4);
+  assert.equal(parFor(0, 1), 4);
+  assert.equal(parFor(10, 2), 5);
+  assert.equal(parFor(9, 2), 5);
+  assert.equal(parFor(2, 2), 4);
+  assert.equal(parFor(0, 2), 4);
+  assert.equal(parFor(22, 1), 10);           // capped
+  assert.equal(parFor(14, 2), 6);
 });
 
 test('WK Bucks per round: a perfect Venn day pays 50, archive half, unlimited none', () => {
@@ -100,7 +101,7 @@ test('size check: drafts need 25 (round 1) or 8 (round 2) answers and fresh cate
   const many = n => Array.from({ length: n }, (_, i) => 'thing ' + i);
   assert.equal(cleanVennPuzzle({ circles: ['Things colored orange', 'Foods people eat'], answers: many(24), typical: 9 }, 1), null);
   const ok = cleanVennPuzzle({ circles: ['Things colored orange', 'Foods people eat'], answers: many(25), typical: 9 }, 1);
-  assert.equal(ok.par, 9);
+  assert.equal(ok.par, 7);
   assert.equal(cleanVennPuzzle({ circles: ['A things', 'Animals', 'Things that fly'], answers: many(7), typical: 4 }, 2), null);
   assert.ok(cleanVennPuzzle({ circles: ['Starts with S', 'Animals', 'Lives in the ocean'], answers: many(8), typical: 4 }, 2));
   assert.equal(cleanVennPuzzle({ circles: ['Things colored orange', 'Foods people eat'], answers: many(30), typical: 9 }, 1,

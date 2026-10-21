@@ -26,7 +26,7 @@ Venn is the second game in WK Game Suite, at `/venn`. The decisions behind it ar
 ## Puzzles
 - The AI drafts and the admin approves (`/admin` → Venn). A day with nothing approved uses its draft; with no draft the AI makes one on the spot; if the AI is down, the built-in bank (`functions/_lib/venn-fallback.js`) is used.
 - **Size check:** a draft must list at least 25 well-known answers (round 1) or 8 (round 2), or it's thrown out and regenerated. The list is stored with the puzzle and feeds "Answers you missed" and "Did you mean".
-- **Par = typical**, kept within 5–15 (round 1) / 3–10 (round 2), where `typical` is the AI's estimate of what an ordinary player finds in 90 seconds. (It was 60% of typical until 2026-10-20; real players kept reaching double par.) Set when the puzzle is made, never crowd-adjusted; the admin can edit it.
+- **Par = 75% of typical** for round 1 (kept to 4–10) and **50% of typical** for round 2 (kept to 4–6), where `typical` is the AI's estimate of what an ordinary player finds in 90 seconds (it runs high, especially for round 2). History: 60% of typical was too easy (most players doubled par); 100% of typical (2026-10-20) was too hard (nobody did). Re-tuned 2026-10-21 against real plays so most players pass par and a good game reaches double par. Set when the puzzle is made, never crowd-adjusted; the admin can edit it.
 - No category repeats within 30 days, and no exact pair/triple ever.
 
 ## The clock
