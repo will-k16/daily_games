@@ -3,11 +3,13 @@ import { createScene, createClimb } from './summit-scene.js';
 import { skipperPortrait } from './pixel.js';
 import { fmt, nice } from './units.js';
 import { PROPS, propLabel } from './props.js';
-import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE, MIN_CROWD, summitShareText } from './score.js';
+import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE, summitShareText } from './score.js';
+import { crowdHTML, statsHTML } from './charts.js';
 import * as pad from './pad.js';
 import { WARDROBE, SLOTS, DEFAULT_LOOK, itemKey, bucksFor, DAY_BONUS } from './wardrobe.js';
 import { bucksIcon, bucksAmount } from './bucks.js';
 import { showAccount as accountModal, signInReturn } from './account.js';
+import { openModal, closeModal } from './modal.js';
 
 /* ═══════════ Basics ═══════════ */
 const $ = s => document.querySelector(s);
@@ -261,7 +263,8 @@ function signsHTML(r) {
 function cardHTML(r, c) {
   const p = r.puzzle, play = r.play;
   const head = `<h2 class="prompt rise">Name something whose <span class="prop">${esc(propLabel(p.property))}</span> is juuust right.</h2>`;
-  if (play.state === 'g1' || play.state === 'g2') return head + guessFormHTML(r);
+  if (play.state === 'g1') return head + ratioHintHTML(r) + guessFormHTML(r);
+  if (play.state === 'g2') return head + guessFormHTML(r);
   if (play.state === 'decide') return head + decideHTML(r);
   return revealHTML(r, c);
 }
@@ -288,6 +291,15 @@ function guessCard(r, g, compact) {
       ${complained ? `<span class="empty">Reported: ${esc(REPORT[complained] || complained)}</span>` : `<button class="link report" data-guess="${g.id}">Wrong number?</button>`}</div></div>`;
 }
 
+/** Shown above every first guess: the lodge is the middle by ratio, with a way into the notebook's middle finder. */
+function ratioHintHTML(r) {
+  return `<div class="ratio-hint rise" style="--d:1">
+    <div class="rh-strip" aria-hidden="true"><span class="rh-end">1</span><span class="rh-x">×10</span><span class="rh-lodge">🚡 10</span><span class="rh-x">×10</span><span class="rh-end">100</span>
+      <span class="rh-no">not 50</span></div>
+    <p>The lodge is the middle <b>by ratio</b>: as many times bigger than <b>${esc(r.puzzle.small)}</b> as it is smaller than <b>${esc(r.puzzle.big)}</b>.</p>
+    <button type="button" class="rh-pad" id="hintPad">📓 Work it out in the notebook</button></div>`;
+}
+
 function guessFormHTML(r) {
   const play = r.play, second = play.state === 'g2';
   return `${second && play.guesses[0] ? guessCard(r, play.guesses[0], true) : ''}
@@ -298,9 +310,8 @@ function guessFormHTML(r) {
     ${pipsHTML(play.rejects || 0)}
     <div class="msg" id="msg"></div>
     <p class="sub rise" style="--d:4">${second
-      ? `Last ride, worth <b>×${SECOND_GUESS_MULT}</b>. It has to be something new.`
-      : 'Think in ratios, not averages: halfway from 1 to 100 is <b>10</b>, not 50.'}
-      <br><button type="button" class="link" id="giveUpBtn">🏳️ I give up (scores 0)</button></p>`;
+      ? `Last ride, worth <b>×${SECOND_GUESS_MULT}</b>. It has to be something new.<br>` : ''}
+      <button type="button" class="link" id="giveUpBtn">🏳️ I give up (scores 0)</button></p>`;
 }
 
 function decideHTML(r) {
@@ -336,7 +347,15 @@ function gaugeHTML(r) {
     return `<span class="mk ${isFinal ? '' : 'ghost'}" data-left="${pos(g)}" title="Guess ${g.attempt}">${isFinal ? '' : g.attempt}</span>`;
   }).join('');
   return `<div class="gauge rise" style="--d:2"><div class="bar"><div class="cells">${cells}</div><span class="mid"></span>${marks}</div>
-    <div class="legend"><div>Too small<b>${esc(val(p, p.smallValue))}</b></div><div class="c">Just right · lodge<b>≈ ${esc(val(p, p.middle))}</b></div><div class="r">Too big<b>${esc(val(p, p.bigValue))}</b></div></div></div>`;
+    <div class="legend"><div>Too small<b>${esc(val(p, p.smallValue))}</b></div><div class="c">Just right · lodge<b>≈ ${esc(val(p, p.middle))}</b></div><div class="r">Too big<b>${esc(val(p, p.bigValue))}</b></div></div>
+    ${ratioNoteHTML(p)}</div>`;
+}
+
+/** Spells out why the lodge sits where it does: the same multiplier on each side, not the plain average. */
+function ratioNoteHTML(p) {
+  const k = Math.sqrt(p.bigValue / p.smallValue), x = k < 10 ? k.toFixed(1).replace(/\.0$/, '') : nice(k);
+  return `<p class="ratio-note">Middle by ratio: too small <b>×${x}</b> ≈ just right, and just right <b>×${x}</b> ≈ too big.
+    The plain average, ${esc(val(p, (p.smallValue + p.bigValue) / 2))}, would sit almost at the top station.</p>`;
 }
 
 function revealHTML(r, c) {
@@ -353,21 +372,11 @@ function revealHTML(r, c) {
       <span class="s">${g.score}</span></div>`;
   }).join('') + (play.gaveUp ? `<div class="fact final" style="--d:${play.guesses.length}"><span class="n">🏳️</span><div class="w"><b>You gave up</b><small>0 points for this stage.</small></div><span class="s">0</span></div>` : '');
 
-  let crowd = '';
-  if (rv.crowd) {
-    const max = rv.crowd.few ? 1 : Math.max(1, ...rv.crowd.hist), myB = Math.min(10, Math.floor(play.score / 100));
-    const beat = rv.crowd.few ? `Comparisons show once ${MIN_CROWD} people have played.`
-      : c.kind === 'daily'
-      ? (rv.crowd.beat == null ? 'You\'re one of the first up today.' : `Better than <b>${rv.crowd.beat}%</b> of today's ${rv.crowd.total - 1} other ${rv.crowd.total === 2 ? 'player' : 'players'}.`)
-      : `${rv.crowd.total} ${rv.crowd.total === 1 ? 'person' : 'people'} played this one on the day.`;
-    crowd = `<div class="crowd">
-      <div><div class="h4">📊 How everyone did</div><p class="beat">${beat}</p>
-        ${rv.crowd.few ? '' : `<div class="histo">${rv.crowd.hist.map((n, i) => `<i class="${i === myB && c.kind === 'daily' ? 'me' : ''}" style="height:${Math.max(4, n / max * 100)}%;--d:${i}" title="${i * 100}${i < 10 ? '–' + (i * 100 + 99) : ''}: ${n}"></i>`).join('')}</div>
-        <div class="histo-l"><span>0</span><span>500</span><span>1000</span></div>`}</div>
-      <div><div class="h4">🏆 Top answers today</div>
+  const crowd = rv.crowd ? `<div class="crowd">
+      <div>${crowdHTML(rv.crowd, { max: MAX_SCORE, daily: c.kind === 'daily' })}</div>
+      <div><div class="ch-title">🏆 Top answers today</div>
         ${rv.top.length ? `<ol class="toplist">${rv.top.map((t, i) => `<li style="--d:${i}"><span class="rk">${i === 0 ? '👑' : i + 1}</span><span class="nm">${esc(t.name)}<small>≈ ${esc(val(p, t.value))} · ${t.count} ${t.count === 1 ? 'player' : 'players'}</small></span><span class="sc">${t.score}</span></li>`).join('')}</ol>`
-          : '<p class="empty">Nothing popular yet. Answers show up here once a couple of people land on the same one.</p>'}</div></div>`;
-  }
+          : '<p class="empty">Nothing popular yet. Answers show up here once a couple of people land on the same one.</p>'}</div></div>` : '';
 
   const nextIdx = c.rooms.findIndex(x => x !== r && x.play.state !== 'done');
   const next = c.kind === 'unlimited' ? '<button class="btn" id="nextUnl">Next mountain →</button>'
@@ -393,6 +402,7 @@ function wireCard(r, c) {
   const keep = $('#keepBtn'); if (keep) keep.onclick = () => decide(r, 'keep');
   const retry = $('#retryBtn'); if (retry) retry.onclick = () => decide(r, 'retry');
   const gu = $('#giveUpBtn'); if (gu) gu.onclick = () => confirmGiveUp(r);
+  const hp = $('#hintPad'); if (hp) hp.onclick = () => { pad.showTab('finder'); togglePad(true); };
   document.querySelectorAll('.report').forEach(b => b.onclick = () => showReport(r, Number(b.dataset.guess)));
   const nr = $('#nextRoom'); if (nr) nr.onclick = () => { S.roomIdx = Number(nr.dataset.next); render('enter'); scrollTop(); };
   const ts = $('#toSummary'); if (ts) ts.onclick = () => { S.showSummary = true; render(); scrollTop(); };
@@ -540,9 +550,7 @@ function summaryHTML(c) {
   const total = c.rooms.reduce((s, r) => s + (r.play.score || 0), 0);
   const day = c.day || {};
   const v = verdict(Math.round(total / 3));
-  const beat = c.kind === 'daily' && day.beat != null ? `<p class="beat">You out-climbed <b>${day.beat}%</b> of today's ${day.players - 1} other ${day.players === 2 ? 'player' : 'players'}.</p>`
-    : c.kind === 'daily' && day.players < MIN_CROWD ? `<p class="beat">Comparisons show once ${MIN_CROWD} people have finished.</p>`
-    : c.kind === 'daily' ? '<p class="beat">You\'re one of the first to finish today!</p>' : '';
+  const beat = day.crowd ? `<div class="sumcrowd rise" style="--d:5">${crowdHTML(day.crowd, { max: 3 * MAX_SCORE, daily: c.kind === 'daily', finished: 'finished', unit: ' m' })}</div>` : '';
   return `<div class="summary">
       <div class="daylabel rise">${c.kind === 'archive' ? 'Archive · ' : ''}Day #${c.number}</div>
       ${panoHTML()}
@@ -595,11 +603,6 @@ function tick() {
 setInterval(tick, 1000);
 
 /* ═══════════ Modals ═══════════ */
-function openModal(html) { $('#modalBody').innerHTML = html; $('#modal').hidden = false; }
-function closeModal() { $('#modal').hidden = true; }
-$('#modalX').onclick = closeModal;
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 const ICON = {
   stations: '<svg viewBox="0 0 70 56"><path d="M0 56 L14 30 L24 40 L36 22 L52 36 L70 14 L70 56Z" fill="#7fae95"/><path d="M8 26 Q35 44 64 12" stroke="#2b3440" stroke-width="1.6" fill="none"/><rect x="4" y="20" width="10" height="8" rx="2" fill="#a5683f"/><rect x="58" y="6" width="10" height="8" rx="2" fill="#a5683f"/></svg>',
@@ -757,12 +760,8 @@ async function showStats() {
   openModal('<h2>Your stats</h2><div class="shimmer">Counting meters…</div>');
   try {
     const s = await api('stats');
-    const max = Math.max(1, ...s.dist), names = ['0–999', '1,000+', '1,500+', '2,000+', '2,500+', '3,000'];
     openModal(`<h2>Your stats</h2>
-      <div class="statgrid"><div><b>${s.played}</b><span>Days</span></div><div><b>${s.avg}</b><span>Avg m</span></div><div><b>${s.best}</b><span>Best m</span></div>
-        <div><b>${s.streak}</b><span>Streak</span></div><div><b>${s.maxStreak}</b><span>Max streak</span></div></div>
-      <div class="bars">${s.dist.map((n, i) => `<div class="bar"><span>${names[i]}</span><i style="width:${Math.max(8, n / max * 100)}%;--d:${i}">${n}</i></div>`).join('')}</div>
-      <p class="sub">Highest climb: ${meters(s.best)}. Archive: ${s.archive.played} stages · average ${s.archive.avg}.</p>
+      ${statsHTML(s, { max: 3 * MAX_SCORE, unit: ' m', avgLabel: 'Avg m', bestLabel: 'Best m', note: `<p class="sub">Days are out of 3,000 m. Archive: ${s.archive.played} stages · average ${s.archive.avg}.</p>` })}
       ${S.me.signedIn ? '' : '<p class="sub">These are only saved on this device. <button class="link" id="statsSignin">Sign in</button> to take them with you.</p>'}`);
     const si = $('#statsSignin'); if (si) si.onclick = () => showAccount();
   } catch (e) { openModal(`<h2>Your stats</h2><div class="note bad">${esc(e.message)}</div>`); }
@@ -840,9 +839,14 @@ function togglePad(force) {
   document.body.classList.toggle('pad-open', open);
   $('#padBtn').classList.toggle('on', open);
   store.set('jr.padOpen', open);
+  if (open && !store.get('jr.padSeen', false)) { store.set('jr.padSeen', true); $('#padBtn').classList.remove('fresh'); }
+  // On phones the notebook is a bottom sheet; bring it into view.
+  if (open && window.innerWidth < 1040) $('#pad').scrollIntoView({ block: 'nearest', behavior: reduced() ? 'auto' : 'smooth' });
 }
 
 pad.mount($('#pad'), { units: S.units, onClose: () => togglePad(false) });
 paintTools();
-if (store.get('jr.padOpen', false) && window.innerWidth >= 1040) togglePad(true);
+// Wide screens show the notebook beside the puzzle until it's closed; the button glows until it's first opened.
+if (store.get('jr.padOpen', true) && window.innerWidth >= 1040) togglePad(true);
+else if (!store.get('jr.padSeen', false)) $('#padBtn').classList.add('fresh');
 route();

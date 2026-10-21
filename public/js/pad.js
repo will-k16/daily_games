@@ -23,6 +23,7 @@ export function mount(el, opts) {
   draw();
 }
 export function setUnits(u) { units = u; draw(); }
+export function showTab(tab) { P.tab = tab; save(); draw(); }
 export function setPuzzle(p, u) {
   const changed = !puzzle || puzzle.id !== p.id;
   puzzle = p; units = u;

@@ -13,7 +13,8 @@ Venn is the second game in WK Game Suite, at `/venn`. The decisions behind it ar
 - The same real thing counts once: the judge returns a canonical name, and repeats show "Already have it" (no penalty). Variants collapse unless the categories are about that kind of thing.
 - Round 2 counts only the center. Fitting exactly two shows "Close! Fits 2 of 3", lights those two vine rings, and doesn't count.
 - Wrong answers cost nothing. Max 60 characters; empty input is ignored.
-- **Did you mean ___?** A fuzzy match (edit distance) against the puzzle's known answers and answers already accepted for it, on the server, so the list never reaches the browser; if nothing is close, the AI judge may suggest one. The clock stops (and the circles hide) while the prompt is open. Yes judges the suggestion as if typed; No marks the answer ✗ and the player can retype it.
+- **Did you mean ___?** A fuzzy match (edit distance) against the puzzle's known answers and answers already accepted for it, on the server, so the list never reaches the browser; if nothing is close, the AI judge may suggest one. The clock stops (and the circles hide) while the prompt is open, and the answer box is locked until it's answered. Yes judges the suggestion as if typed; No marks the answer ✗ and the player can retype it.
+- **Fast typing:** answers are judged up to 4 at a time. Each waits under **Checking…** until its verdict lands in the feed; typing the same thing twice while it's checking only sends it once. Answers that reach the server after a "Did you mean" stopped the clock are held and sent again once it's answered. On the server, if two answers that arrive together turn out to be the same thing, the later one becomes a duplicate, and the count is recounted in SQL.
 
 ## The judge (`functions/_lib/venn-ai.js`)
 - Gemini 3.5 Flash-Lite from memory via `callAI` (6 s timeout, one retry), Groq as backup. Logged to `ai_log` as `venn-judge`.
@@ -36,7 +37,7 @@ Venn is the second game in WK Game Suite, at `/venn`. The decisions behind it ar
 `n` counted answers, par `P`: `n < P` → 5 per answer, at most 20 (e.g. 3 answers with par 4 = 15); `n = P` → 25; `n ≥ 2P` → 100; otherwise `round(25 + 75 × (n − P) / P)`. The day is out of 200. (Changed from the plan's "0 below par" at Will's request.)
 
 ## After a round
-Your answers on the diagram (✓ in the overlap, "Close!" in their two-ring region, ✗ listed beside with the reason and "Wrong call?"), "You found 8. Par was 5. 70 / 100.", up to 10 answers you missed (most-found by other players first, then the AI's list), and how everyone did (histogram of counts, "better than X%"). Accepting a complaint makes that answer count for the puzzle, rescores every play that has it, and the player gets a note on their next visit.
+Your answers on the diagram (✓ in the overlap, "Close!" in their two-ring region, ✗ listed beside with the reason and "Wrong call?"), "You found 8. Par was 5. 70 / 100.", up to 10 answers you missed (most-found by other players first, then the AI's list), and how everyone did ("better than X%" and the same 10-bar score histogram as every game; see [SPEC.md](SPEC.md)). The day summary shows the same chart for day totals (of 200). Accepting a complaint makes that answer count for the puzzle, rescores every play that has it, and the player gets a note on their next visit.
 
 ## Share
 ```

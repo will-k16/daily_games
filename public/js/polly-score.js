@@ -1,10 +1,11 @@
 // Polly scoring, WK Bucks, share text, the crowd rule and the date rules for stale questions.
 // Shared by the browser and the API, so the two can never disagree.
+import { crowd as sharedCrowd } from './charts.js';
 
 export const SLOTS = 3;                        // questions per day
 export const QUESTION_MAX = 100;
 export const DAY_MAX = 300;
-export const MIN_CROWD = 5;                    // players needed before any comparison with others shows
+export { MIN_CROWD } from './charts.js';     // players needed before "how everyone did" shows
 export const TOWNSFOLK = 30;                   // people in the square
 export const SHORT_MAX = 90;                   // the short question
 export const LABEL_MAX = 14;                   // each side label
@@ -67,15 +68,7 @@ export function pollyShareText({ number, questions, archive = false }, link) {
  * How everyone did. rows: [{ player, score }] (daily results only, one per player); `me` = my player id.
  * Below MIN_CROWD players nothing comparative is returned. `buckets` scores per bar (10 for a question, 30 for a day).
  */
-export function crowd(rows, me, myScore, bucket = 10) {
-  const total = rows.length;
-  if (total < MIN_CROWD) return { total, few: true };
-  const hist = new Array(10).fill(0);
-  rows.forEach(r => { hist[Math.min(9, Math.floor((Number(r.score) || 0) / bucket))]++; });
-  const others = rows.filter(r => r.player !== me);
-  const beat = myScore == null || !others.length ? null : Math.round(100 * others.filter(r => r.score < myScore).length / others.length);
-  return { total, hist, beat, mine: myScore == null ? null : Math.min(9, Math.floor(myScore / bucket)) };
-}
+export function crowd(rows, me, myScore, bucket = 10) { return sharedCrowd(rows, me, myScore, bucket * 10); }
 
 /* ───────────── Dates (YYYY-MM-DD, UTC) ───────────── */
 

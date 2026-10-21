@@ -68,6 +68,7 @@ Pitfalls to avoid: bare higher/lower feedback (it becomes binary search), ambigu
   - Email + password accounts never prove they own the email, so they can never be admin. If Google later signs in with the same email, Google wins: that account becomes the Google account and its password is wiped.
   - There's no password-reset email (no email service). Forgotten password → sign in with Google and set a new one.
 - **No public names anywhere.** Comparisons are percentiles, histograms and anonymous top answers.
+- **One chart style for the whole suite** (`public/js/charts.js`, `public/css/charts.css`): every histogram (each game's results and day summary, every stats modal, every admin dashboard) has 10 bars, each 10% of the top score wide, with your bar marked "you". Comparisons say "Better than X% of the N other players today" and stay hidden until 5 people have played.
 - **Admin** = Google accounts listed in `ADMIN_EMAILS` (`will.kolander@gmail.com`).
 
 ### 4.3 Daily structure
@@ -176,6 +177,7 @@ Custom properties with their own unit label are allowed for admin-made puzzles.
 Days played (all 3 rooms finished), average daily total, best, current streak, max streak, a distribution of daily totals, and archive plays and average.
 
 ### 4.14 Scratchpad ("Field notebook")
+- **Easy to find:** every first guess shows a small "the lodge is the middle by ratio" strip (1 ×10 → 10 ×10 → 100, not 50) with a button into the middle finder. On wide screens the notebook starts open; until someone opens it, its toolbar button glows with a NEW tag.
 - It must **not cover the puzzle**: on desktop it docks as a side column next to the game, and on phones it's a bottom sheet that always shows a compact puzzle summary at the top.
 - **Middle finder:** enter estimates for the small and big ends, each with any unit, and get `√(small × big)` in any unit. It explains: *"If your guesses for the two ends are about right, the just-right value is about √(small × big). That's the middle by ratio."*
 - **Notebook:** rows of name + number + unit, with a clear "+ Add a value" button. Each row can be sent to the finder.

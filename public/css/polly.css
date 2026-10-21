@@ -169,13 +169,6 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .wkbar { position: relative; height: 12px; border: 2px solid var(--edge); background: var(--right); }
 .wkbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--left); }
 .wklabel { display: flex; justify-content: space-between; font-family: var(--font-num); font-size: 12px; margin-top: 3px; }
-.histo { display: flex; align-items: flex-end; gap: 3px; height: 64px; padding: 4px; border: 3px solid var(--line); background: var(--panel2); }
-.histo i { flex: 1; min-height: 3px; background: color-mix(in srgb, var(--muted) 55%, var(--panel2)); border: 2px solid var(--edge); border-bottom: 0; }
-.histo i.me { background: var(--right); }
-.histo-l { display: flex; justify-content: space-between; font-family: var(--font-num); font-size: 10px; color: var(--muted); padding: 2px 2px 0; }
-.beat { margin: 0 0 6px; font-weight: 700; }
-.beat b { font-family: var(--font-num); font-size: 20px; color: var(--right); }
-:root[data-tod="evening"] .beat b, :root[data-tod="night"] .beat b { color: #3fb6b6; }
 .fewnote { margin: 0; font-size: 14px; color: var(--muted); }
 .reveal-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
 
@@ -219,7 +212,6 @@ textarea.box { width: 100%; min-height: 80px; padding: 8px 10px; border: 3px sol
 .recap .qs { font-weight: 800; font-size: 14px; }
 .recap .nums { grid-column: 1; font-family: var(--font-num); font-size: 11px; color: var(--muted); }
 .recap .sc { grid-row: 1 / span 2; grid-column: 2; display: flex; align-items: center; gap: 6px; font-family: var(--font-num); font-size: 20px; }
-.summary .crowdbox { text-align: left; margin-top: 14px; }
 .agree { margin: 12px 0 0; font-weight: 800; }
 .countdown { margin-top: 12px; color: var(--muted); font-size: 14px; }
 .tip { display: inline-block; margin-top: 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
@@ -244,16 +236,9 @@ textarea.box { width: 100%; min-height: 80px; padding: 8px 10px; border: 3px sol
 .modal-card h2 { font-family: var(--font-px); font-size: 27px; margin: 0 0 10px; }
 .modal-card .x { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border: 3px solid var(--edge); background: var(--panel2); font-weight: 900; }
 .shimmer { height: 54px; border: 3px dashed var(--line); display: grid; align-items: center; padding: 0 14px; color: var(--muted); font-weight: 800; font-size: 14px; animation: blink 1s steps(2) infinite; }
-.statgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; text-align: center; }
-.statgrid b { display: block; font-family: var(--font-num); font-size: 22px; line-height: 1.2; }
-.statgrid span { font-size: 11px; color: var(--muted); font-weight: 800; }
-@media (max-width: 420px) { .statgrid { grid-template-columns: repeat(3, 1fr); } }
 .statlines { margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .statlines li { padding: 8px 10px; background: var(--panel2); border: 2px solid var(--line); font-weight: 700; }
 .statlines b { font-family: var(--font-num); font-weight: 400; }
-.bars { margin-top: 14px; }
-.bars .bar { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: center; font-family: var(--font-num); font-size: 10px; margin-bottom: 4px; }
-.bars .bar i { display: block; height: 18px; border: 2px solid var(--edge); background: var(--right); color: #fff; font-style: normal; text-align: right; padding-right: 5px; min-width: 22px; line-height: 14px; }
 .reasons { display: grid; gap: 6px; margin: 8px 0; }
 .reasons label { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border: 2px solid var(--line); background: var(--panel2); font-weight: 700; cursor: pointer; }
 .reasons input { accent-color: var(--right); }
@@ -303,3 +288,18 @@ textarea.box { width: 100%; min-height: 80px; padding: 8px 10px; border: 3px sol
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ── Shared modal bits (modal.js, account.js) ── */
+.modal-ask { position: fixed; inset: 0; z-index: 61; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .28); }
+.modal-ask .modal-ask-box { max-width: 360px; text-align: center; }
+.modal-ask p { margin: 0 0 14px; }
+.modal-ask .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.pwwrap { position: relative; }
+.pwwrap .pin { padding-right: 46px; }
+.pweye { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 34px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: inherit; opacity: .7; cursor: pointer; }
+.pweye:hover, .pweye[aria-pressed="true"] { opacity: 1; }
+.pweye svg { width: 20px; height: 20px; }
+
+/* Charts (charts.css): Polly's outlines are --edge and "you" is the teal side. */
+:root { --chart-ink: var(--edge); --chart-me: var(--right); }
+:root[data-tod="evening"], :root[data-tod="night"] { --chart-me: #3fb6b6; }

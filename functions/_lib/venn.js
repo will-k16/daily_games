@@ -4,7 +4,8 @@ import { tipUrl, HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, normali
 import { judgeAnswer, generateVennPuzzle, fallbackVennPuzzle, vennHistory } from './venn-ai.js';
 import { exactMatch, suggest, sameAnswer } from './fuzzy.js';
 import { melLookOf, bucksBalance } from './bucks.js';
-import { roundScore, ROUND_MS, GRACE_MS, MAX_ANSWER, DAY_MAX, MIN_CROWD } from '../../public/js/venn-score.js';
+import { roundScore, ROUND_MS, GRACE_MS, MAX_ANSWER, DAY_MAX, ROUND_MAX } from '../../public/js/venn-score.js';
+import { crowd as crowdOf, spread } from '../../public/js/charts.js';
 
 const LIVE = `status IN ('approved','auto')`;
 const MODES = ['daily', 'archive', 'unlimited'];
@@ -142,14 +143,8 @@ async function results(env, who, p, mode, view) {
 
   let everyone = null;
   if (mode !== 'unlimited') {
-    const plays = (await db.prepare(`SELECT player_id, count FROM venn_plays WHERE puzzle_id = ? AND mode = 'daily' AND state = 'done'`).bind(p.id).all()).results;
-    const others = plays.filter(x => x.player_id !== who.player.id).map(x => x.count);
-    const top = Math.max(2 * p.par, ...plays.map(x => x.count), view.count);
-    const hist = new Array(top + 1).fill(0);
-    plays.forEach(x => { hist[Math.min(top, x.count)]++; });
-    // Comparisons stay hidden until enough people have played, so nobody's single result is on show.
-    everyone = plays.length < MIN_CROWD ? { total: plays.length, few: true }
-      : { total: plays.length, hist, beat: others.length ? Math.round(100 * others.filter(c => c < view.count).length / others.length) : null };
+    const plays = (await db.prepare(`SELECT player_id AS player, score FROM venn_plays WHERE puzzle_id = ? AND mode = 'daily' AND state = 'done'`).bind(p.id).all()).results;
+    everyone = crowdOf(plays, who.player.id, view.score, ROUND_MAX);
   }
   const ids = view.answers.map(a => a.id);
   const complaints = ids.length
@@ -177,7 +172,7 @@ export async function today(env, who) {
   for (const p of puzzles) rounds.push(await roundState(env, who, p, 'daily'));
   return {
     date, number: vennNumber(env, date), rounds,
-    day: daySummary(rounds),
+    day: await daySummary(env, who, date, rounds),
     me: { signedIn: who.signedIn, email: who.email, isAdmin: who.isAdmin, hasPassword: who.hasPassword, mel: melLookOf(who.player) },
     bucks: await bucksBalance(env, who.player.id),
     notifications: await notifications(env, who),
@@ -186,10 +181,20 @@ export async function today(env, who) {
   };
 }
 
-const daySummary = rounds => {
+/** The day so far and, once both rounds are done, how everyone who finished both on the day did (out of 200). */
+async function daySummary(env, who, date, rounds) {
   const done = rounds.filter(r => r.play.state === 'done');
-  return { total: done.reduce((s, r) => s + (r.play.score || 0), 0), done: done.length, of: rounds.length, max: DAY_MAX };
-};
+  const total = done.reduce((s, r) => s + (r.play.score || 0), 0);
+  let everyone = null;
+  if (rounds.length && done.length === rounds.length) {
+    const totals = (await env.DB.prepare(`
+      SELECT pl.player_id AS player, SUM(pl.score) AS score, COUNT(*) AS c FROM venn_plays pl JOIN venn_puzzles z ON z.id = pl.puzzle_id
+      WHERE z.date = ? AND z.${LIVE} AND pl.mode = 'daily' AND pl.state = 'done'
+      GROUP BY pl.player_id HAVING c = ?`).bind(date, rounds.length).all()).results;
+    everyone = crowdOf(totals, who.player.id, total, DAY_MAX);
+  }
+  return { total, done: done.length, of: rounds.length, max: DAY_MAX, crowd: everyone };
+}
 
 /** Today's Venn status for the suite home page (reads only; never generates). */
 export async function dayStatus(env, who, date) {
@@ -351,8 +356,21 @@ async function record(env, play, p, input, norm, j) {
   const v = verdictFor(j, circlesOf(p).length, prior.map(a => ({ verdict: a.verdict, canonical: a.canonical })));
   const row = await env.DB.prepare(`INSERT INTO venn_answers (play_id, input, norm, canonical, verdict, fits, reason, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`).bind(play.id, input, norm, j.canonical || '', v.verdict, JSON.stringify(v.fits), v.reason, nowISO()).first();
-  const count = prior.filter(a => a.verdict === 'ok').length + (v.verdict === 'ok' ? 1 : 0);
-  if (v.verdict === 'ok') await env.DB.prepare(`UPDATE venn_plays SET count = ? WHERE id = ?`).bind(count, play.id).run();
+  // The client sends several answers at once, so two of them can land on the same answer at the same
+  // moment ("hog" and "pig"). The earlier row keeps the catch; this one becomes a duplicate.
+  if (v.verdict === 'ok' || v.verdict === 'close') {
+    const twins = (await env.DB.prepare(`SELECT canonical FROM venn_answers WHERE play_id = ? AND verdict = ? AND id < ?`).bind(play.id, v.verdict, row.id).all()).results;
+    if (twins.some(a => sameAnswer(a.canonical, j.canonical))) {
+      Object.assign(v, { verdict: 'dup', reason: 'Already have it' });
+      await env.DB.prepare(`UPDATE venn_answers SET verdict = 'dup', reason = ? WHERE id = ?`).bind(v.reason, row.id).run();
+    }
+  }
+  let count = prior.filter(a => a.verdict === 'ok').length;
+  if (v.verdict === 'ok') {
+    // Counted in SQL so answers recorded side by side can't overwrite each other's count.
+    count = (await env.DB.prepare(`UPDATE venn_plays SET count = (SELECT COUNT(*) FROM venn_answers WHERE play_id = ? AND verdict = 'ok') WHERE id = ? RETURNING count`)
+      .bind(play.id, play.id).first()).count;
+  }
   return { answerId: row.id, verdict: v.verdict, canonical: j.canonical || '', fits: v.fits, reason: v.reason, count };
 }
 
@@ -463,8 +481,7 @@ export async function stats(env, who) {
   });
   const dates = Object.keys(days).sort();                  // a day counts if either round was finished
   const totals = dates.map(d => days[d]);
-  const dist = [0, 0, 0, 0, 0, 0];                          // 0–39, 40–79, 80–119, 120–159, 160–199, 200
-  totals.forEach(t => { dist[t >= DAY_MAX ? 5 : Math.min(4, Math.floor(t / 40))]++; });
+  const dist = spread(totals, DAY_MAX);
   const s = streaks(dates);
   return {
     played: dates.length,
@@ -499,7 +516,7 @@ export async function archiveDay(env, who, date) {
     const daily = await getPlay(env, who.player.id, p.id, 'daily');
     rounds.push(await roundState(env, who, p, daily && daily.state === 'done' ? 'daily' : 'archive'));
   }
-  return { date, number: vennNumber(env, date), rounds, day: daySummary(rounds) };
+  return { date, number: vennNumber(env, date), rounds, day: await daySummary(env, who, date, rounds) };
 }
 
 export async function newUnlimited(env, who) {

@@ -4,7 +4,7 @@ import { tipUrl, todayUTC, addDays, isDate, dayIndex } from './util.js';
 import * as game from './game.js';
 import * as venn from './venn.js';
 import * as polly from './polly.js';
-import { bucksBalance } from './bucks.js';
+import { bucksBalance, lookOf, melLookOf, pollyLookOf } from './bucks.js';
 import { summitShareText } from '../../public/js/score.js';
 import { vennShareText } from '../../public/js/venn-score.js';
 import { pollyShareText } from '../../public/js/polly-score.js';
@@ -35,6 +35,7 @@ export async function today(env, who) {
   return {
     date, nextReset: addDays(date, 1) + 'T00:00:00Z', tipUrl: tipUrl(env),
     me: { signedIn: who.signedIn, email: who.email, isAdmin: who.isAdmin, hasPassword: who.hasPassword },
+    pets: { skipper: lookOf(who.player), mel: melLookOf(who.player), polly: pollyLookOf(who.player) },
     bucks, wkStreak: wk.streak,
     games: [
       { key: 'polly', number: pollyDay.number, done: pollyDay.done, of: 3, total: pollyDay.total, max: 300, streak: pollyStats.streak,

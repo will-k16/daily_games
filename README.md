@@ -8,6 +8,7 @@ Small daily games at **wk-game-suite.pages.dev**. One account, one currency (**W
 | `/polly` | **Polly**: three real poll questions a day; guess what percent of US adults picked each side. Mascot: Polly the cockatoo, the town crier. [POLLY_SPEC.md](POLLY_SPEC.md) |
 | `/venn` | **Venn**: 90 seconds to name things that fit two circles (round 1), then all three (round 2). Mascot: Mel the chameleon. [VENN_SPEC.md](VENN_SPEC.md) |
 | `/summit` | **Summit**: name something whose value sits at the geometric middle of two ends. Mascot: Skipper the goat. [SPEC.md](SPEC.md) |
+| `/pets` | Pet corner: Skipper, Mel and Polly together in their outfits, gently animated (and a "Save picture" button) |
 | `/admin` | Suite admin (Suite / Summit / Polly / Venn tabs) |
 | `/privacy` | Privacy policy for the whole suite |
 

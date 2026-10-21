@@ -3,9 +3,11 @@
 import { createVennScene, COLORS } from './venn-scene.js';
 import { melPortrait, moodFor, MEL_MOODS, FLASH } from './mel.js';
 import { MEL_WARDROBE, MEL_SLOTS, MEL_DEFAULT_LOOK, melItemKey } from './mel-wardrobe.js';
-import { ROUND_MS, MAX_ANSWER, DAY_MAX, bucksForRound, vennShareText, scoreSquare, MIN_CROWD } from './venn-score.js';
+import { ROUND_MS, MAX_ANSWER, DAY_MAX, ROUND_MAX, bucksForRound, vennShareText, scoreSquare } from './venn-score.js';
+import { crowdHTML, statsHTML } from './charts.js';
 import { bucksIcon, bucksAmount } from './bucks.js';
 import { showAccount as accountModal, signInReturn } from './account.js';
+import { openModal, closeModal } from './modal.js';
 
 /* ═══════════ Basics ═══════════ */
 const $ = s => document.querySelector(s);
@@ -21,14 +23,18 @@ const KEY_CLASS = { A: 'a', B: 'b', C: 'c' };
 const S = {
   me: { signedIn: false, isAdmin: false, email: '', mel: { ...MEL_DEFAULT_LOOK } }, bucks: null, today: null,
   ctx: null, idx: 0, view: 'round', scene: null, sceneKey: null,
-  clock: null, queue: Promise.resolve(), chips: [], pending: null, paused: false, leaving: false
+  clock: null, chips: [], pending: null, paused: false, leaving: false,
+  // Answers being judged right now (several at once, including ones held back while a "did you mean"
+  // has the clock stopped), and any further "did you mean"s waiting their turn.
+  checking: [], inflight: new Set(), dymQueue: []
 };
+const MAX_PARALLEL = 4;
 
 async function api(path, body) {
   const opt = body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
   const res = await fetch('/api/' + path, { credentials: 'same-origin', ...opt });
   const data = await res.json().catch(() => ({ error: 'Lost the connection there. Try again?' }));
-  if (!res.ok || data.error) throw new Error(data.error || 'Something went wrong.');
+  if (!res.ok || data.error) { const e = new Error(data.error || 'Something went wrong.'); e.status = res.status; throw e; }
   return data;
 }
 function toast(msg) {
@@ -240,7 +246,7 @@ function chipsFor(r) {
 
 /* ═══════════ Ready ═══════════ */
 function renderReady(r) {
-  stopClock(); S.paused = false; S.pending = null;
+  stopClock(); S.paused = false; S.pending = null; resetChecking();
   clearChips(); placeTags();
   $('#pausecover').hidden = true;
   S.scene.setMood('smile');
@@ -282,6 +288,7 @@ function renderPlaying(r) {
         <button class="btn" type="submit">Go</button>
       </form>
       <div class="dym" id="dym" hidden></div>
+      <div class="checking" id="checking" hidden><span class="ck-h">Checking…</span><ul id="checkList"></ul></div>
       <ul class="feed" id="feed">${r.play.answers.slice().reverse().map(feedItem).join('')}</ul>
       <button class="btn alt sm done" id="doneBtn">I'm done</button>
     </div>`;
@@ -290,8 +297,10 @@ function renderPlaying(r) {
   input.addEventListener('input', trackCaret); input.addEventListener('keyup', trackCaret); input.addEventListener('click', trackCaret);
   input.focus({ preventScroll: window.innerWidth < 760 });
   $('#doneBtn').onclick = () => finishRound(r, true);
+  drawChecking();
   if (r.play.pending) showDidYouMean(r, r.play.pending.id, r.play.pending.suggestion, r.play.pending.input);
   startClock(r);
+  if (!S.pending) sendHeld(r);
 }
 
 /** Mel's eyes follow the typing caret. */
@@ -317,32 +326,80 @@ function pushFeed(a) {
   while (feed.children.length > 40) feed.lastElementChild.remove();
 }
 
+/* ── Answers: judged several at a time, each listed under "Checking…" until its verdict comes back ── */
+const normText = t => t.toLowerCase().replace(/\s+/g, ' ').trim();
+
 function submit(r, text) {
-  if (S.paused) return;
-  // One at a time, in order, so duplicates are always caught.
-  S.queue = S.queue.then(() => sendAnswer(r, text)).catch(() => {});
+  if (S.paused || S.pending) return;
+  const norm = normText(text);
+  const same = S.checking.find(c => c.norm === norm);
+  if (same) { nudge(same); return; }          // already on its way: it gets one verdict
+  S.checking.push({ r, text, norm, held: false, sent: false });
+  drawChecking();
+  pump();
 }
 
-async function sendAnswer(r, text) {
+/** Starts as many waiting answers as the parallel limit allows. */
+function pump() {
+  if (S.pending || S.paused) return;
+  for (const c of S.checking) {
+    if (S.inflight.size >= MAX_PARALLEL) break;
+    if (c.sent || c.held) continue;
+    c.sent = true;
+    const job = sendAnswer(c.r, c).catch(() => {}).finally(() => { S.inflight.delete(job); pump(); });
+    S.inflight.add(job);
+  }
+}
+
+function dropChecking(c) { S.checking = S.checking.filter(x => x !== c); drawChecking(); }
+function resetChecking() { S.checking = []; S.dymQueue = []; }
+function drawChecking() {
+  const box = $('#checking'), list = $('#checkList'); if (!box || !list) return;
+  box.hidden = !S.checking.length;
+  list.innerHTML = S.checking.map((c, i) => `<li class="${c.held ? 'held' : ''}" data-ck="${i}"><i aria-hidden="true"></i><span>${esc(c.text)}${c.held ? '<small>after the question above</small>' : ''}</span></li>`).join('');
+}
+function nudge(c) {
+  const li = $(`#checkList [data-ck="${S.checking.indexOf(c)}"]`);
+  if (li) { li.classList.remove('nudge'); void li.offsetWidth; li.classList.add('nudge'); }
+}
+
+/** Sends the answers that were held back while a "did you mean" had the clock stopped. */
+function sendHeld(r) {
   if (r.play.state !== 'running' || S.pending) return;
+  S.checking.forEach(c => { if (c.held) { c.held = false; c.sent = false; } });
+  drawChecking();
+  pump();
+}
+
+async function sendAnswer(r, c) {
+  if (r.play.state !== 'running') { dropChecking(c); return; }
   let res;
-  try { res = await api('venn/answer', { puzzleId: r.puzzle.id, mode: r.mode, input: text }); }
-  catch (e) { toast(e.message); if (/paused/i.test(e.message)) resumeRound(r); return; }
-  if (res.verdict === 'closed') { Object.assign(r, { puzzle: res.puzzle, play: res.play, results: res.results }); afterRound(r); return; }
-  if (res.verdict === 'ignored') return;
+  try { res = await api('venn/answer', { puzzleId: r.puzzle.id, mode: r.mode, input: c.text }); }
+  catch (e) {
+    // The clock stopped (a "did you mean" opened) while this was on its way: it goes again afterwards.
+    if (e.status === 409 && /paused/i.test(e.message) && S.view === 'round' && r.play.state !== 'done') { c.held = true; c.sent = false; drawChecking(); return; }
+    dropChecking(c);
+    toast(e.message); if (/paused/i.test(e.message)) resumeRound(r);
+    return;
+  }
+  dropChecking(c);
+  if (res.verdict === 'closed') { if (r.play.state !== 'done') { Object.assign(r, { puzzle: res.puzzle, play: res.play, results: res.results }); afterRound(r); } return; }
+  if (res.verdict === 'ignored' || r.play.state === 'done') return;
   if (res.verdict === 'invalid') { toast(res.reason); return; }
   syncClock(r, res.elapsed, res.state);
   if (res.verdict === 'pending') {
     r.play.elapsed = res.elapsed;
-    showDidYouMean(r, res.answerId, res.didYouMean, text);
+    if (S.pending) S.dymQueue.push({ answerId: res.answerId, suggestion: res.didYouMean, typed: c.text });
+    else showDidYouMean(r, res.answerId, res.didYouMean, c.text);
     return;
   }
-  applyVerdict(r, { id: res.answerId, input: text, canonical: res.canonical, verdict: res.verdict, fits: res.fits, reason: res.reason }, res.count);
+  applyVerdict(r, { id: res.answerId, input: c.text, canonical: res.canonical, verdict: res.verdict, fits: res.fits, reason: res.reason }, res.count);
 }
 
 function applyVerdict(r, a, count) {
   r.play.answers.push(a);
-  r.play.count = count;
+  // Verdicts can land out of order, so keep the highest count seen.
+  count = r.play.count = Math.max(r.play.count || 0, count);
   const fn = $('#foundNum'); if (fn) { fn.textContent = count; }
   pushFeed(a);
   const sc = S.scene; if (!sc) return;
@@ -387,6 +444,9 @@ function showDidYouMean(r, answerId, suggestion, typed) {
   S.pending = { answerId, suggestion };
   pauseVisual(true);
   stopClock();
+  // The clock is stopped, so no new answers until this one's settled.
+  const input = $('#ans');
+  if (input) { input.disabled = true; input.dataset.ph = input.dataset.ph || input.placeholder; input.placeholder = 'Answer the question first'; }
   const box = $('#dym'); if (!box) return;
   box.hidden = false;
   box.innerHTML = `<p>Did you mean <b>${esc(suggestion)}</b>?</p><p class="sub">You typed “${esc(typed || '')}”. The clock is stopped.</p>
@@ -403,13 +463,17 @@ async function answerDidYouMean(r, yes) {
     const res = await api('venn/confirm', { answerId: p.answerId, yes });
     S.pending = null;
     $('#dym').hidden = true;
-    pauseVisual(false);
-    if (res.verdict === 'stale') { Object.assign(r, { puzzle: res.puzzle, play: res.play, results: res.results }); render(); return; }
+    if (res.verdict === 'stale') { pauseVisual(false); Object.assign(r, { puzzle: res.puzzle, play: res.play, results: res.results }); render(); return; }
     r.play.elapsed = res.elapsed; r.play.state = res.state;
-    startClock(r);
     applyVerdict(r, { id: res.answerId, input: yes ? p.suggestion : '', canonical: res.canonical, verdict: res.verdict, fits: res.fits, reason: res.reason }, res.count);
-    if (!yes) { const input = $('#ans'); if (input) { input.value = ''; } }
-    const input = $('#ans'); if (input) input.focus();
+    // Another "did you mean" came back meanwhile: the clock stays stopped for that one too.
+    const next = S.dymQueue.shift();
+    if (next) { showDidYouMean(r, next.answerId, next.suggestion, next.typed); return; }
+    pauseVisual(false);
+    startClock(r);
+    const input = $('#ans');
+    if (input) { input.disabled = false; if (input.dataset.ph) input.placeholder = input.dataset.ph; if (!yes) input.value = ''; input.focus(); }
+    sendHeld(r);
   } catch (e) { toast(e.message); document.querySelectorAll('#dym button').forEach(b => { b.disabled = false; }); }
 }
 
@@ -441,7 +505,9 @@ async function finishRound(r, early) {
   if (r.play.state === 'done') return;
   stopClock();
   const b = $('#doneBtn'); if (b) b.disabled = true;
-  await S.queue;
+  // Let answers already on their way land first (anything still held back can't count now).
+  S.checking.forEach(c => { if (!c.sent) { c.held = false; c.sent = true; } });
+  await Promise.allSettled([...S.inflight]);
   try {
     const res = await api('venn/done', { puzzleId: r.puzzle.id, mode: r.mode });
     Object.assign(r, { puzzle: res.puzzle, play: res.play, results: res.results });
@@ -451,7 +517,7 @@ async function finishRound(r, early) {
 }
 
 function afterRound(r) {
-  stopClock(); S.pending = null; S.paused = false;
+  stopClock(); S.pending = null; S.paused = false; resetChecking();
   render();
   if (S.ctx.kind !== 'unlimited') refreshMeta();
 }
@@ -538,18 +604,7 @@ function renderResults(r) {
     return `<li><span><b>${esc(a.input)}</b><small>${esc(a.reason || '')}</small></span>${cpl ? `<em>${esc(REPORT[cpl] || cpl)}</em>` : `<button class="link report" data-a="${a.id}">Wrong call?</button>`}</li>`;
   }).join('')}</ul>` : '';
   const closeHTML = close.length ? `<p class="sub">Close (fit 2 of 3, so no catch): ${close.map(a => esc(a.canonical)).join(', ')}</p>` : '';
-  let crowd = '';
-  if (res.everyone && res.everyone.few) {
-    crowd = `<div class="h4">How everyone did</div><p class="beat">Comparisons show once ${MIN_CROWD} people have played.</p>`;
-  } else if (res.everyone && res.everyone.total) {
-    const e = res.everyone, max = Math.max(1, ...e.hist);
-    const beat = c.kind === 'daily'
-      ? (e.beat == null ? 'You\'re one of the first today.' : `Better than <b>${e.beat}%</b> of today's players.`)
-      : `${e.total} ${e.total === 1 ? 'person' : 'people'} played this on the day.`;
-    crowd = `<div class="h4">How everyone did</div><p class="beat">${beat}</p>
-      <div class="histo">${e.hist.map((n, i) => `<i class="${i === Math.min(e.hist.length - 1, res.count) && c.kind === 'daily' ? 'me' : ''} ${i === res.par ? 'par' : ''}" style="height:${Math.max(4, n / max * 100)}%" title="${i} found: ${n}"></i>`).join('')}</div>
-      <div class="histo-l"><span>0</span><span>par ${res.par}</span><span>${e.hist.length - 1}${e.hist.length - 1 >= 2 * res.par ? '+' : ''}</span></div>`;
-  }
+  const crowd = res.everyone ? crowdHTML(res.everyone, { max: ROUND_MAX, daily: c.kind === 'daily' }) : '';
   const earned = bucksForRound(r.play.score, r.mode);
   $('#panel').innerHTML = `<div class="results">
       <div class="verdict"><div class="score"><span id="bigScore">0</span><small>/ 100</small></div>
@@ -586,6 +641,7 @@ function summaryHTML(c) {
         <div><div class="total"><span id="sumTotal">0</span><small> / ${DAY_MAX}</small></div>
           <p class="sub">“${esc(MEL_MOODS[moodFor(total / 2)])}”</p></div></div>
       <div class="mini">${done.map(r => `<span><i class="dots">${r.puzzle.round === 2 ? '<i class="a"></i><i class="b"></i><i class="c"></i>' : '<i class="a"></i><i class="b"></i>'}</i>${r.play.count} found (par ${r.puzzle.par}) ${scoreSquare(r.play.score)} <b>${r.play.score}</b></span>`).join('')}</div>
+      ${c.day && c.day.crowd ? `<div class="sumcrowd">${crowdHTML(c.day.crowd, { max: DAY_MAX, daily: c.kind === 'daily', finished: 'finished' })}</div>` : ''}
       <div class="row center"><button class="btn" id="shareBtn">Share</button><button class="btn alt" id="statsBtn2">Stats</button>
         ${c.kind === 'archive' ? '<a class="btn alt" href="#/archive">More days</a>' : ''}</div>
       ${c.kind === 'daily' ? '<div class="countdown">New rings in <b class="cd">--:--:--</b></div>' : ''}
@@ -626,12 +682,7 @@ function tick() {
 setInterval(tick, 1000);
 
 /* ═══════════ Modals ═══════════ */
-function openModal(html) { $('#modalBody').innerHTML = html; $('#modal').hidden = false; }
-function closeModal() { $('#modal').hidden = true; }
-$('#modalX').onclick = closeModal;
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModal();
   if (S.pending && !$('#dym').hidden && (e.key === 'y' || e.key === 'n') && document.activeElement && document.activeElement.id !== 'ans') answerDidYouMean(cur(), e.key === 'y');
 });
 
@@ -789,12 +840,8 @@ async function showStats() {
   openModal('<h2>Your stats</h2><div class="shimmer">Counting catches…</div>');
   try {
     const s = await api('venn/stats');
-    const max = Math.max(1, ...s.dist), names = ['0–39', '40–79', '80–119', '120–159', '160–199', '200'];
     openModal(`<h2>Your stats</h2>
-      <div class="statgrid"><div><b>${s.played}</b><span>Days</span></div><div><b>${s.avg}</b><span>Average</span></div><div><b>${s.best}</b><span>Best</span></div>
-        <div><b>${s.streak}</b><span>Streak</span></div><div><b>${s.maxStreak}</b><span>Max streak</span></div></div>
-      <div class="bars">${s.dist.map((n, i) => `<div class="bar"><span>${names[i]}</span><i style="width:${Math.max(8, n / max * 100)}%">${n}</i></div>`).join('')}</div>
-      <p class="sub">Days are out of 200. Archive: ${s.archive.played} ${s.archive.played === 1 ? 'round' : 'rounds'} · average ${s.archive.avg}.</p>
+      ${statsHTML(s, { max: DAY_MAX, note: `<p class="sub">Days are out of ${DAY_MAX}. Archive: ${s.archive.played} ${s.archive.played === 1 ? 'round' : 'rounds'} · average ${s.archive.avg}.</p>` })}
       ${S.me.signedIn ? '' : '<p class="sub">These are only saved on this device. <button class="link" id="statsSignin">Sign in</button> to take them with you.</p>'}`);
     const si = $('#statsSignin'); if (si) si.onclick = () => accountModal(accountUI());
   } catch (e) { openModal(`<h2>Your stats</h2><div class="note bad">${esc(e.message)}</div>`); }

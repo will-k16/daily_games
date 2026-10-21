@@ -3,6 +3,7 @@
 // gameplay (today, lock-in, reveals, archive, unlimited), crowd comparisons, stats, reports and rescoring.
 import { tipUrl, HttpError, nowISO, todayUTC, addDays, dayIndex, isDate, clampStr, safeJson } from './util.js';
 import { bucksBalance, pollyLookOf } from './bucks.js';
+import { spread } from '../../public/js/charts.js';
 import {
   SLOTS, DAY_MAX, MIN_CROWD, questionScore, crowd, bucksForQuestion, dayBonus, staleReason
 } from '../../public/js/polly-score.js';
@@ -418,8 +419,7 @@ export async function stats(env, who) {
   const daily = plays.results.filter(p => p.mode === 'daily' && p.done >= SLOTS);
   const arch = plays.results.filter(p => p.mode === 'archive' && p.done >= SLOTS);
   const totals = daily.map(p => p.total);
-  const dist = new Array(10).fill(0);
-  totals.forEach(t => { dist[Math.min(9, Math.floor(t / 30))]++; });
+  const dist = spread(totals, DAY_MAX);
   const s = pollyStreaks(daily.map(p => p.date), polls.results.map(r => r.date), today, launch);
   const g = guesses.results;
   const sided = g.filter(x => x.own && x.real !== 50);

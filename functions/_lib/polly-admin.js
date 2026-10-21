@@ -4,7 +4,8 @@
 import { HttpError, nowISO, todayUTC, addDays, isDate, clampStr, safeJson } from './util.js';
 import { activeSources, sourceForUrl, fetchPage, extractCandidates, checkCandidate, cleanCandidate, numbersIn, PAGE_CHARS, TOPICS } from './polly-ai.js';
 import { autoFill, rescoreQuestion, fitsDay, pollyNumber, BANK_LOW_DAYS, HORIZON, REASONS } from './polly.js';
-import { SLOTS, SHORT_MAX, LABEL_MAX, staleReason, tooOld } from '../../public/js/polly-score.js';
+import { SLOTS, SHORT_MAX, LABEL_MAX, QUESTION_MAX, DAY_MAX, staleReason, tooOld } from '../../public/js/polly-score.js';
+import { spread } from '../../public/js/charts.js';
 
 const ENTRIES = ['auto-checked', 'admin-pasted', 'admin-entered'];
 const STATUSES = ['draft', 'approved', 'rejected', 'retired'];
@@ -61,16 +62,14 @@ export async function dashboard(env) {
           (SELECT COUNT(*) FROM polly_questions WHERE status = 'approved' AND entry = 'auto-checked' AND approved_at >= ?) AS autoWeek`).bind(addDays(date, -7)).first()
   ]);
   const byDate = Object.fromEntries(week.results.map(w => [w.date, w.n]));
-  const qHist = new Array(10).fill(0), dHist = new Array(10).fill(0);
-  qScores.results.forEach(r => { qHist[Math.min(9, Math.floor(r.score / 10))]++; });
-  dayTotals.results.forEach(r => { dHist[Math.min(9, Math.floor(r.total / 30))]++; });
+  const rHist = spread(qScores.results.map(r => r.score), QUESTION_MAX), dHist = spread(dayTotals.results.map(r => r.total), DAY_MAX);
   const full = Object.fromEntries(upcoming.results.map(u => [u.date, u.n]));
   const gaps = Array.from({ length: 7 }, (_, i) => addDays(date, i + 1)).filter(d => (full[d] || 0) < SLOTS);
   return {
     date, number: pollyNumber(env, date), players: players.n, finished: finished.n, avgDay: finished.avg == null ? null : Math.round(finished.avg),
     ever: ever.n, slots: slots.results, openReports: open.n, bank, stale,
     week: Array.from({ length: 14 }, (_, i) => addDays(date, i - 13)).map(d => ({ date: d, n: byDate[d] || 0 })),
-    qHist, dHist, gaps, auto
+    rHist, dHist, gaps, auto
   };
 }
 

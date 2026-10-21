@@ -231,13 +231,6 @@ main { min-width: 0; max-width: 860px; width: 100%; margin: 0 auto; }
 
 .crowd { display: grid; grid-template-columns: 1fr; gap: 16px; }
 @media (min-width: 680px) { .crowd { grid-template-columns: 1fr 1fr; } }
-.histo { display: flex; align-items: flex-end; gap: 4px; height: 80px; padding: 6px; border: 3px solid var(--line); border-radius: 10px; background: var(--panel2); }
-.histo i { flex: 1; background: #a9b7c4; border: 2px solid var(--ink); border-bottom: 0; border-radius: 3px 3px 0 0; transform-origin: bottom; animation: barUp .5s steps(5) both; animation-delay: calc(var(--d) * 50ms + 250ms); min-height: 3px; }
-.histo i.me { background: var(--accent); }
-@keyframes barUp { from { transform: scaleY(0); } }
-.histo-l { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); padding: 3px 4px 0; font-family: var(--font-num); }
-.beat { margin: 0 0 10px; }
-.beat b { font-family: var(--font-num); font-size: 24px; color: var(--accent); }
 .toplist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .toplist li { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 8px; background: var(--panel2); border: 3px solid var(--line);
   animation: rise .45s var(--ease) both; animation-delay: calc(var(--d) * 80ms + 300ms); }
@@ -288,13 +281,6 @@ main { min-width: 0; max-width: 860px; width: 100%; margin: 0 auto; }
 .stepc canvas, .stepc svg { width: 76px; height: 60px; border: 2px solid var(--ink); border-radius: 6px; }
 .stepc p { margin: 0; font-size: 15px; }
 .stepc b.n { display: block; font-family: var(--font-px); font-size: 17px; }
-.statgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; text-align: center; }
-.statgrid b { display: block; font-family: var(--font-num); font-size: 24px; line-height: 1.2; }
-.statgrid span { font-size: 11px; color: var(--muted); font-weight: 800; }
-.bars { margin-top: 16px; }
-.bars .bar { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; font-family: var(--font-num); font-size: 11px; margin-bottom: 6px; }
-.bars .bar i { display: block; height: 20px; border: 2px solid var(--ink); border-radius: 4px; background: var(--gold); font-style: normal; text-align: right; padding-right: 6px; min-width: 26px; line-height: 16px; color: #22303c;
-  transform-origin: left; animation: grow .5s steps(6) both; animation-delay: calc(var(--d) * 80ms); }
 @keyframes grow { from { transform: scaleX(0); } }
 textarea.box { width: 100%; min-height: 90px; padding: 10px 12px; border-radius: 10px; border: 3px solid var(--ink); background: var(--panel2); resize: vertical; }
 
@@ -416,3 +402,32 @@ body.pad-open .pad { display: flex; animation: padIn .3s steps(4) both; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ── Shared modal bits (modal.js, account.js) ── */
+.modal-ask { position: fixed; inset: 0; z-index: 61; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .28); }
+.modal-ask .modal-ask-box { max-width: 360px; text-align: center; }
+.modal-ask p { margin: 0 0 14px; }
+.modal-ask .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.pwwrap { position: relative; }
+.pwwrap .pin { padding-right: 46px; }
+.pweye { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 34px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: inherit; opacity: .7; cursor: pointer; }
+.pweye:hover, .pweye[aria-pressed="true"] { opacity: 1; }
+.pweye svg { width: 20px; height: 20px; }
+
+/* The lodge is the middle by ratio: shown above every first guess, spelled out again on the reveal. */
+.ratio-hint { margin-top: 14px; padding: 10px 12px; border: 3px dashed var(--line); border-radius: 10px; background: var(--panel2); }
+.ratio-hint p { margin: 8px 0 0; font-size: 14px; }
+.rh-strip { position: relative; display: flex; align-items: center; gap: 6px; font-family: var(--font-num); font-weight: 800; font-size: 14px; flex-wrap: wrap; }
+.rh-end { padding: 2px 8px; border: 2px solid var(--ink); border-radius: 6px; background: var(--panel); }
+.rh-x { flex: 1; min-width: 34px; text-align: center; color: var(--muted); font-size: 12px; border-bottom: 3px dotted var(--muted); line-height: 1.6; }
+.rh-lodge { padding: 2px 8px; border: 2px solid var(--ink); border-radius: 6px; background: var(--good); color: #fff; }
+.rh-no { margin-left: 4px; color: var(--bad); font-size: 12px; text-decoration: line-through; }
+.rh-pad { margin-top: 8px; padding: 6px 10px; border: 2px solid var(--ink); border-radius: 8px; background: var(--gold); color: #22303c; font-weight: 800; font-size: 14px; cursor: pointer; }
+.rh-pad:hover { filter: brightness(1.06); }
+.ratio-note { margin: 10px 0 0; font-size: 13px; color: var(--muted); text-align: center; }
+.ratio-note b { color: var(--ink); }
+/* Until the notebook is first opened, its button glows a little. */
+.tbtn.fresh { position: relative; background: var(--gold); color: #22303c; animation: padGlow 1.6s steps(2) infinite; }
+.tbtn.fresh::after { content: 'NEW'; position: absolute; top: -8px; right: -6px; padding: 1px 4px; border-radius: 4px; background: var(--accent); color: #fff; font: 700 9px/1.3 var(--font-px); }
+@keyframes padGlow { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold) 45%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .tbtn.fresh { animation: none; } }

@@ -4,6 +4,7 @@
 import { fmt, nice } from './units.js';
 import { PROPS, ROOMS, propLabel } from './props.js';
 import { bucksIcon } from './bucks.js';
+import { histoHTML, barsHTML } from './charts.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -120,36 +121,45 @@ async function suiteTab(box) {
 async function summitToday(box) {
   const d = await api('admin/dashboard');
   $('#sumN').textContent = d.openComplaints ? `(${d.openComplaints})` : '';
-  const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-  const spread = d.hist.map((n, i) => ({ n, label: i === 10 ? '1000' : String(i * 100), tip: i === 10 ? 'a perfect 1000' : `${i * 100}–${i * 100 + 99}` }));
-  const week = d.week.map(w => ({ n: w.n, label: day(w.date), tip: day(w.date) }));
   box.innerHTML = `
     <section class="card"><div class="kicker"><span>Summit · ${d.date} (UTC)</span></div>
       <div class="kpis" style="margin-top:10px">
         <div class="kpi"><b>${d.todayPlayers}</b><span>Players today</span></div>
+        <div class="kpi"><b>${d.finished}</b><span>Finished all 3 today</span></div>
+        <div class="kpi"><b>${d.avgDay == null ? '–' : d.avgDay.toLocaleString('en-US')}</b><span>Average day (of 3,000)</span></div>
         <div class="kpi"><b>${d.players}</b><span>Players ever</span></div>
         <div class="kpi"><b>${d.openComplaints}</b><span>Open complaints</span></div>
       </div>
+      ${d.openComplaints ? `<p class="sub"><a href="#summit/comp">Review ${d.openComplaints} open ${d.openComplaints === 1 ? 'complaint' : 'complaints'} →</a></p>` : ''}
       <div class="section-title">Today's stages</div>
       <div class="tbl"><table><thead><tr><th>Stage</th><th>Puzzle</th><th>Status</th><th>Finished</th><th>Avg</th><th>2nd guess</th></tr></thead>
       <tbody>${d.rooms.map(r => `<tr><td>${room(r.slot).emoji} ${room(r.slot).name}</td><td>${esc(r.small_item)} ↔ ${esc(r.big_item)}<br><span class="sub">${esc(propLabel(r.property))}</span></td>
         <td><span class="st ${r.status}">${r.status}</span></td><td>${r.plays}</td><td>${r.avg == null ? '–' : Math.round(r.avg)}</td><td>${r.plays ? Math.round(100 * (r.seconds || 0) / r.plays) + '%' : '–'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Not generated yet. It will be created on the first visit.</td></tr>'}</tbody></table></div>
-      <div class="crowd" style="margin-top:6px">
-        <div><div class="section-title">Score spread today</div>${bars(spread, 'finished stage', 'finished stages')}
-          <p class="sub">How many finished stages scored in each range (each player counts up to 3 times).</p></div>
-        <div><div class="section-title">Daily players (14 days)</div>${bars(week, 'player', 'players', 2)}
-          <p class="sub">People who played that day's puzzles on the day.</p></div>
-      </div>
+      ${dashCharts(d, { part: 'Stage', parts: 'stages', max: 1000, dayMax: 3000,
+        partNote: 'Every finished stage today, by score (each player counts up to 3 times).',
+        dayNote: 'Players who finished all three stages, by day total out of 3,000.',
+        weekNote: 'People who played that day’s puzzles on the day.' })}
     </section>`;
 }
 
 
-/** A bar chart with the count on top of every bar and a label underneath. `every` thins the labels out. */
-function bars(items, one, many, every = 1) {
-  const max = Math.max(1, ...items.map(x => x.n));
-  return `<div class="abars">${items.map((x, i) => `<div class="ab" title="${esc(x.tip)}: ${x.n} ${x.n === 1 ? one : many}">
-      <span class="abn">${x.n}</span><i style="height:${x.n ? Math.max(6, x.n / max * 100) : 0}%"></i>
-      <span class="abl">${i % every === every - 1 || i === items.length - 1 ? esc(x.label) : ''}</span></div>`).join('')}</div>`;
+/**
+ * The charts at the bottom of every game's dashboard, always in the same order: today's scores per
+ * stage / round / question, today's day totals, and daily players over the last 14 days.
+ */
+function dashCharts(d, { part, parts, max, dayMax, partNote, dayNote, weekNote }) {
+  const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const w = d.week;
+  const week = barsHTML(w.map(x => ({ n: x.n, tip: `${day(x.date)}: ${x.n} ${x.n === 1 ? 'player' : 'players'}` })),
+    { counts: true, axis: [day(w[0].date), day(w[Math.floor(w.length / 2)].date), day(w[w.length - 1].date)] });
+  return `<div class="crowd" style="margin-top:6px">
+      <div><div class="section-title">${part} scores today</div>${histoHTML(d.rHist, { max, counts: true, one: part.toLowerCase(), many: parts })}
+        <p class="sub">${partNote}</p></div>
+      <div><div class="section-title">Day totals today</div>${histoHTML(d.dHist, { max: dayMax, counts: true })}
+        <p class="sub">${dayNote}</p></div>
+    </div>
+    <div class="section-title">Daily players (14 days)</div>${week}
+    <p class="sub">${weekNote}</p>`;
 }
 
 /* ═══════════ Summit: calendar ═══════════ */
@@ -427,9 +437,6 @@ async function vennDash(box) {
   const d = await api('admin/venn/dashboard');
   $('#vennN').textContent = d.openComplaints ? `(${d.openComplaints})` : '';
   const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-  const rSpread = d.rHist.map((n, i) => ({ n, label: i === 9 ? '90+' : String(i * 10), tip: i === 9 ? '90–100' : `${i * 10}–${i * 10 + 9}` }));
-  const dSpread = d.dHist.map((n, i) => ({ n, label: i === 9 ? '180+' : String(i * 20), tip: i === 9 ? '180–200' : `${i * 20}–${i * 20 + 19}` }));
-  const week = d.week.map(w => ({ n: w.n, label: day(w.date), tip: day(w.date) }));
   const pct = (a, b) => (b ? Math.round(100 * a / b) + '%' : '–');
   const stIcon = s => (s === 'approved' ? badge('ready', 'approved') : s === 'draft' ? badge('draft', 'draft') : badge('empty', 'empty'));
   const notReady = d.next.filter(n => n.rounds.some(r => r !== 'approved'));
@@ -448,14 +455,10 @@ async function vennDash(box) {
         <td>${r.par}<br><span class="sub">typical ${r.typical}</span></td><td>${r.plays}</td><td>${r.done || 0}</td>
         <td>${r.avgCount == null ? '–' : Math.round(r.avgCount * 10) / 10}</td><td>${r.avgScore == null ? '–' : Math.round(r.avgScore)}</td><td>${pct(r.madePar || 0, r.done || 0)}</td></tr>`).join('')
         || '<tr><td colspan="8" class="empty">Not made yet. Today\'s rounds are created on the first visit.</td></tr>'}</tbody></table></div>
-      <div class="crowd" style="margin-top:6px">
-        <div><div class="section-title">Round scores today</div>${bars(rSpread, 'round', 'rounds')}
-          <p class="sub">Every finished round today, by score (each player counts up to 2 times).</p></div>
-        <div><div class="section-title">Day totals today</div>${bars(dSpread, 'player', 'players', 2)}
-          <p class="sub">Players who finished both rounds, by day total out of 200.</p></div>
-      </div>
-      <div class="section-title">Daily players (14 days)</div>${bars(week, 'player', 'players', 2)}
-      <p class="sub">People who started at least one round that day.</p>
+      ${dashCharts(d, { part: 'Round', parts: 'rounds', max: 100, dayMax: 200,
+        partNote: 'Every finished round today, by score (each player counts up to 2 times).',
+        dayNote: 'Players who finished both rounds, by day total out of 200.',
+        weekNote: 'People who started at least one round that day.' })}
     </section>
     <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Puzzles and the judge</h2>
       <div class="kpis" style="margin-top:10px">
@@ -747,9 +750,6 @@ async function pollyDash(box) {
   const d = await api('admin/polly/dashboard');
   $('#pollyN').textContent = d.openReports ? `(${d.openReports})` : '';
   const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-  const qSpread = d.qHist.map((n, i) => ({ n, label: i === 9 ? '90+' : String(i * 10), tip: i === 9 ? '90–100' : `${i * 10}–${i * 10 + 9}` }));
-  const dSpread = d.dHist.map((n, i) => ({ n, label: i === 9 ? '270+' : String(i * 30), tip: i === 9 ? '270–300' : `${i * 30}–${i * 30 + 29}` }));
-  const week = d.week.map(w => ({ n: w.n, label: day(w.date), tip: day(w.date) }));
   const a = d.auto || {};
   const pctL = s => (s.sideL + s.sideR ? Math.round(100 * s.sideL / (s.sideL + s.sideR)) + '%' : '–');
   box.innerHTML = `<section class="card"><div class="kicker"><span>Polly #${d.number} · ${d.date} (UTC)</span></div>
@@ -766,14 +766,10 @@ async function pollyDash(box) {
       <tbody>${d.slots.map(s => `<tr><td>${s.slot}</td><td>${esc(s.short)}${s.reused ? ` ${badge('reused', 'auto')}` : ''}<br><span class="sub">${esc(s.left_label)} / ${esc(s.right_label)} · ${esc(TOPIC_NAMES[s.topic] || s.topic)} · <a href="${esc(s.url)}" target="_blank" rel="noopener">source ↗</a></span></td>
         <td>${s.real}%</td><td>${s.plays}</td><td>${s.avg == null ? '–' : Math.round(s.avg)}</td><td>${s.miss == null ? '–' : (Math.round(s.miss * 10) / 10)}</td>
         <td>${s.plays ? `${s.sideL + s.sideR ? `${pctL(s)} ${esc(s.left_label)}` : '–'}<br><span class="sub">${s.skipped || 0} skipped</span>` : '–'}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No poll today. Approve questions (or run Auto-find) and the calendar fills itself.</td></tr>'}</tbody></table></div>
-      <div class="crowd" style="margin-top:6px">
-        <div><div class="section-title">Question scores today</div>${bars(qSpread, 'answer', 'answers')}
-          <p class="sub">Every daily answer today, by score (each player counts up to 3 times).</p></div>
-        <div><div class="section-title">Day totals today</div>${bars(dSpread, 'player', 'players', 2)}
-          <p class="sub">Players who finished all three, by day total out of 300.</p></div>
-      </div>
-      <div class="section-title">Daily players (14 days)</div>${bars(week, 'player', 'players', 2)}
-      <p class="sub">People who answered at least one question that day.</p>
+      ${dashCharts(d, { part: 'Question', parts: 'answers', max: 100, dayMax: 300,
+        partNote: 'Every daily answer today, by score (each player counts up to 3 times).',
+        dayNote: 'Players who finished all three, by day total out of 300.',
+        weekNote: 'People who answered at least one question that day.' })}
     </section>
     <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Question supply</h2>
       <div class="kpis" style="margin-top:10px">

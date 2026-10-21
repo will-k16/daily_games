@@ -2,9 +2,12 @@
 // WK streak, WK Bucks, the countdown to new puzzles, and one combined share for the day.
 import { bucksIcon } from './bucks.js';
 import { showAccount, signInReturn } from './account.js';
+import { openModal, closeModal } from './modal.js';
 import { drawVennPreview } from './venn-scene.js';
 import { drawPollyPreview } from './polly-scene.js';
-import { bayer } from './pixel.js';
+import { bayer, skipperPortrait } from './pixel.js';
+import { melPortrait } from './mel.js';
+import { pollyPortrait } from './polly-sprites.js';
 import { renderDesk, decorate, season } from './desk.js';
 
 const $ = s => document.querySelector(s);
@@ -46,11 +49,6 @@ async function api(path, body) {
   return data;
 }
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); }
-function openModal(html) { $('#modalBody').innerHTML = html; $('#modal').hidden = false; }
-function closeModal() { $('#modal').hidden = true; }
-$('#modalX').onclick = closeModal;
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 const accountUI = () => ({ me: S.me, api, openModal, closeModal, toast });
 
 /* ── The title, stamped in letter by letter every time the page is shown ── */
@@ -90,6 +88,7 @@ function render(d) {
       <div class="info"><h2>${esc(m.name)}</h2><p class="pitch">${esc(m.pitch)}</p>
         <div class="facts"><span class="fact today ${g.done ? 'played' : ''}">${esc(status(g))}</span><span class="fact">Streak <b>${g.streak}</b></span></div></div></a>`;
   }).join('');
+  renderPets(d.pets);
   S.previews = [...document.querySelectorAll('.game')].map(card => ({ card, cv: card.querySelector('canvas'), draw: GAMES[card.dataset.key].draw, n: 0, fast: false, last: 0 }));
   S.previews.forEach(p => {
     p.draw(p.cv, 0);
@@ -98,6 +97,16 @@ function render(d) {
     p.card.addEventListener('focus', on); p.card.addEventListener('blur', off);
     p.card.addEventListener('click', e => openGame(e, p.card));
   });
+}
+
+/* ── The pet corner link: the three pets in their outfits ── */
+function renderPets(p) {
+  if (!p) return;
+  const pics = [skipperPortrait('smile', false, 0, p.skipper), melPortrait(p.mel, { mood: 'smile' }), pollyPortrait(p.polly, {})];
+  const box = $('#petpics'); box.innerHTML = '';
+  pics.forEach(c => { c.className = 'petpic'; box.appendChild(c); });
+  const names = [p.skipper.name || 'Skipper', p.mel.name || 'Mel', p.polly.name || 'Polly'].map(esc);
+  $('#petnames').innerHTML = `${names[0]}, ${names[1]} and ${names[2]} are hanging out`;
 }
 
 /* ── Previews: slow when idle, quicker while a card is hovered or focused ── */

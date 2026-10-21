@@ -3,7 +3,8 @@
 import { HttpError, nowISO, todayUTC, addDays, isDate, dayIndex, clampStr, normalize, safeJson } from './util.js';
 import { generateVennPuzzle, fallbackVennPuzzle, vennHistory, catKey } from './venn-ai.js';
 import { insertPuzzle, rescorePuzzle, saveJudgment as storeJudgment, getJudgment, vennNumber } from './venn.js';
-import { parFor, MIN_ANSWERS } from '../../public/js/venn-score.js';
+import { parFor, MIN_ANSWERS, ROUND_MAX, DAY_MAX } from '../../public/js/venn-score.js';
+import { spread } from '../../public/js/charts.js';
 
 const LIVE = `status IN ('approved','auto')`;
 
@@ -208,9 +209,7 @@ export async function dashboard(env) {
     db.prepare(`SELECT COUNT(*) AS n FROM venn_judgments`).first()
   ]);
   const byDate = Object.fromEntries(week.results.map(w => [w.date, w.n]));
-  const rHist = new Array(10).fill(0), dHist = new Array(10).fill(0);
-  scores.results.forEach(r => { rHist[Math.min(9, Math.floor((r.score || 0) / 10))]++; });
-  totals.results.forEach(r => { dHist[Math.min(9, Math.floor((r.t || 0) / 20))]++; });
+  const rHist = spread(scores.results.map(r => r.score || 0), ROUND_MAX), dHist = spread(totals.results.map(r => r.t || 0), DAY_MAX);
   // The next 7 days: each round approved, only a draft (it'll be used as-is), or empty (made on the spot).
   const next = Array.from({ length: 7 }, (_, i) => addDays(date, i + 1)).map(d => ({
     date: d,

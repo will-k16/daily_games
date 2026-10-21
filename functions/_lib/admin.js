@@ -4,6 +4,8 @@ import { rescoreAnswer, rescorePuzzle } from './game.js';
 import { planSpecs, recentItems } from './plan.js';
 import { PROPS } from '../../public/js/props.js';
 import { bucksBalance } from './bucks.js';
+import { spread } from '../../public/js/charts.js';
+import { MAX_SCORE } from '../../public/js/score.js';
 import { bankInfo as pollyBank } from './polly-admin.js';
 
 export function requireAdmin(who) {
@@ -72,14 +74,17 @@ export async function dashboard(env, who) {
   const days = Array.from({ length: 14 }, (_, i) => addDays(date, i - 13)).map(d => ({ date: d, n: byDate[d] || 0 }));
   const dist = (await db.prepare(`SELECT pl.score FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id
       WHERE z.date = ? AND pl.mode = 'daily' AND pl.state = 'done'`).bind(date).all()).results;
-  const hist = new Array(11).fill(0);
-  dist.forEach(r => hist[Math.min(10, Math.floor(r.score / 100))]++);
+  // Players who climbed all three stages today, by day total (out of 3,000).
+  const totals = (await db.prepare(`SELECT SUM(pl.score) AS t FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id
+      WHERE z.date = ? AND z.status IN ('approved','auto') AND pl.mode = 'daily' AND pl.state = 'done' GROUP BY pl.player_id HAVING COUNT(*) >= 3`).bind(date).all()).results.map(r => r.t || 0);
   // "Too many requests" just means the judge moved on to the next provider, so it's counted, not listed.
   const errors = (await db.prepare(`SELECT provider, kind, error, created_at FROM ai_log WHERE ok = 0 AND error NOT LIKE '429%' AND created_at >= ? ORDER BY id DESC LIMIT 8`).bind(new Date(Date.now() - 3 * 86400000).toISOString()).all()).results;
   const limited = await db.prepare(`SELECT COUNT(*) AS n FROM ai_log WHERE ok = 0 AND error LIKE '429%' AND created_at >= ?`).bind(since).first();
   return {
     date, players: players.n, visitsOnly: visits.n - players.n, signedIn: signed.n, todayPlayers: todayPlayers.n,
-    rooms: rooms.results, ai: ai.results, errors, rateLimited: limited.n, openComplaints: complaints.n, hist, week: days,
+    rooms: rooms.results, ai: ai.results, errors, rateLimited: limited.n, openComplaints: complaints.n, week: days,
+    finished: totals.length, avgDay: totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : null,
+    rHist: spread(dist.map(r => r.score), MAX_SCORE), dHist: spread(totals, 3 * MAX_SCORE),
     myBucks: who ? (await bucksBalance(env, who.player.id)).balance : null
   };
 }

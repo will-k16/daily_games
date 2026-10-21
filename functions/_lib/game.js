@@ -4,7 +4,8 @@ import { planSpecs, recentItems } from './plan.js';
 import { lookOf, bucksBalance } from './bucks.js';
 import { answerMeasurementProblem } from '../../public/js/measure.js';
 import { PROPS } from '../../public/js/props.js';
-import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS, MAX_SCORE, MIN_CROWD } from '../../public/js/score.js';
+import { scoreGuess, finalScore, middle, inRange, MAX_REJECTS, MAX_SCORE } from '../../public/js/score.js';
+import { crowd, spread } from '../../public/js/charts.js';
 
 const LIVE = `status IN ('approved','auto')`;
 
@@ -110,16 +111,7 @@ async function reveal(env, p, mode, view, who) {
   if (mode === 'unlimited') return out;
   const db = env.DB;
   const scores = (await db.prepare(`SELECT player_id, score FROM plays WHERE puzzle_id = ? AND mode = 'daily' AND state = 'done'`).bind(p.id).all()).results;
-  const others = scores.filter(s => s.player_id !== who.player.id).map(s => s.score);
-  const hist = new Array(11).fill(0);
-  scores.forEach(s => { hist[Math.min(10, Math.floor(s.score / 100))]++; });
-  const my = view.score;
-  // Comparisons stay hidden until enough people have played, so nobody's single result is on show.
-  out.crowd = scores.length < MIN_CROWD ? { total: scores.length, few: true } : {
-    total: scores.length,
-    beat: others.length ? Math.round(100 * others.filter(s => s < my).length / others.length) : null,
-    hist
-  };
+  out.crowd = crowd(scores.map(s => ({ player: s.player_id, score: s.score })), who.player.id, view.score, MAX_SCORE);
   const top = (await db.prepare(`
     SELECT g.answer_key AS k, MAX(g.raw_score) AS raw, COUNT(DISTINCT pl.player_id) AS n, a.name AS name, a.value AS value, a.approved AS approved
     FROM guesses g JOIN plays pl ON pl.id = g.play_id JOIN answers a ON a.key = g.answer_key
@@ -154,17 +146,18 @@ export async function today(env, who, waitUntil) {
 async function daySummary(env, who, date, rooms) {
   const done = rooms.filter(r => r.play.state === 'done');
   const total = done.reduce((s, r) => s + (r.play.score || 0), 0);
-  const out = { total, done: done.length, of: rooms.length, beat: null, players: 0 };
-  if (done.length === rooms.length && rooms.length) {
-    const totals = (await env.DB.prepare(`
-      SELECT pl.player_id AS pid, SUM(pl.score) AS t, COUNT(*) AS c FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id
-      WHERE z.date = ? AND z.${LIVE} AND pl.mode = 'daily' AND pl.state = 'done'
-      GROUP BY pl.player_id HAVING c = 3`).bind(date).all()).results;
-    const others = totals.filter(t => t.pid !== who.player.id).map(t => t.t);
-    out.players = totals.length;
-    out.beat = totals.length >= MIN_CROWD && others.length ? Math.round(100 * others.filter(t => t < total).length / others.length) : null;
-  }
+  const out = { total, done: done.length, of: rooms.length, crowd: null };
+  if (done.length === rooms.length && rooms.length) out.crowd = await dayCrowd(env, who, date, total);
   return out;
+}
+
+/** How everyone who climbed all three stages on the day did, by day total (out of 3,000). */
+async function dayCrowd(env, who, date, total) {
+  const totals = (await env.DB.prepare(`
+    SELECT pl.player_id AS player, SUM(pl.score) AS score, COUNT(*) AS c FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id
+    WHERE z.date = ? AND z.${LIVE} AND pl.mode = 'daily' AND pl.state = 'done'
+    GROUP BY pl.player_id HAVING c = 3`).bind(date).all()).results;
+  return crowd(totals, who.player.id, total, 3 * MAX_SCORE);
 }
 
 /**
@@ -208,8 +201,10 @@ export async function archiveDay(env, who, date) {
     rooms.push(await fullState(env, who, p, daily && daily.state === 'done' ? 'daily' : 'archive'));
     rooms[rooms.length - 1].mode = daily && daily.state === 'done' ? 'daily' : 'archive';
   }
-  const total = rooms.filter(r => r.play.state === 'done').reduce((s, r) => s + (r.play.score || 0), 0);
-  return { date, number: puzzleNumber(env, date), rooms, day: { total, done: rooms.filter(r => r.play.state === 'done').length, of: rooms.length } };
+  const done = rooms.filter(r => r.play.state === 'done');
+  const total = done.reduce((s, r) => s + (r.play.score || 0), 0);
+  const all = done.length === rooms.length && rooms.length;
+  return { date, number: puzzleNumber(env, date), rooms, day: { total, done: done.length, of: rooms.length, crowd: all ? await dayCrowd(env, who, date, total) : null } };
 }
 
 export async function newUnlimited(env, who) {
@@ -439,8 +434,7 @@ export async function stats(env, who) {
   });
   const full = Object.keys(days).filter(d => days[d].n >= 3).sort();
   const totals = full.map(d => days[d].t);
-  const dist = [0, 0, 0, 0, 0, 0]; // 0-999, 1000-1499, 1500-1999, 2000-2499, 2500-2999, 3000 (meters)
-  totals.forEach(t => { dist[t >= 3000 ? 5 : t < 1000 ? 0 : Math.min(4, Math.floor((t - 500) / 500))]++; });
+  const dist = spread(totals, 3 * MAX_SCORE);
 
   let streak = 0, d = todayUTC();
   const set = new Set(full);

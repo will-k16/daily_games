@@ -1,0 +1,32 @@
+/* ═══════════ Charts: one histogram style for the whole suite (charts.js) ═══════════
+   Each game sets --chart-me (your bar) and, if its outlines aren't --ink, --chart-ink. */
+
+.crowdchart { margin-top: 14px; }
+.ch-title { font-family: var(--font-px); font-size: 17px; margin: 14px 0 4px; }
+.crowdchart .ch-title { margin-top: 0; }
+.ch-line { margin: 0 0 8px; font-weight: 700; font-size: 15px; }
+.ch-line b { font-family: var(--font-num); font-size: 20px; font-weight: 400; color: var(--chart-me, var(--accent)); }
+
+.chart { margin-top: 4px; }
+.ch-bars { display: flex; align-items: stretch; gap: 3px; height: 84px; padding: 16px 6px 0; border: 3px solid var(--line); border-bottom-color: var(--chart-ink, var(--ink));
+  border-radius: 10px 10px 0 0; background: var(--panel2); }
+.ch-bars.counts { height: 110px; }
+.ch-col { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.ch-col i { display: block; width: 100%; background: var(--chart-bar, color-mix(in srgb, var(--muted) 45%, var(--panel2))); border: 2px solid var(--chart-ink, var(--ink)); border-bottom: 0;
+  border-radius: 3px 3px 0 0; transform-origin: bottom; animation: chUp .45s steps(5) both; animation-delay: calc(var(--d) * 40ms + 150ms); }
+.ch-col.me i { background: var(--chart-me, var(--accent)); }
+.ch-n, .ch-you { font-family: var(--font-num); font-size: 11px; line-height: 1.5; font-weight: 400; }
+.ch-you { color: var(--chart-me, var(--accent)); }
+.ch-axis { display: flex; justify-content: space-between; padding: 3px 4px 0; font-family: var(--font-num); font-size: 11px; color: var(--muted); }
+@keyframes chUp { from { transform: scaleY(0); } }
+@media (prefers-reduced-motion: reduce) { .ch-col i { animation: none; } }
+
+/* Stats modal */
+.statgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; text-align: center; }
+.statgrid b { display: block; font-family: var(--font-num); font-size: 22px; line-height: 1.2; font-weight: 400; }
+.statgrid span { font-size: 11px; color: var(--muted); font-weight: 800; }
+@media (max-width: 420px) { .statgrid { grid-template-columns: repeat(3, 1fr); } }
+
+/* On a day summary (centered layouts) */
+.sumcrowd { max-width: 480px; margin: 16px auto 0; text-align: left; }
+.ch-mine .ch-col i { background: var(--chart-me, var(--accent)); }

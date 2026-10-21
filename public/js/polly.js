@@ -3,9 +3,11 @@
 import { createPollyScene, drawTownStill, timeOfDay } from './polly-scene.js';
 import { pollyPortrait, hatIcon } from './polly-sprites.js';
 import { POLLY_WARDROBE, POLLY_TABS, POLLY_SLOTS, POLLY_DEFAULT_LOOK, pollyItemKey } from './polly-wardrobe.js';
-import { DAY_MAX, MIN_CROWD, band, crestFor, moodFor, pollyShareText, niceDate, dayBonus } from './polly-score.js';
+import { crowdHTML, statsHTML } from './charts.js';
+import { DAY_MAX, QUESTION_MAX, band, crestFor, moodFor, pollyShareText, niceDate, dayBonus } from './polly-score.js';
 import { bucksIcon, bucksAmount } from './bucks.js';
 import { showAccount as accountModal, signInReturn } from './account.js';
+import { openModal, closeModal } from './modal.js';
 
 /* ═══════════ Basics ═══════════ */
 const $ = s => document.querySelector(s);
@@ -24,11 +26,6 @@ async function api(path, body) {
   return data;
 }
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3000); }
-function openModal(html) { $('#modalBody').innerHTML = html; $('#modal').hidden = false; }
-function closeModal() { $('#modal').hidden = true; }
-$('#modalX').onclick = closeModal;
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 const look = () => S.me.polly || POLLY_DEFAULT_LOOK;
 const pollyName = () => esc(look().name || POLLY_DEFAULT_LOOK.name);
@@ -370,21 +367,6 @@ function wkHTML(q, rv) {
     <div class="wklabel"><span>${rv.wk.left}%</span><span>WK players (${rv.wk.n})</span><span>${100 - rv.wk.left}%</span></div>`;
 }
 
-function histoHTML(cr, label0, label9, mine) {
-  const max = Math.max(1, ...cr.hist);
-  return `<div class="histo">${cr.hist.map((n, i) => `<i class="${i === mine ? 'me' : ''}" style="height:${Math.max(4, n / max * 100)}%" title="${n}"></i>`).join('')}</div>
-    <div class="histo-l"><span>${label0}</span><span>${label9}</span></div>`;
-}
-
-function crowdHTML(cr, kind, few, scale) {
-  if (!cr) return '';
-  if (cr.few) return `<div class="h4">How everyone did</div><p class="fewnote">${few}</p>`;
-  const line = kind === 'daily'
-    ? (cr.beat == null ? 'You\'re one of the first today.' : `Better than <b>${cr.beat}%</b> of today's players.`)
-    : `${cr.total} ${cr.total === 1 ? 'person' : 'people'} played this on the day.`;
-  return `<div class="h4">How everyone did</div><p class="beat">${line}</p>${histoHTML(cr, '0', scale, kind === 'daily' ? cr.mine : -1)}`;
-}
-
 function detailsHTML(q, rv) {
   const c = S.ctx;
   const nextLabel = c.kind === 'unlimited' ? 'Next question' : c.questions.every(x => x.answered) ? 'See your day' : 'Next question';
@@ -395,7 +377,7 @@ function detailsHTML(q, rv) {
     <p class="realline"><b class="l">${rv.real}%</b> said ${esc(q.left)} · <b class="r">${100 - rv.real}%</b> said ${esc(q.right)}</p>
     <blockquote class="wording">“${esc(rv.original)}”</blockquote>
     <p class="srcline">${src}${rv.url ? ` · <a href="${esc(rv.url)}" target="_blank" rel="noopener noreferrer">See the poll ↗</a>` : ''}</p>
-    ${rv.crowd ? `<div>${crowdHTML(rv.crowd, c.kind === 'daily' ? 'daily' : 'archive', `Comparisons show once ${MIN_CROWD} people have played.`, '100')}</div>` : ''}
+    ${rv.crowd ? crowdHTML(rv.crowd, { max: QUESTION_MAX, daily: c.kind === 'daily' }) : ''}
     <div class="reveal-foot">${reportHTML}<button type="button" class="btn" id="next">${nextLabel}</button></div>`;
 }
 
@@ -440,7 +422,7 @@ function renderSummary() {
         return `<li><span class="qs">${esc(q.short)}</span><span class="nums">You ${r.guess} · Real ${r.real} · ${off ? off + ' off' : 'Exact!'}</span>
           <span class="sc"><button type="button" class="link" data-review="${i}" aria-label="Look at question ${i + 1} again"><i class="sqchip sq-${band(r.score)}"></i></button>${r.score}</span></li>`;
       }).join('')}</ul>
-      <div class="crowdbox">${crowdHTML(sm.crowd, mode === 'daily' && c.kind === 'daily' ? 'daily' : 'archive', `Comparisons show once ${MIN_CROWD} people have finished.`, '300')}</div>
+      ${sm.crowd ? `<div class="sumcrowd">${crowdHTML(sm.crowd, { max: DAY_MAX, daily: mode === 'daily' && c.kind === 'daily', finished: 'finished' })}</div>` : ''}
       ${agree}
       ${earned ? `<div class="row center" style="margin-top:10px"><span class="bucksline">${bucksIcon()} <b>+${earned}</b> WK Bucks ${c.kind === 'daily' ? 'today' : 'from this day'}</span></div>` : ''}
       <div class="row center"><button class="btn" id="shareBtn">Share</button><button class="btn alt" id="statsBtn2">Stats</button>
@@ -626,24 +608,14 @@ async function showStats() {
   openModal('<h2>Your stats</h2><div class="shimmer">Counting the town…</div>');
   try {
     const s = await api('polly/stats');
-    if (!s.played) {
-      openModal(`<h2>Your stats</h2><p>Play a day to see stats.</p>${s.archive.played ? `<p class="sub">Archive: ${s.archive.played} ${s.archive.played === 1 ? 'day' : 'days'} · average ${s.archive.avg}.</p>` : ''}`);
-      return;
-    }
-    const max = Math.max(1, ...s.dist);
-    const names = s.dist.map((_, i) => (i === 9 ? '270–300' : `${i * 30}–${i * 30 + 29}`));
     const lean = s.lean == null ? '' : s.lean > 1 ? `You think people agree more than they do (+${s.lean.toFixed(1)}).`
       : s.lean < -1 ? `You think things are closer than they are (−${Math.abs(s.lean).toFixed(1)}).` : 'No lean. You read splits about right.';
     openModal(`<h2>Your stats</h2>
-      <div class="statgrid"><div><b>${s.played}</b><span>Days</span></div><div><b>${s.avg}</b><span>Average</span></div><div><b>${s.best}</b><span>Best</span></div>
-        <div><b>${s.streak}</b><span>Streak</span></div><div><b>${s.maxStreak}</b><span>Max streak</span></div></div>
-      <ul class="statlines">
+      ${statsHTML(s, { max: DAY_MAX, extra: `<ul class="statlines">
         ${s.avgMiss != null ? `<li>You're off by <b>${s.avgMiss.toFixed(1)}</b> on average.</li>` : ''}
         ${lean ? `<li>${lean}</li>` : ''}
         ${s.agree.n ? `<li>You sided with the majority <b>${s.agree.pct}%</b> of the time (${s.agree.n} ${s.agree.n === 1 ? 'question' : 'questions'}).</li>` : ''}
-      </ul>
-      <div class="bars">${s.dist.map((n, i) => `<div class="bar"><span>${names[i]}</span><i style="width:${Math.max(8, n / max * 100)}%">${n}</i></div>`).join('')}</div>
-      <p class="sub">Days are out of ${DAY_MAX}. Archive: ${s.archive.played} ${s.archive.played === 1 ? 'day' : 'days'} · average ${s.archive.avg}.</p>
+      </ul>`, note: `<p class="sub">Days are out of ${DAY_MAX}. Archive: ${s.archive.played} ${s.archive.played === 1 ? 'day' : 'days'} · average ${s.archive.avg}.</p>` })}
       ${S.me.signedIn ? '' : '<p class="sub">These are only saved on this device. <button class="link" id="statsSignin">Sign in</button> to take them with you.</p>'}`);
     const si = $('#statsSignin'); if (si) si.onclick = () => accountModal(accountUI());
   } catch (e) { openModal(`<h2>Your stats</h2><div class="note bad">${esc(e.message)}</div>`); }

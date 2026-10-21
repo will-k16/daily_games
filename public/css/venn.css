@@ -207,13 +207,6 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .wrong li em { font-size: 12px; color: var(--muted); font-style: normal; text-align: right; }
 .missed { display: flex; flex-wrap: wrap; gap: 6px; }
 .missed span { padding: 2px 8px; border: 2px dashed var(--ink); border-radius: 4px; font-weight: 800; font-size: 13px; background: var(--panel2); }
-.histo { display: flex; align-items: flex-end; gap: 3px; height: 70px; padding: 6px; border: 3px solid var(--line); border-radius: 10px; background: var(--panel2); }
-.histo i { flex: 1; background: #a8b9a8; border: 2px solid var(--ink); border-bottom: 0; min-height: 3px; animation: barUp .5s steps(5) both; transform-origin: bottom; }
-.histo i.par { background: var(--a); } .histo i.me { background: var(--accent); }
-@keyframes barUp { from { transform: scaleY(0); } }
-.histo-l { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); padding: 3px 4px 0; font-family: var(--font-num); }
-.beat { margin: 0 0 8px; font-weight: 700; }
-.beat b { font-family: var(--font-num); font-size: 22px; color: var(--accent); }
 
 /* summary */
 .summary { text-align: center; }
@@ -254,12 +247,6 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .stepc svg { width: 76px; height: 60px; border: 2px solid var(--ink); border-radius: 6px; }
 .stepc p { margin: 0; font-size: 15px; }
 .stepc b.n { display: block; font-family: var(--font-px); font-size: 17px; }
-.statgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; text-align: center; }
-.statgrid b { display: block; font-family: var(--font-num); font-size: 24px; line-height: 1.2; }
-.statgrid span { font-size: 11px; color: var(--muted); font-weight: 800; }
-.bars { margin-top: 16px; }
-.bars .bar { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; font-family: var(--font-num); font-size: 11px; margin-bottom: 6px; }
-.bars .bar i { display: block; height: 20px; border: 2px solid var(--ink); border-radius: 4px; background: var(--ab); font-style: normal; text-align: right; padding-right: 6px; min-width: 26px; line-height: 16px; }
 textarea.box { width: 100%; min-height: 90px; padding: 10px 12px; border-radius: 10px; border: 3px solid var(--ink); background: var(--panel2); resize: vertical; }
 .shimmer { height: 58px; border-radius: 10px; border: 3px dashed var(--line); display: grid; align-items: center; padding: 0 14px; color: var(--muted); font-weight: 800; font-size: 14px; animation: blinkSq 1s steps(2) infinite; }
 
@@ -316,3 +303,27 @@ textarea.box { width: 100%; min-height: 90px; padding: 10px 12px; border-radius:
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 @media (max-width: 560px) { #wardBtn { gap: 1px; font-size: 13px; } #wardBtn .cnum { font-size: 10px; letter-spacing: -.5px; } }
+
+/* ── Shared modal bits (modal.js, account.js) ── */
+.modal-ask { position: fixed; inset: 0; z-index: 61; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .28); }
+.modal-ask .modal-ask-box { max-width: 360px; text-align: center; }
+.modal-ask p { margin: 0 0 14px; }
+.modal-ask .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.pwwrap { position: relative; }
+.pwwrap .pin { padding-right: 46px; }
+.pweye { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 34px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: inherit; opacity: .7; cursor: pointer; }
+.pweye:hover, .pweye[aria-pressed="true"] { opacity: 1; }
+.pweye svg { width: 20px; height: 20px; }
+
+/* Answers on their way to the judge: listed until their verdict lands in the feed below. */
+.checking { margin-top: 10px; }
+.checking .ck-h { display: block; font-family: var(--font-px); font-size: 13px; color: var(--muted); }
+.checking ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.checking li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border: 2px dashed var(--ink); border-radius: 999px; background: var(--panel); font-weight: 700; font-size: 14px; }
+.checking li i { width: 8px; height: 8px; background: currentColor; animation: ckBlink .6s steps(2) infinite; }
+.checking li small { font-size: 11px; color: var(--muted); font-weight: 600; }
+.checking li.held { opacity: .7; } .checking li.held i { animation: none; opacity: .4; }
+.checking li.nudge { animation: ckNudge .3s steps(3); }
+@keyframes ckBlink { 50% { opacity: .2; } }
+@keyframes ckNudge { 33% { transform: translateX(-3px); } 66% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { .checking li i, .checking li.nudge { animation: none; } }
