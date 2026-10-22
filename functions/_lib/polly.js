@@ -326,11 +326,15 @@ export async function summary(env, who, q) {
 export async function archiveList(env, who) {
   const today = todayUTC();
   const dates = (await env.DB.prepare(`SELECT date FROM polly_schedule WHERE date < ? GROUP BY date HAVING COUNT(*) >= ? ORDER BY date DESC`).bind(today, SLOTS).all()).results;
-  const mine = (await env.DB.prepare(`SELECT date, mode, total, done FROM polly_plays WHERE player_id = ? AND date < ? AND mode IN ('daily','archive')`).bind(who.player.id, today).all()).results;
+  const mine = (await env.DB.prepare(`SELECT id, date, mode, total, done FROM polly_plays WHERE player_id = ? AND date < ? AND mode IN ('daily','archive')`).bind(who.player.id, today).all()).results;
+  const scores = (await env.DB.prepare(`SELECT g.play_id, g.slot, g.score FROM polly_guesses g JOIN polly_plays p ON p.id = g.play_id
+      WHERE p.player_id = ? AND p.date < ? AND p.mode IN ('daily','archive')`).bind(who.player.id, today).all()).results;
+  // Each question's score, so the list can color it the way the share squares do.
+  const view = m => m && { total: m.total, done: m.done, slots: [1, 2, 3].map(sl => { const g = scores.find(x => x.play_id === m.id && x.slot === sl); return g ? g.score : null; }) };
   return {
     days: dates.map(({ date }) => {
       const d = mine.find(m => m.date === date && m.mode === 'daily'), a = mine.find(m => m.date === date && m.mode === 'archive');
-      return { date, number: pollyNumber(env, date), daily: d ? { total: d.total, done: d.done } : null, archive: a ? { total: a.total, done: a.done } : null };
+      return { date, number: pollyNumber(env, date), daily: view(d) || null, archive: view(a) || null };
     })
   };
 }

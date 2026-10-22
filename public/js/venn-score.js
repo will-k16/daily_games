@@ -11,16 +11,20 @@ export const MIN_ANSWERS = { 1: 25, 2: 8 };    // a draft must list at least thi
 export const MAX_ANSWER = 60;                  // characters
 export { MIN_CROWD } from './charts.js';     // players needed before "how everyone did" shows
 
-export const BELOW_PAR_EACH = 5;               // points per answer while under par
-export const BELOW_PAR_MAX = 20;               // under par always scores less than reaching par (25)
+export const PER_ANSWER = 5;                   // points per answer up to par
+export const AT_PAR_MIN = 25;                  // reaching par is worth at least this
 
-/** n counted answers against par P: 5 each below par (at most 20), 25 at par, 100 at double par, linear between. */
+/** What reaching par is worth: 25, or 5 per answer when par is above 5 (par 8 = 40), so no answer up to par counts less. */
+export const atParScore = par => Math.max(AT_PAR_MIN, PER_ANSWER * Math.max(1, Math.floor(Number(par) || 1)));
+
+/** n counted answers against par P: 5 each below par, atParScore(P) at par, 100 at double par, linear between. */
 export function roundScore(n, par) {
   n = Math.max(0, Math.floor(Number(n) || 0));
   const P = Math.max(1, Math.floor(Number(par) || 1));
-  if (n < P) return Math.min(BELOW_PAR_MAX, n * BELOW_PAR_EACH);
+  if (n < P) return n * PER_ANSWER;
   if (n >= 2 * P) return ROUND_MAX;
-  return Math.round(25 + 75 * (n - P) / P);
+  const base = atParScore(P);
+  return Math.round(base + (ROUND_MAX - base) * (n - P) / P);
 }
 
 /**
@@ -41,7 +45,9 @@ export function bucksForRound(score, mode) {
   return 0;
 }
 
-export const scoreSquare = s => (s >= 85 ? '🟩' : s >= 55 ? '🟨' : s >= 25 ? '🟧' : '🟥');
+/** Score bands for one round: the share squares, the archive and the history page all use them. */
+export const tierOf = s => (s >= 85 ? 'green' : s >= 55 ? 'yellow' : s >= 25 ? 'orange' : 'red');
+export const scoreSquare = s => ({ green: '🟩', yellow: '🟨', orange: '🟧', red: '🟥' })[tierOf(s)];
 export const scoreBar = s => { const on = Math.max(0, Math.min(10, Math.floor((Number(s) || 0) / 10))); return '█'.repeat(on) + '░'.repeat(10 - on); };
 export const CIRCLE_EMOJI = { 1: '🟡🔵', 2: '🟡🔵🔴' };
 

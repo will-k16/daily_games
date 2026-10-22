@@ -2,10 +2,11 @@
 // catches every answer that fits. The server keeps the clock; this file mirrors it between replies.
 import { createVennScene, COLORS } from './venn-scene.js';
 import { melPortrait, moodFor, MEL_MOODS, FLASH } from './mel.js';
-import { MEL_WARDROBE, MEL_SLOTS, MEL_DEFAULT_LOOK, melItemKey } from './mel-wardrobe.js';
-import { ROUND_MS, MAX_ANSWER, DAY_MAX, ROUND_MAX, bucksForRound, vennShareText, scoreSquare } from './venn-score.js';
+import { MEL_DEFAULT_LOOK } from './mel-wardrobe.js';
+import { openShop } from './shop.js';
+import { ROUND_MS, MAX_ANSWER, DAY_MAX, ROUND_MAX, bucksForRound, vennShareText, scoreSquare, tierOf } from './venn-score.js';
 import { crowdHTML, statsHTML } from './charts.js';
-import { bucksIcon, bucksAmount } from './bucks.js';
+import { bucksIcon } from './bucks.js';
 import { showAccount as accountModal, signInReturn } from './account.js';
 import { openModal, closeModal } from './modal.js';
 
@@ -608,7 +609,7 @@ function renderResults(r) {
   const earned = bucksForRound(r.play.score, r.mode);
   $('#panel').innerHTML = `<div class="results">
       <div class="verdict"><div class="score"><span id="bigScore">0</span><small>/ 100</small></div>
-        <div><h3>${esc(verdictTitle(r.play.score))}</h3><p>You found ${res.count}. Par was ${res.par}. ${r.play.score} / 100.</p></div></div>
+        <div><h3>${esc(verdictTitle(r.play.score, res.count >= res.par))}</h3><p>You found ${res.count}. Par was ${res.par}. ${r.play.score} / 100.</p></div></div>
       ${earned ? `<div class="bucksline">${bucksIcon()} <b>+${earned}</b> WK ${earned === 1 ? 'Buck' : 'Bucks'}</div>` : ''}
       ${wrongHTML}${closeHTML}
       ${res.missed.length ? `<div class="h4">Answers you missed</div><div class="missed">${res.missed.map(m => `<span title="${m.players ? `${m.players} ${m.players === 1 ? 'player' : 'players'} found it` : ''}">${esc(m.name)}</span>`).join('')}</div>` : ''}
@@ -622,12 +623,12 @@ function renderResults(r) {
   const nu = $('#nextUnl'); if (nu) nu.onclick = () => loadUnlimited(true);
 }
 
-function verdictTitle(s) {
+function verdictTitle(s, madePar) {
+  if (!madePar) return 'Under par';
   if (s >= 100) return 'Double par!';
   if (s >= 85) return 'Big catch';
   if (s >= 55) return 'Good haul';
-  if (s >= 25) return 'Made par';
-  return 'Under par';
+  return 'Made par';
 }
 
 /* ═══════════ Summary ═══════════ */
@@ -646,7 +647,7 @@ function summaryHTML(c) {
         ${c.kind === 'archive' ? '<a class="btn alt" href="#/archive">More days</a>' : ''}</div>
       ${c.kind === 'daily' ? '<div class="countdown">New rings in <b class="cd">--:--:--</b></div>' : ''}
       ${S.today && S.today.tipUrl ? `<a class="tip" href="${esc(S.today.tipUrl)}" target="_blank" rel="noopener">☕ Enjoying it? Buy me a coffee</a>` : ''}
-      ${earned ? `<div class="bucksline">${bucksIcon()} <b>+${earned}</b> WK Bucks ${c.kind === 'daily' ? 'today' : 'from this day'}${S.bucks ? ` · ${S.bucks.balance} to spend` : ''} <button class="btn sm alt" id="wardBtn2">Dress up ${mel()}</button></div>` : ''}
+      ${earned ? `<div class="bucksline">${bucksIcon()} <b>+${earned}</b> WK Bucks ${c.kind === 'daily' ? 'today' : 'from this day'}${S.bucks ? ` · ${S.bucks.balance} to spend` : ''} <button class="btn sm alt" id="shopBtn2" type="button">${mel()}'s shop</button></div>` : ''}
     </div>`;
 }
 function wireSummary(c) {
@@ -656,7 +657,7 @@ function wireSummary(c) {
   countUp($('#sumTotal'), total, 1400);
   $('#shareBtn').onclick = () => doShare(c);
   $('#statsBtn2').onclick = showStats;
-  const wb = $('#wardBtn2'); if (wb) wb.onclick = showWardrobe;
+  const wb = $('#shopBtn2'); if (wb) wb.onclick = showShop;
   tick();
 }
 
@@ -708,114 +709,18 @@ function showMel(r) {
         <p class="mel-quote">“${esc(MEL_MOODS[mood] || MEL_MOODS.ready)}”</p>
         <ul class="mel-facts"><li><b>Tongue:</b> longer than its body, faster than a blink</li>
           <li><b>Eyes:</b> each one looks its own way</li><li><b>Turns green when:</b> something lands in the overlap</li></ul>
-        <div class="row"><button class="btn" id="melOk">Back to the rings</button><button class="btn alt" id="melWear">Wardrobe</button></div></div></div>`);
+        <div class="row"><button class="btn" id="melOk">Back to the rings</button><button class="btn alt" id="melWear">Shop</button></div></div></div>`);
   drawPortrait($('#melCv'), mood === 'ready' ? 'smile' : mood);
   $('#melOk').onclick = closeModal;
-  $('#melWear').onclick = showWardrobe;
+  $('#melWear').onclick = showShop;
 }
 
-/* ═══════════ Mel's wardrobe ═══════════ */
-async function showWardrobe() {
-  openModal(`<h2>${mel()}'s wardrobe</h2><div class="shimmer">Opening the closet…</div>`);
-  let w;
-  try { w = await api('mel'); } catch (e) { openModal(`<h2>Wardrobe</h2><div class="note bad">${esc(e.message)}</div>`); return; }
-  let tab = 'skin', preview = null, confirming = null;
-  const apply = data => {
-    w = data; S.bucks = data.bucks; S.me.mel = data.look; paintTools();
+/* ═══════════ Mel's shop ═══════════ */
+function showShop() {
+  openShop('mel', { api, toast, onChange: data => {
+    S.bucks = data.bucks; S.me.mel = data.look; paintTools();
     if (S.scene) S.scene.setLook(look());
-  };
-  const owns = (slot, it) => !it.price || w.owned.includes(melItemKey(slot, it.id));
-  const shown = () => (preview ? { ...w.look, ...preview } : w.look);
-
-  const draw = () => {
-    const items = MEL_WARDROBE[tab];
-    const list = tab === 'name'
-      ? (owns('name', items[0])
-        ? `<form class="namebox" id="nameForm"><input class="pin" name="n" maxlength="16" value="${esc(w.look.name)}" aria-label="Name"><button class="btn sm" type="submit">Save name</button></form>
-           <p class="sub">Only you see this name.</p>`
-        : `<p class="sub">Get the name tag to call your chameleon whatever you like. Only you see the name.</p>
-           <div class="witems">${itemHTML('name', items[0])}</div>`)
-      : `<div class="witems">${items.map(it => itemHTML(tab, it)).join('')}</div>`;
-    $('#modalBody').innerHTML = `<h2>${mel()}'s wardrobe</h2>
-      <div class="wtop"><div class="portrait sm"><canvas id="wardCv" width="56" height="44"></canvas></div>
-        <div><div class="wbal">${bucksIcon()} <b>${w.bucks.balance}</b> WK ${w.bucks.balance === 1 ? 'Buck' : 'Bucks'}</div>
-          <p class="sub">Venn pays a quarter of each round's score on the daily (25 for a perfect round), and half that on past days. WK Bucks work in every game's shop.</p></div></div>
-      <div class="wtabs">${MEL_SLOTS.map(s => `<button type="button" data-wtab="${s.key}" class="${s.key === tab ? 'on' : ''}">${s.name}</button>`).join('')}</div>
-      <div class="msg" id="wmsg"></div>
-      ${list}`;
-    drawPortrait($('#wardCv'), 'smile', shown);
-    document.querySelectorAll('[data-wtab]').forEach(b => b.onclick = () => { tab = b.dataset.wtab; preview = null; confirming = null; draw(); });
-    document.querySelectorAll('[data-wid]').forEach(b => {
-      const slot = b.dataset.wslot, it = MEL_WARDROBE[slot].find(x => x.id === b.dataset.wid);
-      if (slot !== 'name') {
-        b.onmouseenter = () => { preview = { [slot]: it.id }; };
-        b.onmouseleave = () => { preview = confirming ? preview : null; };
-        b.onfocus = b.onmouseenter; b.onblur = b.onmouseleave;
-      }
-      b.onclick = () => act(slot, it, b);
-    });
-    const nf = $('#nameForm');
-    if (nf) nf.onsubmit = async e => {
-      e.preventDefault();
-      try { apply(await api('mel/wear', { slot: 'name', name: nf.n.value })); toast(`Say hi to ${look().name}!`); draw(); }
-      catch (err) { $('#wmsg').innerHTML = `<div class="note bad">${esc(err.message)}</div>`; }
-    };
-  };
-
-  function itemHTML(slot, it) {
-    const own = owns(slot, it), on = slot !== 'name' && w.look[slot] === it.id;
-    const asking = confirming === melItemKey(slot, it.id);
-    const label = on ? 'Wearing' : own ? (slot === 'name' ? 'Yours' : 'Wear') : asking ? `Buy for ${bucksAmount(it.price)}?` : bucksAmount(it.price);
-    const short = !own && it.price > w.bucks.balance;
-    return `<button type="button" class="witem ${on ? 'on' : ''} ${short ? 'short' : ''} ${asking ? 'ask' : ''}" data-wslot="${slot}" data-wid="${it.id}">
-      ${swatch(slot, it)}<span class="wn">${esc(it.name)}</span><span class="wp">${label}</span></button>`;
-  }
-
-  async function act(slot, it, b) {
-    const own = owns(slot, it);
-    if (slot !== 'name' && w.look[slot] === it.id) return;
-    if (!own && it.price > w.bucks.balance) {
-      const need = it.price - w.bucks.balance;
-      $('#wmsg').innerHTML = `<div class="note warn">You need ${need} more WK ${need === 1 ? 'Buck' : 'Bucks'} for that. Keep playing!</div>`;
-      return;
-    }
-    // Buying takes two taps: the first shows it on and asks.
-    if (!own && confirming !== melItemKey(slot, it.id)) {
-      confirming = melItemKey(slot, it.id);
-      preview = slot === 'name' ? null : { [slot]: it.id };
-      draw();
-      return;
-    }
-    confirming = null;
-    b.disabled = true;
-    try {
-      apply(await api(own ? 'mel/wear' : 'mel/buy', { slot, id: it.id }));
-      preview = null;
-      if (!own) toast(slot === 'name' ? 'Name tag unlocked. Pick a name!' : `${it.name}: yours!`);
-      draw();
-    } catch (e) { b.disabled = false; $('#wmsg').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; }
-  }
-  draw();
-}
-
-const PATTERN_SW = {
-  none: 'var(--panel2)', spots: 'radial-gradient(circle at 30% 30%, #cde98f 0 3px, transparent 4px) 0 0/10px 10px, #3d7a5a',
-  stripes: 'repeating-linear-gradient(90deg, #3d7a5a 0 5px, #2b5a41 5px 7px)', speckles: 'radial-gradient(circle, #fff 0 1px, transparent 2px) 0 0/7px 7px, #3d7a5a',
-  zigzag: 'linear-gradient(135deg, #f2d230 25%, transparent 25%) -5px 0/10px 10px, linear-gradient(225deg, #f2d230 25%, transparent 25%) -5px 0/10px 10px, #3d7a5a',
-  camo: 'radial-gradient(circle at 30% 40%, #3a3a1e 0 5px, transparent 6px), radial-gradient(circle at 70% 70%, #c9b77a 0 4px, transparent 5px), #3d7a5a',
-  rainbow: 'repeating-linear-gradient(90deg, #e5483b 0 4px, #f29a2e 4px 8px, #f2d230 8px 12px, #4bbf58 12px 16px, #3b82d6 16px 20px, #8e4fc4 20px 24px)',
-  galaxy: 'radial-gradient(circle, #fff 0 1px, transparent 2px) 0 0/8px 8px, #2a1650'
-};
-const ICON = {
-  hat: { none: '—', leaf: '🍃', flowers: '🌼', explorer: '🧢', tophat: '🎩', crown: '👑' },
-  eyewear: { none: '👀', specs: '👓', shades: '🕶️', monocle: '🧐' },
-  neck: { none: '—', bandana: '🟥', bowtie: '🎀', scarf: '🧣' }
-};
-function swatch(slot, it) {
-  if (slot === 'skin') return `<span class="sw" style="background:${it.c[0]}"></span>`;
-  if (slot === 'pattern') return `<span class="sw" style="background:${PATTERN_SW[it.kind] || 'var(--panel2)'}"></span>`;
-  if (ICON[slot]) return `<span class="sw em">${ICON[slot][it.kind] || '·'}</span>`;
-  return '<span class="sw em">🏷️</span>';
+  } });
 }
 
 /* ═══════════ Help, stats, report, notifications ═══════════ */
@@ -830,9 +735,9 @@ function showHelp() {
     <div class="steps">
       <div class="stepc">${ringsIcon(2)}<p><b class="n">Round 1: two circles</b>Each circle is a category, like “Things colored orange” and “Foods people eat”. You get 90 seconds to name as many things as you can that fit <b>both</b>.</p></div>
       <div class="stepc">${ringsIcon(3)}<p><b class="n">Round 2: three circles</b>Only the very center counts. Something that fits two of the three is close, but doesn't count.</p></div>
-      <div class="stepc"><svg viewBox="0 0 70 56" aria-hidden="true"><rect width="70" height="56" fill="#17402b"/><text x="35" y="25" text-anchor="middle" font-size="14" font-weight="700" fill="#f2c230">par 5</text><text x="35" y="44" text-anchor="middle" font-size="11" fill="#fff">10 = 100</text></svg><p><b class="n">Beat par</b>Every answer is 5 points until you reach par, which jumps you to 25. Every answer past par adds more, up to 100 at double par. The day is out of 200.</p></div>
+      <div class="stepc"><svg viewBox="0 0 70 56" aria-hidden="true"><rect width="70" height="56" fill="#17402b"/><text x="35" y="25" text-anchor="middle" font-size="14" font-weight="700" fill="#f2c230">par 5</text><text x="35" y="44" text-anchor="middle" font-size="11" fill="#fff">10 = 100</text></svg><p><b class="n">Beat par</b>Every answer is 5 points until you reach par, which is worth at least 25. Every answer past par adds more, up to 100 at double par. The day is out of 200.</p></div>
     </div>
-    <p class="sub">Wrong answers cost nothing. Leaving the page pauses the clock. Each round pays WK Bucks ${bucksIcon()} to spend on ${mel()}'s wardrobe. New rings every midnight UTC.</p>
+    <p class="sub">Wrong answers cost nothing. Leaving the page pauses the clock. Each round pays WK Bucks ${bucksIcon()} to spend in ${mel()}'s shop. New rings every midnight UTC.</p>
     <div class="row"><button class="btn" id="helpGo">Got it</button></div>`);
   $('#helpGo').onclick = closeModal;
 }
@@ -878,12 +783,11 @@ async function renderArchiveList() {
   $('#main').innerHTML = loadingHTML('Gathering old vines…');
   if (!S.today) await loadMeta();
   const d = await api('venn/archive');
-  const sq = v => (v == null ? '' : v >= 85 ? 'green' : v >= 55 ? 'yellow' : v >= 25 ? 'orange' : 'red');
   const rows = d.days.map(day => {
     const cells = [1, 2].map(n => {
       const r = day.rounds.find(x => x.round === n);
       const v = r ? (r.daily != null ? r.daily : r.archive) : null;
-      return `<span class="${v == null ? '' : 'sq ' + sq(v)}" title="${roundName(n)}">${v == null ? '·' : v}</span>`;
+      return `<span class="${v == null ? '' : 'sq ' + tierOf(v)}" title="${roundName(n)}">${v == null ? '·' : v}</span>`;
     }).join('');
     const dateStr = new Date(day.date + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     return `<a class="aday" href="#/archive/${day.date}"><span class="num">#${day.number}</span><span class="d">${esc(dateStr)}</span><span class="s">${cells}</span></a>`;
@@ -905,7 +809,7 @@ function paintTools() {
 $('#helpBtn').onclick = showHelp;
 $('#statsBtn').onclick = showStats;
 $('#acctBtn').onclick = () => accountModal(accountUI());
-$('#wardBtn').onclick = showWardrobe;
+$('#shopBtn').onclick = showShop;
 $('#unlBtn').onclick = () => { location.hash = '#/unlimited'; };
 
 paintTools();

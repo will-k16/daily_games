@@ -130,7 +130,7 @@ Admin rules are unchanged.
 ## 4. Venn: complete game spec
 
 ### 4.1 One-paragraph summary
-Each day has **two rounds**. **Round 1** is a two-circle Venn diagram; **Round 2** is a three-circle Venn diagram. Each circle is a category, written as a full plain phrase. You get **90 seconds per round** to type as many things as you can that fit **all** circles: the overlap in round 1, the very center in round 2. Each answer is checked instantly. The day has a **par**, the AI's estimate of a number most people can reach. Hit par and you get 25 points; every answer above par adds more, up to 100 at double par. The day is scored out of 200. The mascot is **Mel**, a pixel-art chameleon in a jungle. The circles are hanging **vine rings**.
+Each day has **two rounds**. **Round 1** is a two-circle Venn diagram; **Round 2** is a three-circle Venn diagram. Each circle is a category, written as a full plain phrase. You get **90 seconds per round** to type as many things as you can that fit **all** circles: the overlap in round 1, the very center in round 2. Each answer is checked instantly. The day has a **par**, the AI's estimate of a number most people can reach. Hit par and you get 25 points (or 5 per answer when par is above 5); every answer above par adds more, up to 100 at double par. The day is scored out of 200. The mascot is **Mel**, a pixel-art chameleon in a jungle. The circles are hanging **vine rings**.
 
 ### 4.2 Daily structure
 - Two rounds per day, played in order. **Round 2 unlocks only after Round 1's results are shown.**

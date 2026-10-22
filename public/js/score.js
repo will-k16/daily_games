@@ -43,7 +43,8 @@ export function logPos(a, b, g) {
 
 /* ───────────── Share text ───────────── */
 export const STAGE_EMOJI = { 1: '🌲', 2: '🪨', 3: '🏔️' };
-const tierOf = s => s >= 900 ? 'green' : s >= 600 ? 'yellow' : s >= 300 ? 'orange' : 'red';
+/** Score bands for one stage: the share squares, the archive and the history page all use them. */
+export const tierOf = s => s >= 900 ? 'green' : s >= 600 ? 'yellow' : s >= 300 ? 'orange' : 'red';
 export const square = s => ({ green: '🟩', yellow: '🟨', orange: '🟧', red: '🟥' })[tierOf(s)];
 const meters = n => Math.round(n).toLocaleString('en-US') + ' m';
 

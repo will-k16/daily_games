@@ -8,8 +8,9 @@ Small daily games at **wk-game-suite.pages.dev**. One account, one currency (**W
 | `/polly` | **Polly**: three real poll questions a day; guess what percent of US adults picked each side. Mascot: Polly the cockatoo, the town crier. [POLLY_SPEC.md](POLLY_SPEC.md) |
 | `/venn` | **Venn**: 90 seconds to name things that fit two circles (round 1), then all three (round 2). Mascot: Mel the chameleon. [VENN_SPEC.md](VENN_SPEC.md) |
 | `/summit` | **Summit**: name something whose value sits at the geometric middle of two ends. Mascot: Skipper the goat. [SPEC.md](SPEC.md) |
-| `/pets` | Pet corner: Skipper, Mel and Polly together in their outfits, gently animated (and a "Save picture" button) |
-| `/admin` | Suite admin (Suite / Summit / Polly / Venn tabs) |
+| `/pets` | Pet corner: Skipper, Mel and Polly together in their outfits, gently animated, with each pet's shop one tap away (and a "Save picture" button) |
+| `/history` | Your scores: every day you've played, with each game's total and colored per-stage / round / question scores |
+| `/admin` | Suite admin (Suite / Polly / Venn / Summit tabs) |
 | `/privacy` | Privacy policy for the whole suite |
 
 - Build plan and every decision behind the suite: [docs/WK_GAME_SUITE_PLAN.md](docs/WK_GAME_SUITE_PLAN.md)
@@ -75,10 +76,11 @@ AI keys: Gemini at https://aistudio.google.com/apikey (Flash-Lite answers in abo
 
 - **Fastest way to fill the calendars:** each game's admin tab has an **Import** sub-tab. Copy that game's prompt from [prompts/PROMPTS.md](prompts/PROMPTS.md) into an LLM (paste in the **Copy avoid list** text so nothing repeats), paste its answer back, press **Check**, then **Add to calendar**. Summit and Venn days are approved onto the next empty days; Polly questions are checked against their source pages (verified ones are approved, the rest wait as drafts).
 - `/admin` → **Suite**: real players per game, your WK Bucks (grant or take back), AI calls/errors and rate-limit hits.
-- `/admin` → **Summit**: today's stages, calendar (generate / approve / edit / reject), complaints (fix a value and rescore), answers.
-- `/admin` → **Polly** → **Auto-find**: Polly finds its own questions. It reads the pollsters' feeds (Pew's RSS, Gallup's poll sitemap and AP-NORC's RSS to start; add more there), queues new report pages, and runs each through the same AI-read-then-server-check as a pasted URL. Questions whose numbers, poll date and sample size were all found on the page, that fit the length limits and aren't time-sensitive are approved on their own (toggle it off to review everything); the rest wait as drafts. It runs in the background every few hours while the bank is low (whenever someone opens Polly), or press **Find polls now**. You can also paste many links at once there.
+- Every game's admin tab has the same first four sub-tabs, in this order: **Dashboard** (today's players and scores, then what's coming up), **Calendar**, **Import**, **Reports** (what players flagged). After those come the game's own: **Answers** for Summit and Venn (the judge's verdicts), and **Bank**, **Add**, **Find polls**, **Sources** for Polly.
+- `/admin` → **Summit**: dashboard (today's stages, the next 7 days, the judge), calendar (generate / approve / edit / reject), reports (fix a value and rescore), answers.
+- `/admin` → **Polly** → **Find polls**: Polly finds its own questions. It reads the pollsters' feeds (Pew's RSS, Gallup's poll sitemap and AP-NORC's RSS to start; add more there), queues new report pages, and runs each through the same AI-read-then-server-check as a pasted URL. Questions whose numbers, poll date and sample size were all found on the page, that fit the length limits and aren't time-sensitive are approved on their own (toggle it off to review everything); the rest wait as drafts. It runs in the background every few hours while the bank is low (whenever someone opens Polly), or press **Find polls now**. You can also paste many links at once there.
 - `/admin` → **Polly**: dashboard (today's players, average score and miss per question, the bank, **Bank low** and **STALE** warnings); **Add** (paste a poll URL from an allowlisted pollster, paste the page text, or enter by hand; the AI pulls candidates from the page and the server checks every number against the page text); **Bank** (edit / approve / reject / retire); **Calendar** (auto-fill, drag to swap or move, pin, unschedule); **Reports** (fix = edit and rescore, dismiss, retire); **Sources** (the allowlist). Keep at least 14 days (42 questions) approved: Polly never makes up a question, and a day the bank can't fill shows "No poll today".
-- `/admin` → **Venn**: calendar of drafts (approve / edit / reject, edit par before release), complaints (accept = that answer counts for the puzzle and every play with it is rescored), judgment cache editor, and Venn Unlimited.
+- `/admin` → **Venn**: dashboard (today's rounds, the next 7 days, the judge), calendar of drafts (approve / edit / reject, edit par before release), reports (accept = that answer counts for the puzzle and every play with it is rescored), answers (the judge's verdicts), and Venn Unlimited.
 - A day with nothing approved uses its draft; with no draft the AI makes one on the spot; if the AI is down, a built-in bank is used.
 
 ## Layout

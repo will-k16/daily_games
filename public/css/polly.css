@@ -226,7 +226,10 @@ textarea.box { width: 100%; min-height: 80px; padding: 8px 10px; border: 3px sol
 .aday:hover { border-color: var(--edge); }
 .aday .num { font-family: var(--font-num); font-size: 16px; }
 .aday .d { color: var(--muted); font-size: 14px; }
-.aday .s { font-family: var(--font-num); font-size: 13px; }
+.aday .s { display: flex; gap: 6px; }
+.aday .s span { min-width: 38px; text-align: center; font-family: var(--font-num); font-size: 13px; padding: 2px 5px; }
+.aday .s .sq { border: 2px solid var(--edge); color: #1f1a17; }
+.aday .s .sq-red { color: #fff; }
 .empty { color: var(--muted); font-size: 14px; }
 
 /* ── Modals ── */

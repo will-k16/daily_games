@@ -13,18 +13,29 @@ test('round score: the P = 5 table', () => {
   for (const [n, s] of Object.entries(want)) assert.equal(roundScore(Number(n), 5), s, `n=${n}`);
 });
 
-test('round score: other pars, and 5 per answer under par (at most 20)', () => {
+test('round score: other pars, and 5 per answer under par', () => {
   assert.equal(roundScore(2, 3), 10);
   assert.equal(roundScore(3, 4), 15);
-  assert.equal(roundScore(7, 9), 20);
+  assert.equal(roundScore(7, 9), 35);
   assert.equal(roundScore(1, 2), 5);
   assert.equal(roundScore(3, 3), 25);
   assert.equal(roundScore(4, 3), 50);
   assert.equal(roundScore(6, 3), 100);
-  assert.equal(roundScore(9, 6), 63);   // 62.5 rounds up
+  assert.equal(roundScore(9, 6), 65);   // par 6 is worth 30, then 30 → 100 by 12
   assert.equal(roundScore(2, 2), 25);
   assert.equal(roundScore(3, 2), 63);
   assert.equal(roundScore(4, 2), 100);
+});
+
+test('round score: par above 5 is worth 5 per answer', () => {
+  assert.equal(roundScore(8, 8), 40);
+  assert.equal(roundScore(7, 8), 35);
+  assert.equal(roundScore(10, 10), 50);
+  assert.equal(roundScore(12, 8), 70);
+  assert.equal(roundScore(16, 8), 100);
+  assert.equal(roundScore(6, 6), 30);
+  assert.equal(roundScore(5, 5), 25);
+  for (const P of [2, 4, 5, 6, 8, 10]) for (let n = 1; n <= 2 * P; n++) assert.ok(roundScore(n, P) > roundScore(n - 1, P), `P=${P} n=${n}`);
 });
 
 test('par = 75% of typical for round 1 (4–10) and 50% for round 2 (4–6)', () => {

@@ -37,15 +37,17 @@ const DIM_COUNTERS = {
   length: ['story', 'stories', 'storeys?', 'floors?']
 };
 /**
- * A number with a unit is only unfair when it hints at the puzzle's own value. "An 8-year-old child" is
- * fine for height (it says nothing about height), but "a 6-foot man" isn't, and neither is "a 2-liter
- * bottle" for weight, because volume pretty much tells you the weight. Each kind lists what gives it away.
+ * A number with a unit is only unfair when it states (or pins down) the puzzle's own value. "An 8-year-old
+ * child" is fine for height, and "an average 800 m race time" is fine for duration: the distance says
+ * nothing definite about how long it takes. But "a 6-foot man" isn't fine for height, "an 800 m race"
+ * isn't for distance, and "a 2-liter bottle" isn't for weight, because that volume all but fixes the
+ * weight. Each kind lists only the units that fix it.
  */
 const GIVES_AWAY = {
   length: ['length', 'area'], area: ['area', 'length'],
-  mass: ['mass', 'volume'], volume: ['volume', 'mass', 'length'],
-  time: ['time', 'length'], speed: ['speed'], money: ['money'],
-  energy: ['energy', 'mass', 'volume'], power: ['power'], data: ['data', 'time'], count: ['count']
+  mass: ['mass', 'volume'], volume: ['volume', 'mass'],
+  time: ['time'], speed: ['speed'], money: ['money'],
+  energy: ['energy', 'mass', 'volume'], power: ['power'], data: ['data'], count: ['count']
 };
 
 const ALL_WORDS = Object.values(WORDS).flat();

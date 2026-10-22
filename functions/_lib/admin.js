@@ -1,4 +1,4 @@
-import { HttpError, nowISO, todayUTC, addDays, isDate, dayIndex, clampStr, normalize } from './util.js';
+import { HttpError, nowISO, todayUTC, addDays, isDate, dayIndex, clampStr, normalize, puzzleNumber } from './util.js';
 import { generatePuzzles, cleanPuzzle } from './ai.js';
 import { rescoreAnswer, rescorePuzzle } from './game.js';
 import { planSpecs, recentItems } from './plan.js';
@@ -80,8 +80,23 @@ export async function dashboard(env, who) {
   // "Too many requests" just means the judge moved on to the next provider, so it's counted, not listed.
   const errors = (await db.prepare(`SELECT provider, kind, error, created_at FROM ai_log WHERE ok = 0 AND error NOT LIKE '429%' AND created_at >= ? ORDER BY id DESC LIMIT 8`).bind(new Date(Date.now() - 3 * 86400000).toISOString()).all()).results;
   const limited = await db.prepare(`SELECT COUNT(*) AS n FROM ai_log WHERE ok = 0 AND error LIKE '429%' AND created_at >= ?`).bind(since).first();
+  // The judge's health and the puzzles ahead, laid out the same way as Venn's dashboard.
+  const [judge, cached, ahead] = await Promise.all([
+    db.prepare(`SELECT SUM(ok) AS ok, COUNT(*) - SUM(ok) AS fail, AVG(CASE WHEN ok = 1 THEN ms END) AS ms FROM ai_log WHERE kind IN ('estimate', 'estimate-search') AND created_at >= ?`).bind(since).first(),
+    db.prepare(`SELECT COUNT(*) AS n FROM answers`).first(),
+    db.prepare(`SELECT date, slot, status FROM puzzles WHERE date > ? AND date <= ? AND status IN ('approved','auto','draft')`).bind(date, addDays(date, 7)).all()
+  ]);
+  const next = Array.from({ length: 7 }, (_, i) => addDays(date, i + 1)).map(d => ({
+    date: d,
+    parts: [1, 2, 3].map(sl => {
+      const list = ahead.results.filter(a => a.date === d && a.slot === sl);
+      return list.some(a => a.status === 'approved' || a.status === 'auto') ? 'approved' : list.length ? 'draft' : 'empty';
+    })
+  }));
   return {
-    date, players: players.n, visitsOnly: visits.n - players.n, signedIn: signed.n, todayPlayers: todayPlayers.n,
+    date, number: puzzleNumber(env, date), next, cached: cached.n,
+    judge: { ok: judge.ok || 0, fail: judge.fail || 0, ms: judge.ms == null ? null : Math.round(judge.ms) },
+    players: players.n, visitsOnly: visits.n - players.n, signedIn: signed.n, todayPlayers: todayPlayers.n,
     rooms: rooms.results, ai: ai.results, errors, rateLimited: limited.n, openComplaints: complaints.n, week: days,
     finished: totals.length, avgDay: totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : null,
     rHist: spread(dist.map(r => r.score), MAX_SCORE), dHist: spread(totals, 3 * MAX_SCORE),

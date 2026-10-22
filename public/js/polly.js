@@ -1,11 +1,12 @@
 // Polly: guess what America said. Three real poll questions a day: pick your side (or skip), drag the split
 // bar to guess what percent of US adults picked the left side, lock it in, and Polly rings the bell.
-import { createPollyScene, drawTownStill, timeOfDay } from './polly-scene.js';
-import { pollyPortrait, hatIcon } from './polly-sprites.js';
-import { POLLY_WARDROBE, POLLY_TABS, POLLY_SLOTS, POLLY_DEFAULT_LOOK, pollyItemKey } from './polly-wardrobe.js';
+import { createPollyScene, timeOfDay } from './polly-scene.js';
+import { pollyPortrait } from './polly-sprites.js';
+import { POLLY_DEFAULT_LOOK } from './polly-wardrobe.js';
+import { openShop } from './shop.js';
 import { crowdHTML, statsHTML } from './charts.js';
 import { DAY_MAX, QUESTION_MAX, band, crestFor, moodFor, pollyShareText, niceDate, dayBonus } from './polly-score.js';
-import { bucksIcon, bucksAmount } from './bucks.js';
+import { bucksIcon } from './bucks.js';
 import { showAccount as accountModal, signInReturn } from './account.js';
 import { openModal, closeModal } from './modal.js';
 
@@ -424,7 +425,7 @@ function renderSummary() {
       }).join('')}</ul>
       ${sm.crowd ? `<div class="sumcrowd">${crowdHTML(sm.crowd, { max: DAY_MAX, daily: mode === 'daily' && c.kind === 'daily', finished: 'finished' })}</div>` : ''}
       ${agree}
-      ${earned ? `<div class="row center" style="margin-top:10px"><span class="bucksline">${bucksIcon()} <b>+${earned}</b> WK Bucks ${c.kind === 'daily' ? 'today' : 'from this day'}</span></div>` : ''}
+      ${earned ? `<div class="row center" style="margin-top:10px"><span class="bucksline">${bucksIcon()} <b>+${earned}</b> WK Bucks ${c.kind === 'daily' ? 'today' : 'from this day'}${S.bucks ? ` · ${S.bucks.balance} to spend` : ''}</span><button class="btn sm alt" id="shopBtn2" type="button">${pollyName()}'s shop</button></div>` : ''}
       <div class="row center"><button class="btn" id="shareBtn">Share</button><button class="btn alt" id="statsBtn2">Stats</button>
         ${c.kind === 'archive' ? '<a class="btn alt" href="#/archive">More days</a>' : ''}</div>
       ${c.kind === 'daily' ? '<div class="countdown">Next poll in <b class="cd">--:--:--</b></div>' : ''}
@@ -433,6 +434,7 @@ function renderSummary() {
   countUp($('#sumTotal'), 0, total, 1100);
   $('#shareBtn').onclick = () => doShare(c);
   $('#statsBtn2').onclick = showStats;
+  const wb = $('#shopBtn2'); if (wb) wb.onclick = showShop;
   document.querySelectorAll('[data-review]').forEach(b => b.onclick = () => { c.idx = Number(b.dataset.review); c.view = 'question'; render(); window.scrollTo({ top: 0 }); });
   tick();
 }
@@ -488,119 +490,18 @@ function showPolly() {
         <p class="p-quote">“${esc(m ? m.line : HEAR_YE)}”</p>
         <ul class="p-facts"><li><b>Crest:</b> goes up when she's excited, down when she's not</li>
           <li><b>Rhythm:</b> cockatoos can bob along to a beat</li><li><b>Home:</b> cockatoos come from Australia and nearby islands</li></ul>
-        <div class="row"><button class="btn" id="pOk">Back to the square</button><button class="btn alt" id="pWear">Wardrobe</button></div></div></div>`);
+        <div class="row"><button class="btn" id="pOk">Back to the square</button><button class="btn alt" id="pWear">Shop</button></div></div></div>`);
   drawPortrait($('#pollyCv'), { crest: m ? m.crest : 'half', pose: m ? m.pose : 'idle' });
   $('#pOk').onclick = closeModal;
-  $('#pWear').onclick = showWardrobe;
+  $('#pWear').onclick = showShop;
 }
 
 /* ═══════════ Polly's shop ═══════════ */
-const ICON = {
-  bunting: { triangles: '🔺', pennants: '🟧', lanterns: '🏮', lights: '💡' },
-  fountain: { stone: '⛲', marble: '🏛️', lions: '🦁', golden: '🏆' },
-  lamps: { iron: '🕯️', gas: '🔥', globe: '🔮' },
-  ground: { cobbles: '🪨', brick: '🧱', herringbone: '🟫' },
-  visitors: { none: '—', ducks: '🦆', dogwalker: '🐕', icecream: '🍦' }
-};
-const hatSrc = {};
-function swatch(slot, it) {
-  if (slot === 'crest' || slot === 'bell') return `<span class="sw" style="background:${it.c}"></span>`;
-  if (slot === 'hat') {
-    if (!hatSrc[it.kind]) hatSrc[it.kind] = hatIcon(POLLY_DEFAULT_LOOK, it.kind).toDataURL();
-    return `<span class="sw"><img src="${hatSrc[it.kind]}" alt=""></span>`;
-  }
-  if (ICON[slot]) return `<span class="sw em">${ICON[slot][it.kind] || '·'}</span>`;
-  return '<span class="sw em">🏷️</span>';
-}
-
-async function showWardrobe() {
-  openModal(`<h2>${pollyName()}'s shop</h2><div class="shimmer">Opening the shop…</div>`);
-  let w;
-  try { w = await api('polly'); } catch (e) { openModal(`<h2>Shop</h2><div class="note bad">${esc(e.message)}</div>`); return; }
-  let group = 'polly', tab = 'crest', preview = null, confirming = null;
-  const apply = data => {
-    w = data; S.bucks = data.bucks; S.me.polly = data.look; paintTools();
+function showShop() {
+  openShop('polly', { api, toast, onChange: data => {
+    S.bucks = data.bucks; S.me.polly = data.look; paintTools();
     if (S.scene) S.scene.setLook(look());
-  };
-  const owns = (slot, it) => !it.price || w.owned.includes(pollyItemKey(slot, it.id));
-  const shown = () => (preview ? { ...w.look, ...preview } : w.look);
-  const nameOf = k => POLLY_SLOTS.find(s => s.key === k).name;
-
-  const paintPreview = () => {
-    if (group === 'town') drawTownStill($('#wardCv'), shown(), timeOfDay());
-    else drawPortrait($('#wardCv'), { crest: 'half' }, shown);
-  };
-  const draw = () => {
-    const items = POLLY_WARDROBE[tab];
-    const list = tab === 'name'
-      ? (owns('name', items[0])
-        ? `<form class="namebox" id="nameForm"><input class="pin" name="n" maxlength="16" value="${esc(w.look.name)}" aria-label="Name"><button class="btn sm" type="submit">Save name</button></form>
-           <p class="sub">Only you see this name.</p>`
-        : `<p class="sub">Get the name tag to call your cockatoo whatever you like. Only you see the name.</p><div class="witems">${itemHTML('name', items[0])}</div>`)
-      : `<div class="witems">${items.map(it => itemHTML(tab, it)).join('')}</div>`;
-    const slots = POLLY_TABS.find(g => g.key === group).slots;
-    $('#modalBody').innerHTML = `<h2>${pollyName()}'s shop</h2>
-      <div class="wtabs big">${POLLY_TABS.map(g => `<button type="button" data-group="${g.key}" class="${g.key === group ? 'on' : ''}">${esc(g.key === 'polly' ? look().name || g.name : g.name)}</button>`).join('')}</div>
-      <div class="wtop"><div class="portrait ${group === 'town' ? 'town' : 'sm'}"><canvas id="wardCv" width="${group === 'town' ? 320 : 56}" height="${group === 'town' ? 150 : 44}"></canvas></div>
-        <div><div class="wbal">${bucksIcon()} <b>${w.bucks.balance}</b> WK ${w.bucks.balance === 1 ? 'Buck' : 'Bucks'}</div>
-          <p class="sub">${group === 'town' ? 'Town decor changes the square for you only.' : 'Each daily question pays 1 WK Buck for every 7 points, plus 8 for answering all three (50 for a perfect day), and half that on past days. WK Bucks work in every game\'s shop.'}</p></div></div>
-      <div class="wtabs">${slots.map(k => `<button type="button" data-wtab="${k}" class="${k === tab ? 'on' : ''}">${nameOf(k)}</button>`).join('')}</div>
-      <div class="msg" id="wmsg"></div>
-      ${list}`;
-    paintPreview();
-    document.querySelectorAll('[data-group]').forEach(b => b.onclick = () => { group = b.dataset.group; tab = POLLY_TABS.find(g => g.key === group).slots[0]; preview = null; confirming = null; draw(); });
-    document.querySelectorAll('[data-wtab]').forEach(b => b.onclick = () => { tab = b.dataset.wtab; preview = null; confirming = null; draw(); });
-    document.querySelectorAll('[data-wid]').forEach(b => {
-      const slot = b.dataset.wslot, it = POLLY_WARDROBE[slot].find(x => x.id === b.dataset.wid);
-      if (slot !== 'name') {
-        b.onmouseenter = () => { preview = { [slot]: it.id }; if (group === 'town') paintPreview(); };
-        b.onmouseleave = () => { preview = confirming ? preview : null; if (group === 'town') paintPreview(); };
-        b.onfocus = b.onmouseenter; b.onblur = b.onmouseleave;
-      }
-      b.onclick = () => act(slot, it, b);
-    });
-    const nf = $('#nameForm');
-    if (nf) nf.onsubmit = async e => {
-      e.preventDefault();
-      try { apply(await api('polly/wear', { slot: 'name', name: nf.n.value })); toast(`Say hi to ${look().name}!`); draw(); }
-      catch (err) { $('#wmsg').innerHTML = `<div class="note bad">${esc(err.message)}</div>`; }
-    };
-  };
-
-  function itemHTML(slot, it) {
-    const own = owns(slot, it), on = slot !== 'name' && w.look[slot] === it.id;
-    const asking = confirming === pollyItemKey(slot, it.id);
-    const label = on ? 'Wearing' : own ? (slot === 'name' ? 'Yours' : group === 'town' ? 'Use' : 'Wear') : asking ? `Buy for ${bucksAmount(it.price)}?` : bucksAmount(it.price);
-    const short = !own && it.price > w.bucks.balance;
-    return `<button type="button" class="witem ${on ? 'on' : ''} ${short ? 'short' : ''} ${asking ? 'ask' : ''}" data-wslot="${slot}" data-wid="${it.id}">
-      ${swatch(slot, it)}<span class="wn">${esc(it.name)}</span><span class="wp">${label}</span></button>`;
-  }
-
-  async function act(slot, it, b) {
-    const own = owns(slot, it);
-    if (slot !== 'name' && w.look[slot] === it.id) return;
-    if (!own && it.price > w.bucks.balance) {
-      const need = it.price - w.bucks.balance;
-      $('#wmsg').innerHTML = `<div class="note warn">You need ${need} more WK ${need === 1 ? 'Buck' : 'Bucks'} for that. Keep playing!</div>`;
-      return;
-    }
-    // Buying takes two taps: the first shows it on and asks.
-    if (!own && confirming !== pollyItemKey(slot, it.id)) {
-      confirming = pollyItemKey(slot, it.id);
-      preview = slot === 'name' ? null : { [slot]: it.id };
-      draw();
-      return;
-    }
-    confirming = null;
-    b.disabled = true;
-    try {
-      apply(await api(own ? 'polly/wear' : 'polly/buy', { slot, id: it.id }));
-      preview = null;
-      if (!own) toast(slot === 'name' ? 'Name tag unlocked. Pick a name!' : `${it.name}: yours!`);
-      draw();
-    } catch (e) { b.disabled = false; $('#wmsg').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; }
-  }
-  draw();
+  } });
 }
 
 /* ═══════════ Stats, report, notes ═══════════ */
@@ -661,9 +562,13 @@ async function renderArchiveList() {
   const d = await api('polly/archive');
   const rows = d.days.map(day => {
     const dateStr = new Date(day.date + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-    const s = day.daily && day.daily.done >= 3 ? `${day.daily.total}/${DAY_MAX}` : day.archive && day.archive.done >= 3 ? `${day.archive.total}/${DAY_MAX} · archive`
-      : day.archive && day.archive.done ? `${day.archive.done} of 3` : 'Play';
-    return `<a class="aday" href="#/archive/${day.date}"><span class="num">#${day.number}</span><span class="d">${esc(dateStr)}</span><span class="s">${esc(s)}</span></a>`;
+    // What they played on the day wins; otherwise their replay. One square per question, colored like the share text.
+    const play = day.daily && day.daily.done ? day.daily : day.archive;
+    const cells = [0, 1, 2].map(i => {
+      const v = play ? play.slots[i] : null;
+      return `<span class="${v == null ? '' : 'sq sq-' + band(v)}" title="Question ${i + 1}">${v == null ? '·' : v}</span>`;
+    }).join('');
+    return `<a class="aday" href="#/archive/${day.date}"><span class="num">#${day.number}</span><span class="d">${esc(dateStr)}</span><span class="s">${cells}</span></a>`;
   }).join('');
   $('#main').innerHTML = `<section class="card"><h2 class="prompt">Past days</h2>
     <p class="sub">Replays don't count toward your streak, and pay half the WK Bucks.</p>
@@ -681,7 +586,7 @@ function paintTools() {
 }
 $('#statsBtn').onclick = showStats;
 $('#acctBtn').onclick = () => accountModal(accountUI());
-$('#wardBtn').onclick = showWardrobe;
+$('#shopBtn').onclick = showShop;
 $('#unlBtn').onclick = () => { if (location.hash === '#/unlimited') loadUnlimited().catch(showError); else location.hash = '#/unlimited'; };
 
 paintTools();

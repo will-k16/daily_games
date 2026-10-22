@@ -1,6 +1,6 @@
-// WK Game Suite admin: one page with a tab per game. Suite = players, WK Bucks, AI health;
-// Summit = today, calendar, complaints, answers; Venn = calendar, complaints, judgments;
-// Polly = dashboard, add (URL / pasted text / by hand), bank, calendar, reports, sources.
+// WK Game Suite admin: one page with a tab per game (Suite = players, WK Bucks, AI health). Every game
+// tab starts the same way, in the same order: Dashboard, Calendar, Import, Reports; then what's only
+// that game's: Answers (Summit, Venn: the judge's verdicts), or Bank, Add, Find polls, Sources (Polly).
 import { fmt, nice } from './units.js';
 import { PROPS, ROOMS, propLabel } from './props.js';
 import { bucksIcon } from './bucks.js';
@@ -28,44 +28,49 @@ $('#modalX').onclick = closeModal;
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 
 /* ═══════════ Tabs ═══════════ */
+const GAME_NAMES = { polly: 'Polly', venn: 'Venn', summit: 'Summit' };
+const SHARED = [['', 'Dashboard'], ['/cal', 'Calendar'], ['/import', 'Import'], ['/reports', 'Reports']];
 const SUBTABS = {
   suite: [],
-  summit: [['summit', 'Today'], ['summit/cal', 'Calendar'], ['summit/import', 'Import'], ['summit/comp', 'Complaints'], ['summit/ans', 'Answers']],
-  venn: [['venn', 'Dashboard'], ['venn/cal', 'Calendar'], ['venn/import', 'Import'], ['venn/comp', 'Complaints'], ['venn/judg', 'Judgments']],
-  polly: [['polly', 'Dashboard'], ['polly/auto', 'Find polls'], ['polly/import', 'Import'], ['polly/add', 'Add'], ['polly/bank', 'Bank'], ['polly/cal', 'Calendar'], ['polly/rep', 'Reports'], ['polly/src', 'Sources']]
+  polly: [...SHARED, ['/bank', 'Bank'], ['/add', 'Add'], ['/auto', 'Find polls'], ['/src', 'Sources']],
+  venn: [...SHARED, ['/answers', 'Answers']],
+  summit: [...SHARED, ['/answers', 'Answers']]
 };
 const VIEWS = {
   suite: box => suiteTab(box),
-  summit: box => summitToday(box),
-  'summit/cal': box => cal(box),
-  'summit/comp': box => comp(box),
-  'summit/ans': box => ans(box),
+  polly: box => pollyDash(box),
+  'polly/cal': box => pollyCal(box),
+  'polly/import': box => importTab(box, 'polly'),
+  'polly/reports': box => pollyRep(box),
+  'polly/bank': box => pollyBank(box),
+  'polly/add': box => pollyAdd(box),
+  'polly/auto': box => pollyAutoTab(box),
+  'polly/src': box => pollySrc(box),
   venn: box => vennDash(box),
   'venn/cal': box => vennCal(box),
-  'summit/import': box => importTab(box, 'summit'),
   'venn/import': box => importTab(box, 'venn'),
-  'polly/import': box => importTab(box, 'polly'),
-  'venn/comp': box => vennComp(box),
-  'venn/judg': box => vennJudg(box),
-  polly: box => pollyDash(box),
-  'polly/auto': box => pollyAutoTab(box),
-  'polly/add': box => pollyAdd(box),
-  'polly/bank': box => pollyBank(box),
-  'polly/cal': box => pollyCal(box),
-  'polly/rep': box => pollyRep(box),
-  'polly/src': box => pollySrc(box)
+  'venn/reports': box => vennComp(box),
+  'venn/answers': box => vennJudg(box),
+  summit: box => summitDash(box),
+  'summit/cal': box => cal(box),
+  'summit/import': box => importTab(box, 'summit'),
+  'summit/reports': box => comp(box),
+  'summit/answers': box => ans(box)
 };
-let tab = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : 'suite';
+// Old bookmarks from before the tabs were lined up.
+const OLD = { 'summit/comp': 'summit/reports', 'summit/ans': 'summit/answers', 'venn/comp': 'venn/reports', 'venn/judg': 'venn/answers', 'polly/rep': 'polly/reports' };
+const route = h => OLD[h] || h;
+let tab = VIEWS[route(location.hash.slice(1))] ? route(location.hash.slice(1)) : 'suite';
 document.querySelectorAll('#atabs [data-t]').forEach(b => b.onclick = () => go(b.dataset.t));
 function go(t) {
+  t = route(t);
   if (!VIEWS[t]) t = 'suite';
   tab = t; history.replaceState(null, '', '#' + t);
   const top = t.split('/')[0];
   document.querySelectorAll('#atabs [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === top));
   const subs = SUBTABS[top];
-  $('#subtabs').innerHTML = subs.map(([k, n]) => `<button class="tbtn ${k === t ? 'on' : ''}" data-s="${k}">${n}</button>`).join('')
-    + (top === 'summit' ? '<a class="tbtn" href="/summit#/unlimited">∞ Summit unlimited</a>' : top === 'venn' ? '<a class="tbtn" href="/venn#/unlimited">∞ Venn unlimited</a>'
-      : top === 'polly' ? '<a class="tbtn" href="/polly#/unlimited">∞ Polly unlimited</a>' : '');
+  $('#subtabs').innerHTML = subs.map(([k, n]) => `<button class="tbtn ${top + k === t ? 'on' : ''}" data-s="${top + k}">${n}</button>`).join('')
+    + (GAME_NAMES[top] ? `<a class="tbtn" href="/${top}#/unlimited">∞ ${GAME_NAMES[top]} unlimited</a>` : '');
   $('#subtabs').hidden = !subs.length;
   $('#subtabs').querySelectorAll('[data-s]').forEach(b => b.onclick = () => go(b.dataset.s));
   const box = $('#admin');
@@ -87,7 +92,7 @@ async function suiteTab(box) {
   box.innerHTML = `
     <section class="card"><div class="kicker"><span>Today · ${d.date} (UTC)</span></div>
       <div class="section-title">Real players</div>
-      <div class="tbl"><table><thead><tr><th>Game</th><th>Today</th><th>Ever</th><th>Open complaints / reports</th></tr></thead>
+      <div class="tbl"><table><thead><tr><th>Game</th><th>Today</th><th>Ever</th><th>Open reports</th></tr></thead>
         <tbody>${d.games.map(x => `<tr><td><b>${esc(x.name)}</b></td><td>${x.today}</td><td>${x.ever}</td><td>${x.openComplaints}</td></tr>`).join('')}
         <tr><td><b>Any game</b></td><td>–</td><td>${d.players}</td><td></td></tr></tbody></table></div>
       ${d.pollyBank && d.pollyBank.low ? `<div class="note warn" style="margin-top:10px">Polly's bank is low: ${d.pollyBank.fresh} approved, never-run questions left (${d.pollyBank.days} ${d.pollyBank.days === 1 ? 'day' : 'days'}). <a href="#polly/add">Add more</a>.</div>` : ''}
@@ -117,31 +122,57 @@ async function suiteTab(box) {
   $('#ctake').onclick = () => grant(-1);
 }
 
-/* ═══════════ Summit: today ═══════════ */
-async function summitToday(box) {
+/* ═══════════ Summit: dashboard ═══════════ */
+async function summitDash(box) {
   const d = await api('admin/dashboard');
   $('#sumN').textContent = d.openComplaints ? `(${d.openComplaints})` : '';
   box.innerHTML = `
-    <section class="card"><div class="kicker"><span>Summit · ${d.date} (UTC)</span></div>
-      <div class="kpis" style="margin-top:10px">
-        <div class="kpi"><b>${d.todayPlayers}</b><span>Players today</span></div>
-        <div class="kpi"><b>${d.finished}</b><span>Finished all 3 today</span></div>
-        <div class="kpi"><b>${d.avgDay == null ? '–' : d.avgDay.toLocaleString('en-US')}</b><span>Average day (of 3,000)</span></div>
-        <div class="kpi"><b>${d.players}</b><span>Players ever</span></div>
-        <div class="kpi"><b>${d.openComplaints}</b><span>Open complaints</span></div>
-      </div>
-      ${d.openComplaints ? `<p class="sub"><a href="#summit/comp">Review ${d.openComplaints} open ${d.openComplaints === 1 ? 'complaint' : 'complaints'} →</a></p>` : ''}
+    <section class="card">${dashHead('Summit', d, { players: d.todayPlayers, ever: d.players, dayMax: 3000, open: d.openComplaints })}
       <div class="section-title">Today's stages</div>
-      <div class="tbl"><table><thead><tr><th>Stage</th><th>Puzzle</th><th>Status</th><th>Finished</th><th>Avg</th><th>2nd guess</th></tr></thead>
-      <tbody>${d.rooms.map(r => `<tr><td>${room(r.slot).emoji} ${room(r.slot).name}</td><td>${esc(r.small_item)} ↔ ${esc(r.big_item)}<br><span class="sub">${esc(propLabel(r.property))}</span></td>
-        <td><span class="st ${r.status}">${r.status}</span></td><td>${r.plays}</td><td>${r.avg == null ? '–' : Math.round(r.avg)}</td><td>${r.plays ? Math.round(100 * (r.seconds || 0) / r.plays) + '%' : '–'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Not generated yet. It will be created on the first visit.</td></tr>'}</tbody></table></div>
+      <div class="tbl"><table><thead><tr><th>Stage</th><th>Puzzle</th><th>Finished</th><th>Avg score</th><th>2nd guess</th></tr></thead>
+      <tbody>${d.rooms.map(r => `<tr><td>${room(r.slot).emoji} ${room(r.slot).name}<br><span class="st ${r.status}">${r.status}</span></td><td>${esc(r.small_item)} ↔ ${esc(r.big_item)}<br><span class="sub">${esc(propLabel(r.property))}</span></td>
+        <td>${r.plays}</td><td>${r.avg == null ? '–' : Math.round(r.avg)}</td><td>${r.plays ? Math.round(100 * (r.seconds || 0) / r.plays) + '%' : '–'}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Not made yet. Today\'s stages are made on the first visit.</td></tr>'}</tbody></table></div>
       ${dashCharts(d, { part: 'Stage', parts: 'stages', max: 1000, dayMax: 3000,
         partNote: 'Every finished stage today, by score (each player counts up to 3 times).',
         dayNote: 'Players who finished all three stages, by day total out of 3,000.',
-        weekNote: 'People who played that day’s puzzles on the day.' })}
-    </section>`;
+        weekNote: 'People who played at least one stage that day.' })}
+    </section>
+    ${aheadHTML('summit', d, ROOMS.map(r => `${r.emoji} ${r.name}`), 'stage')}`;
 }
 
+/** The top of every game's dashboard: its number and date, then the same five numbers in the same order. */
+function dashHead(name, d, { players, ever, dayMax, open }) {
+  return `<div class="kicker"><span>${name} #${d.number} · ${d.date} (UTC)</span></div>
+    <div class="kpis" style="margin-top:10px">
+      <div class="kpi"><b>${players}</b><span>Players today</span></div>
+      <div class="kpi"><b>${d.finished}</b><span>Finished today</span></div>
+      <div class="kpi"><b>${d.avgDay == null ? '–' : d.avgDay.toLocaleString('en-US')}</b><span>Average day (of ${dayMax.toLocaleString('en-US')})</span></div>
+      <div class="kpi"><b>${ever}</b><span>Players ever</span></div>
+      <div class="kpi"><b>${open}</b><span>Open reports</span></div>
+    </div>
+    ${open ? `<p class="sub"><a href="#${name.toLowerCase()}/reports">Review ${open} open ${open === 1 ? 'report' : 'reports'} →</a></p>` : ''}`;
+}
+
+/** The second card on Summit's and Venn's dashboards: the next 7 days, then the judge. */
+function aheadHTML(game, d, heads, part) {
+  const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const stIcon = s => (s === 'approved' ? badge('ready', 'approved') : s === 'draft' ? badge('draft', 'draft') : badge('empty', 'empty'));
+  const notReady = d.next.filter(n => n.parts.some(r => r !== 'approved'));
+  return `<section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Coming up</h2>
+      <div class="section-title">The next 7 days</div>
+      <div class="tbl"><table><thead><tr><th>Date</th>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${d.next.map(n => `<tr><td>${esc(day(n.date))}</td>${n.parts.map(st => `<td>${stIcon(st)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <p class="sub">${notReady.length ? `${notReady.length} of the next 7 days ${notReady.length === 1 ? 'isn\'t' : 'aren\'t'} fully approved. A draft is used as-is; an empty ${part} is made by the AI on the spot (or from the built-in bank).` : 'The next 7 days are all approved.'}</p>
+      <div class="section-title">The judge (last 24h)</div>
+      <div class="kpis">
+        <div class="kpi"><b>${d.judge.ok}</b><span>Judge calls</span></div>
+        <div class="kpi"><b>${d.judge.fail}</b><span>Judge failures</span></div>
+        <div class="kpi"><b>${d.judge.ms == null ? '–' : d.judge.ms + ' ms'}</b><span>Average judge time</span></div>
+        <div class="kpi"><b>${d.cached}</b><span>Remembered answers</span></div>
+      </div>
+      <p class="sub"><a href="#${game}/cal">Calendar</a> · <a href="#${game}/answers">Answers</a> · <a href="#${game}/reports">Reports</a></p>
+    </section>`;
+}
 
 /**
  * The charts at the bottom of every game's dashboard, always in the same order: today's scores per
@@ -174,7 +205,7 @@ async function cal(box) {
     const live = list.find(p => p.status === 'approved' || p.status === 'auto');
     const drafts = list.filter(p => p.status === 'draft');
     const show1 = live || drafts[drafts.length - 1];
-    const genBtn = `<button class="mini-btn" data-gen="${date}|${slot}" title="Ask the AI for a new draft for this stage">✨ Generate</button>`;
+    const genBtn = `<button class="mini-btn" data-gen="${date}|${slot}" title="Ask the AI for a new draft for this stage">Generate</button>`;
     if (!show1) {
       const rejected = list.filter(p => p.status === 'rejected').length;
       return `<td><span class="st empty">empty</span>${rejected ? ` <span class="sub">${rejected} rejected</span>` : ''}
@@ -207,17 +238,17 @@ async function cal(box) {
 
   const all = d.puzzles;
   $('#gGo').onclick = async () => {
-    $('#gGo').disabled = true; $('#gGo').textContent = 'Thinking…';
-    try { const r = await api('admin/generate', { from: $('#gFrom').value, days: Number($('#gDays').value) }); toast(r.failed ? `Made ${r.made} drafts. ${r.failed} rooms are still empty because the AI was busy. Wait a minute, then use ✨ Generate on them.` : `Made ${r.made} drafts`); go('summit/cal'); }
+    $('#gGo').disabled = true; $('#gGo').textContent = 'Writing…';
+    try { const r = await api('admin/generate', { from: $('#gFrom').value, days: Number($('#gDays').value) }); toast(r.failed ? `Made ${r.made} drafts. ${r.failed} rooms are still empty because the AI was busy. Wait a minute, then use Generate on them.` : `Made ${r.made} drafts`); go('summit/cal'); }
     catch (e) { toast(e.message); $('#gGo').disabled = false; $('#gGo').textContent = 'Generate'; }
   };
   box.querySelectorAll('[data-gen]').forEach(b => b.onclick = async () => {
     const [date, slot] = b.dataset.gen.split('|');
-    b.disabled = true; b.textContent = 'Thinking…';
+    b.disabled = true; b.textContent = 'Writing…';
     try {
       const r = await api('admin/generate-slot', { date, slot: Number(slot) });
       toast(`New ${room(Number(slot)).name} draft: ${r.puzzle.smallItem} ↔ ${r.puzzle.bigItem}`); go('summit/cal');
-    } catch (e) { toast(e.message); b.disabled = false; b.textContent = '✨ Generate'; }
+    } catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Generate'; }
   });
   box.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => setStatus(Number(b.dataset.approve), 'approved'));
   box.querySelectorAll('[data-reject]').forEach(b => b.onclick = () => { if (confirm('Reject this puzzle?')) setStatus(Number(b.dataset.reject), 'rejected'); });
@@ -291,13 +322,13 @@ function editor(p) {
   };
 }
 
-/* ═══════════ Summit: complaints ═══════════ */
+/* ═══════════ Summit: reports ═══════════ */
 async function comp(box, status = 'open') {
   const d = await api('admin/complaints?status=' + status);
   if (status === 'open') $('#sumN').textContent = d.complaints.length ? `(${d.complaints.length})` : '';
-  box.innerHTML = `<div class="row" style="margin:0 0 12px">${['open', 'accepted', 'rejected'].map(s => `<button class="tbtn ${s === status ? 'on' : ''}" data-s="${s}">${s}</button>`).join('')}</div>
+  box.innerHTML = `${reportFilter(['open', 'accepted', 'rejected'], status)}
     ${d.complaints.map(c => `<section class="card" style="margin-bottom:14px">
-      <div class="kicker"><span>${room(c.slot).emoji} ${esc(c.date)} · ${esc(propLabel(c.property))}</span><span>${esc(c.created_at.slice(0, 16).replace('T', ' '))}</span></div>
+      <div class="kicker"><span>${esc(c.date || 'unlimited')} · ${room(c.slot).emoji} ${room(c.slot).name} · ${esc(propLabel(c.property))}</span><span>${esc(c.created_at.slice(0, 16).replace('T', ' '))}</span></div>
       <p style="margin:8px 0 4px">Puzzle: <b>${esc(c.small_item)}</b> (${esc(show(c.property, c.small_value, c.unit_label))}) ↔ <b>${esc(c.big_item)}</b> (${esc(show(c.property, c.big_value, c.unit_label))})</p>
       <p style="margin:4px 0">Player said <b>“${esc(c.input)}”</b> → judged as <b>${esc(c.name)}</b> = ${esc(show(c.property, c.value, c.unit_label))} <span class="sub">(${c.value} base · guess #${c.attempt} · scored ${c.score} · used ${c.uses}× total)</span></p>
       ${c.note ? `<div class="note warn" style="margin:8px 0">“${esc(c.note)}”</div>` : '<p class="sub">No note.</p>'}
@@ -305,10 +336,10 @@ async function comp(box, status = 'open') {
         <label>Corrected name<input class="box" data-n="${c.id}" value="${esc(c.name)}"></label>
         <label>Corrected value (${esc(PROPS[c.property] ? PROPS[c.property].unit : c.unit_label)})<input class="box" type="number" step="any" data-v="${c.id}" value="${c.value}"></label>
         <label class="full">Note to player (optional)<input class="box" data-a="${c.id}"></label></div>
-        <div class="row"><button class="btn sm green" data-accept="${c.id}">Accept, fix &amp; rescore</button><button class="btn sm alt" data-reject="${c.id}">Reject</button></div>`
+        <div class="row"><button class="btn sm green" data-accept="${c.id}">Accept &amp; rescore</button><button class="btn sm alt" data-reject="${c.id}">Reject</button></div>`
         : `<p class="sub">Resolved ${esc((c.resolved_at || '').slice(0, 16).replace('T', ' '))}${c.admin_note ? ' · ' + esc(c.admin_note) : ''}</p>`}
-    </section>`).join('') || '<div class="card"><p class="empty">Nothing here. The judge is doing great.</p></div>'}`;
-  box.querySelectorAll('[data-s]').forEach(b => b.onclick = () => comp(box, b.dataset.s));
+    </section>`).join('') || NO_REPORTS}`;
+  box.querySelectorAll('[data-st]').forEach(b => b.onclick = () => comp(box, b.dataset.st));
   const resolve = async (id, accept) => {
     try {
       const r = await api('admin/complaints/resolve', {
@@ -324,11 +355,15 @@ async function comp(box, status = 'open') {
   box.querySelectorAll('[data-reject]').forEach(b => b.onclick = () => resolve(Number(b.dataset.reject), false));
 }
 
+/** The status row at the top of every game's Reports tab. */
+const reportFilter = (all, on) => `<div class="row" style="margin:0 0 12px">${all.map(s => `<button class="tbtn ${s === on ? 'on' : ''}" data-st="${s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join('')}</div>`;
+const NO_REPORTS = '<div class="card"><p class="empty">No reports here.</p></div>';
+
 /* ═══════════ Summit: answers ═══════════ */
 async function ans(box, q = '', pending = false) {
   const d = await api(`admin/answers?q=${encodeURIComponent(q)}${pending ? '&pending=1' : ''}`);
   box.innerHTML = `<section class="card">
-    <p class="sub" style="margin-top:0">Every answer the judge has seen. Fix a value and every guess that used it is rescored. Only answers given by 2+ players, or <b>approved</b> here, show up in public top answers.</p>
+    <p class="sub" style="margin-top:0">Every answer the judge has seen. The same answer always gets the same verdict, and your edits always win over the AI. Saving rescores every guess that used it. Only answers given by 2+ players, or <b>approved</b> here, show up in public top answers.</p>
     <div class="row" style="margin-top:8px"><input class="box" id="aq" style="flex:1;min-width:160px" placeholder="Search (e.g. horse)" value="${esc(q)}">
       <button class="btn sm alt" id="ago">Search</button>
       <button class="tbtn ${pending ? 'on' : ''}" id="apend">Needs approval</button></div>
@@ -436,42 +471,20 @@ function importReport(game, r) {
 async function vennDash(box) {
   const d = await api('admin/venn/dashboard');
   $('#vennN').textContent = d.openComplaints ? `(${d.openComplaints})` : '';
-  const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   const pct = (a, b) => (b ? Math.round(100 * a / b) + '%' : '–');
-  const stIcon = s => (s === 'approved' ? badge('ready', 'approved') : s === 'draft' ? badge('draft', 'draft') : badge('empty', 'empty'));
-  const notReady = d.next.filter(n => n.rounds.some(r => r !== 'approved'));
-  box.innerHTML = `<section class="card"><div class="kicker"><span>Venn #${d.number} · ${d.date} (UTC)</span></div>
-      <div class="kpis" style="margin-top:10px">
-        <div class="kpi"><b>${d.players}</b><span>Players today</span></div>
-        <div class="kpi"><b>${d.finished}</b><span>Finished both rounds</span></div>
-        <div class="kpi"><b>${d.avgDay == null ? '–' : d.avgDay}</b><span>Average day (of 200)</span></div>
-        <div class="kpi"><b>${d.ever}</b><span>Players ever</span></div>
-        <div class="kpi"><b>${d.openComplaints}</b><span>Open complaints</span></div>
-      </div>
-      ${d.openComplaints ? `<p class="sub"><a href="#venn/comp">Review ${d.openComplaints} open ${d.openComplaints === 1 ? 'complaint' : 'complaints'} →</a></p>` : ''}
+  box.innerHTML = `<section class="card">${dashHead('Venn', d, { players: d.players, ever: d.ever, dayMax: 200, open: d.openComplaints })}
       <div class="section-title">Today's rounds</div>
       <div class="tbl"><table><thead><tr><th>Round</th><th>Circles</th><th>Par</th><th>Started</th><th>Finished</th><th>Avg found</th><th>Avg score</th><th>Made par</th></tr></thead>
       <tbody>${d.rounds.map(r => `<tr><td>Round ${r.round}<br><span class="st ${r.status}">${r.status}</span></td><td><div class="vcs">${circlesHTML(r.circles)}</div></td>
         <td>${r.par}<br><span class="sub">typical ${r.typical}</span></td><td>${r.plays}</td><td>${r.done || 0}</td>
         <td>${r.avgCount == null ? '–' : Math.round(r.avgCount * 10) / 10}</td><td>${r.avgScore == null ? '–' : Math.round(r.avgScore)}</td><td>${pct(r.madePar || 0, r.done || 0)}</td></tr>`).join('')
-        || '<tr><td colspan="8" class="empty">Not made yet. Today\'s rounds are created on the first visit.</td></tr>'}</tbody></table></div>
+        || '<tr><td colspan="8" class="empty">Not made yet. Today\'s rounds are made on the first visit.</td></tr>'}</tbody></table></div>
       ${dashCharts(d, { part: 'Round', parts: 'rounds', max: 100, dayMax: 200,
         partNote: 'Every finished round today, by score (each player counts up to 2 times).',
         dayNote: 'Players who finished both rounds, by day total out of 200.',
         weekNote: 'People who started at least one round that day.' })}
     </section>
-    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Puzzles and the judge</h2>
-      <div class="kpis" style="margin-top:10px">
-        <div class="kpi"><b>${d.judge.ok}</b><span>Judge calls (24h)</span></div>
-        <div class="kpi"><b>${d.judge.fail}</b><span>Judge failures (24h)</span></div>
-        <div class="kpi"><b>${d.judge.ms == null ? '–' : d.judge.ms + ' ms'}</b><span>Average judge time</span></div>
-        <div class="kpi"><b>${d.cached}</b><span>Cached verdicts</span></div>
-      </div>
-      <div class="section-title">The next 7 days</div>
-      <div class="tbl"><table><thead><tr><th>Date</th><th>Round 1</th><th>Round 2</th></tr></thead>
-        <tbody>${d.next.map(n => `<tr><td>${esc(day(n.date))}</td><td>${stIcon(n.rounds[0])}</td><td>${stIcon(n.rounds[1])}</td></tr>`).join('')}</tbody></table></div>
-      <p class="sub">${notReady.length ? `${notReady.length} of the next 7 days aren't fully approved. A draft is used as-is; an empty round is made by the AI on the spot (or from the built-in bank). ` : 'The next 7 days are all approved. '}<a href="#venn/cal">Calendar</a> · <a href="#venn/judg">Judgments</a> · <a href="/venn#/unlimited">Venn unlimited</a></p>
-    </section>`;
+    ${aheadHTML('venn', d, ['Round 1', 'Round 2'], 'round')}`;
 }
 
 /* ═══════════ Venn: calendar ═══════════ */
@@ -502,14 +515,14 @@ async function vennCal(box) {
       <div class="row" style="margin-top:6px;gap:4px">
         ${p.status === 'draft' ? `<button class="mini-btn ok" data-vapprove="${p.id}">Approve</button>` : ''}
         <button class="mini-btn" data-vedit="${p.id}">Edit</button>
-        <button class="mini-btn" data-vjudg="${p.id}">Judgments</button>
+        <button class="mini-btn" data-vjudg="${p.id}">Answers</button>
         ${!p.plays ? genBtn : ''}
         ${list.length > 1 ? `<button class="mini-btn" data-vall="${date}|${round}">All (${list.length})</button>` : ''}
         ${!p.plays && p.status !== 'rejected' ? `<button class="mini-btn danger" data-vreject="${p.id}">Reject</button>` : ''}
       </div></td>`;
   };
   box.innerHTML = `
-    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Generate Venn drafts</h2>
+    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Generate drafts</h2>
       <p class="sub">The AI writes a two-circle round 1 and a three-circle round 2 for each day with an empty round, one at a time (about 5–10 seconds each). Every draft has to keep at least 25 well-known answers (8 for round 2) after a strict review; if the AI is busy or nothing passes, the draft comes from the built-in bank instead. Par = the AI's “typical” count (at least 5 / 3). Days with nothing approved use their draft; with no draft the AI makes one on the spot, then the built-in bank.</p>
       <div class="row"><label class="sub">From <input type="date" id="vgFrom" class="box" style="width:auto" value="${addDays(d.today, 1)}"></label>
         <label class="sub">Days <select id="vgDays" class="box" style="width:auto">${[1, 3, 5, 7].map(n => `<option ${n === 3 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
@@ -547,7 +560,7 @@ async function vennCal(box) {
   box.querySelectorAll('[data-vapprove]').forEach(b => b.onclick = () => vennStatus(Number(b.dataset.vapprove), 'approved'));
   box.querySelectorAll('[data-vreject]').forEach(b => b.onclick = () => { if (confirm('Reject this puzzle?')) vennStatus(Number(b.dataset.vreject), 'rejected'); });
   box.querySelectorAll('[data-vedit]').forEach(b => b.onclick = () => vennEditor(vennAll.find(p => p.id === Number(b.dataset.vedit))));
-  box.querySelectorAll('[data-vjudg]').forEach(b => b.onclick = () => { vennJudgPuzzle = Number(b.dataset.vjudg); go('venn/judg'); });
+  box.querySelectorAll('[data-vjudg]').forEach(b => b.onclick = () => { vennJudgPuzzle = Number(b.dataset.vjudg); go('venn/answers'); });
   box.querySelectorAll('[data-vnew]').forEach(b => { const [date, round] = b.dataset.vnew.split('|'); b.onclick = () => vennEditor({ date, round: Number(round), status: 'approved', circles: [], answers: [], par: '', typical: '' }); });
   box.querySelectorAll('[data-vall]').forEach(b => {
     const [date, round] = b.dataset.vall.split('|');
@@ -609,13 +622,13 @@ function vennEditor(p) {
   };
 }
 
-/* ═══════════ Venn: complaints ═══════════ */
+/* ═══════════ Venn: reports ═══════════ */
 async function vennComp(box, status = 'open') {
   const d = await api('admin/venn/complaints?status=' + status);
   if (status === 'open') $('#vennN').textContent = d.complaints.length ? `(${d.complaints.length})` : '';
-  box.innerHTML = `<div class="row" style="margin:0 0 12px">${['open', 'accepted', 'rejected'].map(s => `<button class="tbtn ${s === status ? 'on' : ''}" data-st="${s}">${s}</button>`).join('')}</div>
+  box.innerHTML = `${reportFilter(['open', 'accepted', 'rejected'], status)}
     ${d.complaints.map(c => `<section class="card" style="margin-bottom:14px">
-      <div class="kicker"><span>${esc(c.date || 'unlimited')} · Round ${c.round}</span><span>${esc(c.created_at.slice(0, 16).replace('T', ' '))}</span></div>
+      <div class="kicker"><span>${esc(c.date || 'unlimited')} · Round ${c.round} · ${c.round === 2 ? 'three' : 'two'} circles</span><span>${esc(c.created_at.slice(0, 16).replace('T', ' '))}</span></div>
       <div class="vcs" style="margin:8px 0">${circlesHTML(c.circles)}</div>
       <p style="margin:4px 0">Player said <b>“${esc(c.input)}”</b> → ${c.canonical ? `judged as <b>${esc(c.canonical)}</b>` : 'not recognized'} · fits ${c.fits.map((f, i) => `${'ABC'[i]} ${f ? '✓' : '✗'}`).join(' ') || '–'}
         <span class="sub">(${esc(c.reason || 'no reason')} · given ${c.uses}× on this puzzle)</span></p>
@@ -623,9 +636,9 @@ async function vennComp(box, status = 'open') {
       ${status === 'open' ? `<div class="form" style="margin-top:10px">
         <label>Count it as<input class="box" data-n="${c.id}" value="${esc(c.canonical || c.input)}"></label>
         <label>Note to player (optional)<input class="box" data-a="${c.id}"></label></div>
-        <div class="row"><button class="btn sm green" data-accept="${c.id}">Accept: count it &amp; rescore</button><button class="btn sm alt" data-reject="${c.id}">Reject</button></div>`
+        <div class="row"><button class="btn sm green" data-accept="${c.id}">Accept &amp; rescore</button><button class="btn sm alt" data-reject="${c.id}">Reject</button></div>`
         : `<p class="sub">Resolved ${esc((c.resolved_at || '').slice(0, 16).replace('T', ' '))}${c.admin_note ? ' · ' + esc(c.admin_note) : ''}</p>`}
-    </section>`).join('') || '<div class="card"><p class="empty">Nothing here.</p></div>'}`;
+    </section>`).join('') || NO_REPORTS}`;
   box.querySelectorAll('[data-st]').forEach(b => b.onclick = () => vennComp(box, b.dataset.st));
   const resolve = async (id, accept) => {
     try {
@@ -637,13 +650,13 @@ async function vennComp(box, status = 'open') {
   box.querySelectorAll('[data-reject]').forEach(b => b.onclick = () => resolve(Number(b.dataset.reject), false));
 }
 
-/* ═══════════ Venn: judgment cache ═══════════ */
+/* ═══════════ Venn: answers (the judge's verdicts) ═══════════ */
 let vennJudgPuzzle = null;
 async function vennJudg(box, q = '') {
   const d = await api(`admin/venn/judgments?q=${encodeURIComponent(q)}${vennJudgPuzzle ? '&puzzle=' + vennJudgPuzzle : ''}`);
   box.innerHTML = `<section class="card">
     <p class="sub" style="margin-top:0">Every answer the judge has seen, per puzzle. The same answer always gets the same verdict, and your edits always win over the AI. Saving rescores every play that used it.</p>
-    <div class="row" style="margin-top:8px"><input class="box" id="jq" style="flex:1;min-width:160px" placeholder="Search answers" value="${esc(q)}">
+    <div class="row" style="margin-top:8px"><input class="box" id="jq" style="flex:1;min-width:160px" placeholder="Search (e.g. banana)" value="${esc(q)}">
       <input class="box" id="jp" type="number" style="width:130px" placeholder="Puzzle id" value="${vennJudgPuzzle || ''}">
       <button class="btn sm alt" id="jgo">Search</button></div>
     ${vennJudgPuzzle ? `<form class="row" id="jadd" style="margin-top:8px"><input class="box" name="input" style="flex:1;min-width:140px" placeholder="Add an answer for puzzle ${vennJudgPuzzle}">
@@ -749,30 +762,26 @@ function wireReal(el) {
 async function pollyDash(box) {
   const d = await api('admin/polly/dashboard');
   $('#pollyN').textContent = d.openReports ? `(${d.openReports})` : '';
-  const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const day = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
   const a = d.auto || {};
   const pctL = s => (s.sideL + s.sideR ? Math.round(100 * s.sideL / (s.sideL + s.sideR)) + '%' : '–');
-  box.innerHTML = `<section class="card"><div class="kicker"><span>Polly #${d.number} · ${d.date} (UTC)</span></div>
-      <div class="kpis" style="margin-top:10px">
-        <div class="kpi"><b>${d.players}</b><span>Players today</span></div>
-        <div class="kpi"><b>${d.finished}</b><span>Finished all 3 today</span></div>
-        <div class="kpi"><b>${d.avgDay == null ? '–' : d.avgDay}</b><span>Average day (of 300)</span></div>
-        <div class="kpi"><b>${d.ever}</b><span>Players ever</span></div>
-        <div class="kpi"><b>${d.openReports}</b><span>Open reports</span></div>
-      </div>
-      ${d.openReports ? `<p class="sub"><a href="#polly/rep">Review ${d.openReports} open ${d.openReports === 1 ? 'report' : 'reports'} →</a></p>` : ''}
+  box.innerHTML = `<section class="card">${dashHead('Polly', d, { players: d.players, ever: d.ever, dayMax: 300, open: d.openReports })}
       <div class="section-title">Today's questions</div>
-      <div class="tbl"><table><thead><tr><th>#</th><th>Question</th><th>Real</th><th>Answers</th><th>Avg score</th><th>Avg miss</th><th>WK players' side</th></tr></thead>
-      <tbody>${d.slots.map(s => `<tr><td>${s.slot}</td><td>${esc(s.short)}${s.reused ? ` ${badge('reused', 'auto')}` : ''}<br><span class="sub">${esc(s.left_label)} / ${esc(s.right_label)} · ${esc(TOPIC_NAMES[s.topic] || s.topic)} · <a href="${esc(s.url)}" target="_blank" rel="noopener">source ↗</a></span></td>
+      <div class="tbl"><table><thead><tr><th>Question</th><th>Text</th><th>Real</th><th>Answers</th><th>Avg score</th><th>Avg miss</th><th>WK players' side</th></tr></thead>
+      <tbody>${d.slots.map(s => `<tr><td>Question ${s.slot}${s.reused ? `<br>${badge('reused', 'auto')}` : ''}</td><td>${esc(s.short)}<br><span class="sub">${esc(s.left_label)} / ${esc(s.right_label)} · ${esc(TOPIC_NAMES[s.topic] || s.topic)} · <a href="${esc(s.url)}" target="_blank" rel="noopener">source ↗</a></span></td>
         <td>${s.real}%</td><td>${s.plays}</td><td>${s.avg == null ? '–' : Math.round(s.avg)}</td><td>${s.miss == null ? '–' : (Math.round(s.miss * 10) / 10)}</td>
-        <td>${s.plays ? `${s.sideL + s.sideR ? `${pctL(s)} ${esc(s.left_label)}` : '–'}<br><span class="sub">${s.skipped || 0} skipped</span>` : '–'}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No poll today. Approve questions (or run Auto-find) and the calendar fills itself.</td></tr>'}</tbody></table></div>
+        <td>${s.plays ? `${s.sideL + s.sideR ? `${pctL(s)} ${esc(s.left_label)}` : '–'}<br><span class="sub">${s.skipped || 0} skipped</span>` : '–'}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No poll today. Approve questions (or run Find polls) and the calendar fills itself.</td></tr>'}</tbody></table></div>
       ${dashCharts(d, { part: 'Question', parts: 'answers', max: 100, dayMax: 300,
         partNote: 'Every daily answer today, by score (each player counts up to 3 times).',
         dayNote: 'Players who finished all three, by day total out of 300.',
         weekNote: 'People who answered at least one question that day.' })}
     </section>
-    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Question supply</h2>
-      <div class="kpis" style="margin-top:10px">
+    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Coming up</h2>
+      <div class="section-title">The next 7 days</div>
+      ${d.gaps.length ? `<div class="note warn">Not full yet: ${d.gaps.map(g => esc(day(g))).join(', ')}.</div>` : '<p class="sub">The next 7 days are full.</p>'}
+      ${d.stale.map(s => `<p class="sub">${badge('STALE', 'rejected')} ${esc(s.date)} · Question ${s.slot}: ${esc(s.short)} <i>(${esc(s.why)})</i></p>`).join('')}
+      <div class="section-title">Question supply</div>
+      <div class="kpis">
         <div class="kpi"><b>${d.bank.fresh}</b><span>Never-run approved (${d.bank.days} ${d.bank.days === 1 ? 'day' : 'days'})</span></div>
         <div class="kpi"><b>${d.bank.unscheduled}</b><span>In the bank, unscheduled</span></div>
         <div class="kpi"><b>${a.drafts || 0}</b><span>Drafts to review</span></div>
@@ -781,10 +790,8 @@ async function pollyDash(box) {
       </div>
       ${bankLowNote(d.bank)}
       ${d.bank.expired ? `<p class="sub">${d.bank.expired} approved ${d.bank.expired === 1 ? 'question is' : 'questions are'} too old to run (time-sensitive and over 3 months past the poll). In the <a href="#polly/bank">Bank</a>, untick time-sensitive if it isn't really, or retire it.</p>` : ''}
-      ${d.gaps.length ? `<div class="note warn" style="margin-top:10px">Not full yet in the next 7 days: ${d.gaps.map(g => esc(day(g))).join(', ')}.</div>` : '<p class="sub">The next 7 days are full.</p>'}
-      <p class="sub">Auto-find last ran ${esc(a.lastRun ? new Date(a.lastRun).toLocaleString() : 'never')}.
-        <a href="#polly/auto">Find polls</a> · ${a.drafts ? `<a href="#polly/bank">Review ${a.drafts} ${a.drafts === 1 ? 'draft' : 'drafts'}</a> · ` : ''}<a href="#polly/cal">Calendar</a></p>
-      ${d.stale.length ? `<div class="section-title">STALE warnings</div>${d.stale.map(s => `<p class="sub">${badge('STALE', 'rejected')} ${esc(s.date)} · Q${s.slot}: ${esc(s.short)} <i>(${esc(s.why)})</i></p>`).join('')}` : ''}
+      <p class="sub">Find polls last ran ${esc(a.lastRun ? new Date(a.lastRun).toLocaleString() : 'never')}.</p>
+      <p class="sub"><a href="#polly/cal">Calendar</a> · <a href="#polly/bank">Bank${a.drafts ? ` (${a.drafts} ${a.drafts === 1 ? 'draft' : 'drafts'})` : ''}</a> · <a href="#polly/reports">Reports</a> · <a href="#polly/auto">Find polls</a></p>
     </section>`;
 }
 
@@ -1055,21 +1062,21 @@ async function pollyRep(box, status = 'open') {
   const d = await api('admin/polly/reports?status=' + status);
   pollySources = (await api('admin/polly/sources')).sources;
   if (status === 'open') $('#pollyN').textContent = d.reports.length ? `(${d.reports.length})` : '';
-  box.innerHTML = `<div class="row" style="margin:0 0 12px">${['open', 'fixed', 'dismissed', 'retired'].map(s => `<button class="tbtn ${s === status ? 'on' : ''}" data-st="${s}">${s}</button>`).join('')}</div>
+  box.innerHTML = `${reportFilter(['open', 'fixed', 'dismissed', 'retired'], status)}
     ${d.reports.map((r, i) => {
       const q = r.question;
       return `<section class="card" style="margin-bottom:14px">
-      <div class="kicker"><span>${esc(r.play_date || 'unlimited')} · ${esc(r.mode)} · question #${q.id}</span><span>${esc(r.created_at.slice(0, 16).replace('T', ' '))}</span></div>
+      <div class="kicker"><span>${esc(r.play_date || 'unlimited')} · Question #${q.id}${r.mode === 'daily' ? '' : ` · ${esc(r.mode)}`}</span><span>${esc(r.created_at.slice(0, 16).replace('T', ' '))}</span></div>
       <p style="margin:8px 0 4px"><b>${esc(q.short)}</b> <span class="sub">${esc(q.left_label)} ${q.left_raw} / ${esc(q.right_label)} ${q.right_raw}${q.unsure_raw != null ? ` / unsure ${q.unsure_raw}` : ''} → real ${q.real}%</span></p>
       <p class="sub" style="margin:0">“${esc(q.original_wording)}” · ${esc(q.source)} · ${esc(niceDay(q.poll_end_date))} · <a href="${esc(q.url)}" target="_blank" rel="noopener">source ↗</a></p>
       <p style="margin:8px 0">Player guessed <b>${r.guess}</b>${r.own ? ` and picked <b>${esc(r.own === 'left' ? q.left_label : q.right_label)}</b>` : ' (no side)'} · scored ${r.score}</p>
       <div class="note warn"><b>${esc(r.reasonText)}</b>${r.note ? `: “${esc(r.note)}”` : ''}</div>
       ${r.open_on_question > 1 ? `<p class="sub">${r.open_on_question} open reports on this question. Resolving one resolves them all.</p>` : ''}
-      ${status === 'open' ? `<div class="row"><button class="btn sm" data-fix="${i}">Fix…</button><input class="box" data-note="${i}" style="flex:1;min-width:160px;height:42px" placeholder="Note (admin only)">
+      ${status === 'open' ? `<div class="row"><button class="btn sm green" data-fix="${i}">Fix &amp; rescore…</button><input class="box" data-note="${i}" style="flex:1;min-width:160px;height:42px" placeholder="Note (admin only)">
         <button class="btn sm alt" data-dismiss="${i}">Dismiss</button><button class="btn sm alt" data-retire="${i}">Retire</button></div>`
         : `<p class="sub">Resolved ${esc((r.resolved_at || '').slice(0, 16).replace('T', ' '))}${r.admin_note ? ' · ' + esc(r.admin_note) : ''}</p>`}
     </section>`;
-    }).join('') || '<div class="card"><p class="empty">Nothing here.</p></div>'}`;
+    }).join('') || NO_REPORTS}`;
   box.querySelectorAll('[data-st]').forEach(b => b.onclick = () => pollyRep(box, b.dataset.st));
   const resolve = async (i, action) => {
     try { await api('admin/polly/reports/resolve', { id: d.reports[i].id, action, adminNote: box.querySelector(`[data-note="${i}"]`).value }); toast(action === 'dismiss' ? 'Dismissed' : 'Retired'); pollyRep(box, 'open'); }

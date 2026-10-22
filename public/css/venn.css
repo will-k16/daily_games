@@ -250,7 +250,7 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 textarea.box { width: 100%; min-height: 90px; padding: 10px 12px; border-radius: 10px; border: 3px solid var(--ink); background: var(--panel2); resize: vertical; }
 .shimmer { height: 58px; border-radius: 10px; border: 3px dashed var(--line); display: grid; align-items: center; padding: 0 14px; color: var(--muted); font-weight: 800; font-size: 14px; animation: blinkSq 1s steps(2) infinite; }
 
-/* Mel's card + wardrobe */
+/* Mel's card + shop */
 .melcard { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start; }
 .portrait { width: 184px; height: 150px; border: 3px solid var(--ink); border-radius: 10px; background: #17402b; display: grid; place-items: center; box-shadow: 0 4px 0 var(--shadow); overflow: hidden; }
 .portrait canvas { width: 168px; height: 132px; }
@@ -302,7 +302,7 @@ textarea.box { width: 100%; min-height: 90px; padding: 10px 12px; border-radius:
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
-@media (max-width: 560px) { #wardBtn { gap: 1px; font-size: 13px; } #wardBtn .cnum { font-size: 10px; letter-spacing: -.5px; } }
+@media (max-width: 560px) { #shopBtn { gap: 1px; font-size: 13px; } #shopBtn .cnum { font-size: 10px; letter-spacing: -.5px; } }
 
 /* ── Shared modal bits (modal.js, account.js) ── */
 .modal-ask { position: fixed; inset: 0; z-index: 61; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .28); }

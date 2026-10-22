@@ -213,7 +213,7 @@ export async function dashboard(env) {
   // The next 7 days: each round approved, only a draft (it'll be used as-is), or empty (made on the spot).
   const next = Array.from({ length: 7 }, (_, i) => addDays(date, i + 1)).map(d => ({
     date: d,
-    rounds: [1, 2].map(r => {
+    parts: [1, 2].map(r => {
       const list = ahead.results.filter(a => a.date === d && a.round === r);
       return list.some(a => a.status === 'approved' || a.status === 'auto') ? 'approved' : list.length ? 'draft' : 'empty';
     })

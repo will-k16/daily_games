@@ -1,4 +1,4 @@
-// The pet corner: Skipper, Mel and Polly hanging out together, dressed in their wardrobes, each with a
+// The pet corner: Skipper, Mel and Polly hanging out together, dressed in what they bought in the shops, each with a
 // name tag. The backdrop mixes their three worlds: a striped Venn-ring sun, Summit's mountains with a
 // cable car gliding by, Mel's jungle on the left, Polly's clock-tower town on the right, and fairy lights.
 // Pixel art on a 256×144 canvas (16:9, so it screenshots well), scaled up crisp.

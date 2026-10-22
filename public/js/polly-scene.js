@@ -557,7 +557,7 @@ export function createPollyScene(host, { look = {}, tod = timeOfDay(), onPollyCl
   return api;
 }
 
-/** A still picture of the square with a given look (the wardrobe's Town preview). */
+/** A still picture of the square with a given look (the shop's Town preview). */
 export function drawTownStill(cv, look, tod = timeOfDay(), labels = ['Yes', 'No']) {
   cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');

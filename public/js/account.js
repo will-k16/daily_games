@@ -55,7 +55,7 @@ export function showAccount(ui, note) {
   const here = location.pathname;
   if (me.signedIn) {
     const has = !!me.hasPassword;
-    openModal(`<h2>Account</h2><p>Signed in as <b>${esc(me.email)}</b>. Your stats, streaks, WK Bucks and wardrobes come with you to any device.</p>
+    openModal(`<h2>Account</h2><p>Signed in as <b>${esc(me.email)}</b>. Your stats, streaks, WK Bucks and pets' outfits come with you to any device.</p>
       <form class="authform" id="pwForm" autocomplete="on">
         <h4>${has ? 'Change your password' : 'Add a password'}</h4>
         <p class="sub">${has ? '' : 'Handy if Google sign-in ever acts up: you can sign in with your email and this password instead.'}</p>
@@ -88,7 +88,7 @@ export function showAccount(ui, note) {
     const up = mode === 'signup';
     openModal(`<h2>${up ? 'Make an account' : 'Sign in'}</h2>
       ${typeof note === 'string' ? `<div class="note warn" style="margin-bottom:12px">${esc(note)}</div>` : ''}
-      <p>You're playing as a guest, so your scores only live on this device. Sign in to keep your streaks, WK Bucks and wardrobes on your phone and computer. Your email is never shown to anyone.</p>
+      <p>You're playing as a guest, so your scores only live on this device. Sign in to keep your streaks, WK Bucks and pets' outfits on your phone and computer. Your email is never shown to anyone.</p>
       <div class="row"><a class="btn" href="/api/auth/login?return=${ret}">Continue with Google</a>${local ? `<a class="btn alt sm" href="/api/auth/dev?return=${ret}">Dev sign-in</a>` : ''}</div>
       <div class="or"><span>or use your email</span></div>
       <form class="authform" id="authForm" autocomplete="on">

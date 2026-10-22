@@ -84,5 +84,6 @@ export function statsHTML(s, { max, unit = '', avgLabel = 'Average', bestLabel =
     ${extra}
     <div class="ch-title">Your days</div>
     ${s.played ? `<div class="ch-mine">${histoHTML(s.dist, { max, counts: true, one: 'day', many: 'days', unit })}</div>` : '<p class="ch-line">Finish a day to start your chart.</p>'}
-    ${note}`;
+    ${note}
+    <p class="ch-line"><a href="/history">Every day, every game →</a></p>`;
 }

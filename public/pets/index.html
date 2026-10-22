@@ -16,17 +16,23 @@
 <body>
 <div class="sheet pets-sheet">
   <header class="pets-head">
-    <a class="back" href="/">← All games</a>
+    <div class="pets-top"><a class="back" href="/">← All games</a><span class="pill" id="bucks" title="WK Bucks"></span></div>
     <h1>Pet corner</h1>
     <p class="sub">Your three pets, dressed just how you left them. Tap one to say hi.</p>
   </header>
   <div class="pets-frame" id="petsHost"><div class="pets-loading">Rounding everyone up…</div></div>
+  <div class="pets-shops" id="petShops" aria-label="Shops"></div>
   <div class="pets-actions">
-    <button class="btn" id="savePic" type="button" disabled>Save picture</button>
-    <span class="sub">New outfits come from each game's wardrobe:
-      <a href="/summit">Summit</a>, <a href="/venn">Venn</a>, <a href="/polly">Polly</a>.</span>
+    <button class="btn alt" id="savePic" type="button" disabled>Save picture</button>
+    <span class="sub">WK Bucks from every game work in every shop.</span>
   </div>
-  <footer class="foot"><a href="/">WK Game Suite</a><a href="/privacy">Privacy</a></footer>
+  <footer class="foot"><a href="/">WK Game Suite</a><a href="/history">Your scores</a><a href="/privacy">Privacy</a></footer>
+</div>
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <button class="x" id="modalX" aria-label="Close">✕</button>
+    <div id="modalBody"></div>
+  </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/js/pets.js"></script>

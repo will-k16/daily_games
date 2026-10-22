@@ -3,11 +3,12 @@ import { createScene, createClimb } from './summit-scene.js';
 import { skipperPortrait } from './pixel.js';
 import { fmt, nice } from './units.js';
 import { PROPS, propLabel } from './props.js';
-import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE, summitShareText } from './score.js';
+import { scoreGuess, logPos, SECOND_GUESS_MULT, MAX_REJECTS, MAX_SCORE, summitShareText, tierOf } from './score.js';
 import { crowdHTML, statsHTML } from './charts.js';
 import * as pad from './pad.js';
-import { WARDROBE, SLOTS, DEFAULT_LOOK, itemKey, bucksFor, DAY_BONUS } from './wardrobe.js';
-import { bucksIcon, bucksAmount } from './bucks.js';
+import { DEFAULT_LOOK, bucksFor, DAY_BONUS } from './wardrobe.js';
+import { openShop } from './shop.js';
+import { bucksIcon } from './bucks.js';
 import { showAccount as accountModal, signInReturn } from './account.js';
 import { openModal, closeModal } from './modal.js';
 
@@ -83,7 +84,7 @@ function verdict(s) {
   if (s > 0) return { t: 'Off the rails', mood: 'dizzy', d: 'Way out on the cable.' };
   return { t: 'Lost in the clouds', mood: 'dizzy', d: 'Nowhere near the lodge.' };
 }
-const tier = s => s >= 900 ? 'green' : s >= 600 ? 'yellow' : s >= 300 ? 'orange' : 'red';
+const tier = tierOf;
 
 /* ═══════════ Time of day ═══════════ */
 function tod() { const h = new Date().getHours(); return h >= 5 && h < 10 ? 'morning' : h >= 10 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'evening' : 'night'; }
@@ -537,7 +538,7 @@ function bucksLineHTML(c) {
   let n = c.rooms.reduce((s, r) => s + (r.play.state === 'done' ? bucksFor(r.play.score, r.mode === 'daily' ? 'daily' : mode) : 0), 0);
   if (c.kind === 'daily' && c.rooms.every(r => r.play.state === 'done')) n += DAY_BONUS;
   return `<div class="bucksline rise" style="--d:5">${bucksIcon()} <b>+${n}</b> WK ${n === 1 ? 'Buck' : 'Bucks'} ${c.kind === 'daily' ? 'today' : 'from this day'}${S.bucks ? ` · ${S.bucks.balance} to spend` : ''}
-    <button class="btn sm alt" id="wardrobeBtn2" type="button">Dress up ${sk()}</button></div>`;
+    <button class="btn sm alt" id="shopBtn2" type="button">${sk()}'s shop</button></div>`;
 }
 
 /* ═══════════ Summary ═══════════ */
@@ -576,7 +577,7 @@ function wireSummary(c) {
   }, 250);
   $('#shareBtn').onclick = () => doShare(c);
   $('#statsBtn2').onclick = showStats;
-  const wb = $('#wardrobeBtn2'); if (wb) wb.onclick = showWardrobe;
+  const wb = $('#shopBtn2'); if (wb) wb.onclick = showShop;
   tick();
 }
 
@@ -630,10 +631,10 @@ function showSkipper(r) {
         <p class="sk-quote">“${lines[mood] || lines.smile}”</p>
         <ul class="sk-facts"><li><b>Rides:</b> a few thousand, give or take a goat-load</li><li><b>Favorite spot:</b> the lodge, right in the middle</li>
           <li><b>Hates:</b> people who say “a 5 km race”</li><li><b>Snack:</b> alpine wildflowers, fresh off the slope</li></ul>
-        <div class="row"><button class="btn" id="skOk">Back to the ride</button><button class="btn alt" id="skWear">👕 Wardrobe</button></div></div></div>`);
+        <div class="row"><button class="btn" id="skOk">Back to the ride</button><button class="btn alt" id="skWear">Shop</button></div></div></div>`);
   animatePortrait($('#skipCv'), mood, () => look());
   $('#skOk').onclick = closeModal;
-  $('#skWear').onclick = showWardrobe;
+  $('#skWear').onclick = showShop;
 }
 
 /** Draws Skipper's portrait into a canvas and keeps him blinking. `getLook` is read every frame so previews update live. */
@@ -650,99 +651,13 @@ function animatePortrait(cv, mood, getLook) {
   return draw;
 }
 
-/* ═══════════ Wardrobe ═══════════ */
-async function showWardrobe() {
-  openModal(`<h2>${sk()}'s wardrobe</h2><div class="shimmer">Opening the closet…</div>`);
-  let w;
-  try { w = await api('skipper'); } catch (e) { openModal(`<h2>Wardrobe</h2><div class="note bad">${esc(e.message)}</div>`); return; }
-  let tab = 'fur', preview = null, confirming = null;
-  const apply = data => {
-    w = data; S.bucks = data.bucks; S.me.skipper = data.look; paintTools();
+/* ═══════════ Shop ═══════════ */
+function showShop() {
+  openShop('skipper', { api, toast, onChange: data => {
+    S.bucks = data.bucks; S.me.skipper = data.look; paintTools();
     // Redraw the cable car with the new look.
     if (S.ctx && !S.showSummary && $('#sceneHost')) { S.scenePid = null; ensureScene(S.ctx.rooms[S.roomIdx], 'enter'); }
-  };
-  const owns = (slot, it) => !it.price || w.owned.includes(itemKey(slot, it.id));
-  const shown = () => (preview ? { ...w.look, ...preview } : w.look);
-
-  const draw = () => {
-    const items = WARDROBE[tab];
-    const list = tab === 'name'
-      ? (owns('name', items[0])
-        ? `<form class="namebox" id="nameForm"><input class="pin" name="n" maxlength="16" value="${esc(w.look.name)}" aria-label="Name"><button class="btn sm" type="submit">Save name</button></form>
-           <p class="sub">Only you see this name.</p>`
-        : `<p class="sub">Get the name tag to call your goat whatever you like. Only you see the name.</p>
-           <div class="witems">${itemHTML('name', items[0])}</div>`)
-      : `<div class="witems">${items.map(it => itemHTML(tab, it)).join('')}</div>`;
-    $('#modalBody').innerHTML = `<h2>${sk()}'s wardrobe</h2>
-      <div class="wtop"><div class="portrait sm"><canvas id="wardCv" width="44" height="44"></canvas></div>
-        <div><div class="wbal">${bucksIcon()} <b>${w.bucks.balance}</b> WK ${w.bucks.balance === 1 ? 'Buck' : 'Bucks'}</div>
-          <p class="sub">Summit pays 1 WK Buck for every 100 m you climb on the daily (bonus 5 for a perfect stage, and 5 more for finishing all three). Past days pay half. WK Bucks work in every game's shop.</p></div></div>
-      <div class="wtabs">${SLOTS.map(s => `<button type="button" data-wtab="${s.key}" class="${s.key === tab ? 'on' : ''}">${s.name}</button>`).join('')}</div>
-      <div class="msg" id="wmsg"></div>
-      ${list}`;
-    animatePortrait($('#wardCv'), 'smile', shown);
-    document.querySelectorAll('[data-wtab]').forEach(b => b.onclick = () => { tab = b.dataset.wtab; preview = null; confirming = null; draw(); });
-    document.querySelectorAll('[data-wid]').forEach(b => {
-      const slot = b.dataset.wslot, it = WARDROBE[slot].find(x => x.id === b.dataset.wid);
-      if (slot !== 'name') {
-        b.onmouseenter = () => { preview = { [slot]: it.id }; };
-        b.onmouseleave = () => { preview = confirming ? preview : null; };
-        b.onfocus = b.onmouseenter; b.onblur = b.onmouseleave;
-      }
-      b.onclick = () => act(slot, it, b);
-    });
-    const nf = $('#nameForm');
-    if (nf) nf.onsubmit = async e => {
-      e.preventDefault();
-      try { apply(await api('skipper/wear', { slot: 'name', name: nf.n.value })); toast(`Say hi to ${look().name}!`); draw(); }
-      catch (err) { $('#wmsg').innerHTML = `<div class="note bad">${esc(err.message)}</div>`; }
-    };
-  };
-
-  function itemHTML(slot, it) {
-    const own = owns(slot, it), on = slot !== 'name' && w.look[slot] === it.id;
-    const asking = confirming === itemKey(slot, it.id);
-    const label = on ? 'Wearing' : own ? (slot === 'name' ? 'Yours' : 'Wear') : asking ? `Buy for ${bucksAmount(it.price)}?` : bucksAmount(it.price);
-    const short = !own && it.price > w.bucks.balance;
-    return `<button type="button" class="witem ${on ? 'on' : ''} ${short ? 'short' : ''} ${asking ? 'ask' : ''}" data-wslot="${slot}" data-wid="${it.id}">
-      ${swatch(slot, it)}<span class="wn">${esc(it.name)}</span><span class="wp">${label}</span></button>`;
-  }
-
-  async function act(slot, it, b) {
-    const own = owns(slot, it);
-    if (slot !== 'name' && w.look[slot] === it.id) return;
-    if (!own && it.price > w.bucks.balance) {
-      const need = it.price - w.bucks.balance;
-      $('#wmsg').innerHTML = `<div class="note warn">You need ${need} more WK ${need === 1 ? 'Buck' : 'Bucks'} for that. Keep climbing!</div>`;
-      return;
-    }
-    // Buying takes two taps: the first shows it on and asks.
-    if (!own && confirming !== itemKey(slot, it.id)) {
-      confirming = itemKey(slot, it.id);
-      preview = slot === 'name' ? null : { [slot]: it.id };
-      draw();
-      return;
-    }
-    confirming = null;
-    b.disabled = true;
-    try {
-      apply(await api(own ? 'skipper/wear' : 'skipper/buy', { slot, id: it.id }));
-      preview = null;
-      if (!own) toast(slot === 'name' ? 'Name tag unlocked. Pick a name!' : `${it.name}: yours!`);
-      draw();
-    } catch (e) { b.disabled = false; $('#wmsg').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; }
-  }
-  draw();
-}
-
-function swatch(slot, it) {
-  const box = bg => `<span class="sw" style="background:${bg}"></span>`;
-  if (slot === 'fur') return box(it.c[0]);
-  if (slot === 'cabin') return box(it.c);
-  if (slot === 'scarf') return box(it.rainbow ? 'linear-gradient(90deg,#d9482b,#f2b33d,#5fae6a,#3f78c9,#7d55c7)' : `repeating-linear-gradient(90deg,${it.c[0]} 0 6px,${it.c[1]} 6px 9px)`);
-  if (slot === 'hat') return `<span class="sw em">${{ none: '🙅', beanie: '🧶', party: '🥳', cowboy: '🤠', tophat: '🎩', crown: '👑' }[it.kind]}</span>`;
-  if (slot === 'glasses') return `<span class="sw em">${{ none: '👀', specs: '👓', shades: '🕶️', stars: '⭐' }[it.kind]}</span>`;
-  return '<span class="sw em">🏷️</span>';
+  } });
 }
 
 function showHelp() {
@@ -752,7 +667,7 @@ function showHelp() {
       <div class="stepc" style="--d:1">${ICON.lodge}<p><b class="n">Ride to the lodge</b>Name something real that's juuust right in between. The lodge is the middle by <b>ratio</b>: between 1 and 100 it's <b>10</b>, not 50. Shortcut: √(small × big).</p></div>
       <div class="stepc" style="--d:2">${ICON.fog}<p><b class="n">Into the fog</b>You'll see your score, but fog hides which way you're off. Keep it, or take one final ride worth ×0.8. Answers off the cable get ❌: three are free, then the next scores 0.</p></div>
     </div>
-    <p class="sub">Each stage is worth up to 1,000 m, so a perfect day tops out at the 3,000 m summit. Every 100 m you climb earns a WK Buck ${bucksIcon()} to spend on ${sk()}'s wardrobe. New mountain every midnight UTC.</p>
+    <p class="sub">Each stage is worth up to 1,000 m, so a perfect day tops out at the 3,000 m summit. Every 100 m you climb earns a WK Buck ${bucksIcon()} to spend in ${sk()}'s shop. New mountain every midnight UTC.</p>
     <div class="row"><button class="btn" id="helpGo">All aboard 🚡</button></div>`);
   $('#helpGo').onclick = closeModal;
 }
@@ -826,7 +741,7 @@ function paintTools() {
 $('#helpBtn').onclick = showHelp;
 $('#statsBtn').onclick = showStats;
 $('#acctBtn').onclick = () => showAccount();
-$('#wardBtn').onclick = showWardrobe;
+$('#shopBtn').onclick = showShop;
 $('#unlBtn').onclick = () => { location.hash = '#/unlimited'; };
 $('#unitBtn').onclick = () => {
   S.units = S.units === 'imperial' ? 'metric' : 'imperial'; store.set('jr.units', S.units);

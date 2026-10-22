@@ -15,6 +15,7 @@ const ROUTES = {
   // Suite
   'GET suite/today': (c) => suite.today(c.env, c.who),
   'GET suite/share': (c) => suite.share(c.env, c.who, c.url.host),
+  'GET suite/history': (c) => suite.history(c.env, c.who),
 
   // Summit
   'GET today': (c) => game.today(c.env, c.who, c.waitUntil),

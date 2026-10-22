@@ -295,11 +295,11 @@ textarea.box { width: 100%; min-height: 90px; padding: 10px 12px; border-radius:
 .sk-facts { margin: 0; padding-left: 18px; font-size: 14px; }
 @media (max-width: 520px) { .skipper { grid-template-columns: 1fr; justify-items: center; } }
 
-/* Wardrobe */
+/* Shop */
 #bucksIco { display: inline-flex; font-size: 16px; color: var(--good); }
 .cnum { font-family: var(--font-num); font-size: 13px; }
 .cnum:empty { display: none; }
-@media (max-width: 560px) { #wardBtn { gap: 1px; font-size: 13px; } #wardBtn .cnum { font-size: 10px; letter-spacing: -.5px; } }
+@media (max-width: 560px) { #shopBtn { gap: 1px; font-size: 13px; } #shopBtn .cnum { font-size: 10px; letter-spacing: -.5px; } }
 .bucksline { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; font-weight: 800; }
 .bucksline b { font-family: var(--font-num); color: var(--good); }
 .wtop { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
