@@ -8,6 +8,8 @@ import { drawPollyPreview } from './polly-scene.js';
 import { bayer, skipperPortrait } from './pixel.js';
 import { melPortrait } from './mel.js';
 import { pollyPortrait } from './polly-sprites.js';
+import { racePortrait } from './race.js';
+import { drawLifelinePreview } from './lifeline-scene.js';
 import { renderDesk, decorate, season } from './desk.js';
 import { api } from './net.js';
 
@@ -17,6 +19,7 @@ const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const S = { me: { signedIn: false }, data: null, previews: [] };
 
 const GAMES = {
+  lifeline: { name: 'Lifeline', pitch: 'Who lived through both?', href: '/lifeline', color: '#b8562c', draw: drawLifelinePreview },
   polly: { name: 'Polly', pitch: 'Guess what America said', href: '/polly', color: '#1f8a8a', draw: (cv, n) => drawPollyPreview(cv, n) },
   venn: { name: 'Venn', pitch: 'Find what fits both', href: '/venn', color: '#2f8f4e', draw: (cv, n) => drawVennPreview(cv, n) },
   summit: { name: 'Summit', pitch: 'Name something juuust right', href: '/summit', color: '#d9482b', draw: drawSummitPreview }
@@ -60,6 +63,10 @@ window.addEventListener('pageshow', e => { if (e.persisted) stampTitle(); });
 
 /* ── Status lines ── */
 function status(g) {
+  if (g.key === 'lifeline') {
+    if (g.notYet) { const h = (new Date(g.opensAt).getTime() - Date.now()) / 3600e3; return h <= 24 ? 'Opens tonight' : 'Opens soon'; }
+    return g.done === 0 ? 'Not played yet' : g.done < g.of ? `${g.done} of ${g.of} rounds` : `${g.total.toLocaleString('en-US')} / ${g.max.toLocaleString('en-US')}`;
+  }
   if (g.key === 'polly') return g.noPoll && !g.done ? 'No poll today' : g.done === 0 ? 'Not played yet' : g.done < g.of ? `${g.done} of ${g.of} answered` : `${g.total}/${g.max}`;
   if (g.key === 'venn') return g.done === 0 ? 'Not played yet' : g.done === 1 ? 'Round 1 done' : `${g.total} / ${g.max}`;
   if (g.done === 0) return 'Not played yet';
@@ -94,14 +101,14 @@ function render(d) {
   });
 }
 
-/* ── The pet corner link: the three pets in their outfits ── */
+/* ── The pet corner link: the four pets in their outfits ── */
 function renderPets(p) {
   if (!p) return;
-  const pics = [skipperPortrait('smile', false, 0, p.skipper), melPortrait(p.mel, { mood: 'smile' }), pollyPortrait(p.polly, {})];
+  const pics = [skipperPortrait('smile', false, 0, p.skipper), melPortrait(p.mel, { mood: 'smile' }), pollyPortrait(p.polly, {}), racePortrait(p.race || {}, {})];
   const box = $('#petpics'); box.innerHTML = '';
   pics.forEach(c => { c.className = 'petpic'; box.appendChild(c); });
-  const names = [p.skipper.name || 'Skipper', p.mel.name || 'Mel', p.polly.name || 'Polly'].map(esc);
-  $('#petnames').innerHTML = `${names[0]}, ${names[1]} and ${names[2]} are hanging out`;
+  const names = [p.skipper.name || 'Skipper', p.mel.name || 'Mel', p.polly.name || 'Polly', (p.race && p.race.name) || 'Race'].map(esc);
+  $('#petnames').innerHTML = `${names[0]}, ${names[1]}, ${names[2]} and ${names[3]} are hanging out`;
 }
 
 /* ── Previews: slow when idle, quicker while a card is hovered or focused ── */

@@ -1,6 +1,6 @@
 # Puzzle prompts
 
-Prompts for filling each game's calendar (Summit, Venn, Polly), plus one at the end for **inventing a new game** for the suite.
+Prompts for filling each game's calendar (Lifeline, Summit, Venn, Polly), plus one at the end for **inventing a new game** for the suite.
 
 How to use the puzzle prompts:
 
@@ -12,7 +12,39 @@ Tips:
 - Use a strong model (ChatGPT, Claude, Gemini). **Polly needs one that can browse the web** (ChatGPT with search, Perplexity, Gemini, Claude with web search), because every number has to come from a real page.
 - Ask for 7–14 days at a time. If the answer gets cut off, say "continue", then paste both parts.
 - Anything Check flags is skipped; the rest still goes in. Fix the flagged lines and paste them again.
-- Summit and Venn days without a `date:` line go on the next days that have nothing approved yet, starting tomorrow. Add `date: YYYY-MM-DD` to a day to put it on a specific date.
+- Lifeline, Summit and Venn days without a date go on the next days that have nothing approved yet, starting tomorrow. Add `date: YYYY-MM-DD` to a day to put it on a specific date.
+
+---
+
+## Lifeline
+
+Each pair is two real events; players name someone alive for both. Import checks the dates and that the second event comes after the first. Example people are looked up when you edit a pair in the calendar (the AI drafts check them automatically).
+
+```
+You write puzzles for "Lifeline", a daily history game. Each round shows two real historical events. The player names one real, famous person who was alive on BOTH dates (born on or before the first, died on or after the second).
+
+Write [[7]] days. Each day has three rounds:
+- Round 1 (easy): two famous modern events (after 1800), 20 to 45 years apart. Lots of well-known people were alive for both.
+- Round 2 (medium): two famous events 45 to 70 years apart (after 1700). Only a handful of famous people lived through both.
+- Round 3 (hard): two events before 1750 (any era, even BCE), 15 to 60 years apart, where only a few famous people were alive for both.
+
+Rules:
+- Events must be famous and have one well-known date. Write the date as YYYY-MM-DD; for BCE write -0044-03-15. Write just the year (like 1543) only when the day really isn't known.
+- The event text is a short plain sentence with no date or year in it: "The Battle of Waterloo", "Sputnik 1 is launched".
+- After the dates, list 2 to 4 famous people (full names as on Wikipedia) who were alive on both dates. Double-check their birth and death dates.
+- Mix it up: politics, science, art, music, sport, exploration and inventions from all over the world.
+- Do NOT reuse any of these events: [[PASTE THE AVOID LIST HERE]]
+
+Answer in exactly this format, nothing else:
+
+DAY
+1 | earlier event | YYYY-MM-DD | later event | YYYY-MM-DD | Person; Person; Person
+2 | ...
+3 | ...
+
+DAY
+...
+```
 
 ---
 

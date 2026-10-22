@@ -28,16 +28,22 @@ $('#modalX').onclick = closeModal;
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 
 /* ═══════════ Tabs ═══════════ */
-const GAME_NAMES = { polly: 'Polly', venn: 'Venn', summit: 'Summit' };
+const GAME_NAMES = { polly: 'Polly', venn: 'Venn', summit: 'Summit' };   // games with an admin-only unlimited mode
 const SHARED = [['', 'Dashboard'], ['/cal', 'Calendar'], ['/import', 'Import'], ['/reports', 'Reports']];
 const SUBTABS = {
   suite: [],
+  lifeline: [...SHARED, ['/people', 'People']],
   polly: [...SHARED, ['/bank', 'Bank'], ['/add', 'Add'], ['/auto', 'Find polls'], ['/src', 'Sources']],
   venn: [...SHARED, ['/answers', 'Answers']],
   summit: [...SHARED, ['/answers', 'Answers']]
 };
 const VIEWS = {
   suite: box => suiteTab(box),
+  lifeline: box => lifeDash(box),
+  'lifeline/cal': box => lifeCal(box),
+  'lifeline/import': box => importTab(box, 'lifeline'),
+  'lifeline/reports': box => lifeRep(box),
+  'lifeline/people': box => lifePeople(box),
   polly: box => pollyDash(box),
   'polly/cal': box => pollyCal(box),
   'polly/import': box => importTab(box, 'polly'),
@@ -89,6 +95,7 @@ async function suiteTab(box) {
   $('#sumN').textContent = g.summit.openComplaints ? `(${g.summit.openComplaints})` : '';
   $('#vennN').textContent = g.venn.openComplaints ? `(${g.venn.openComplaints})` : '';
   $('#pollyN').textContent = g.polly.openComplaints ? `(${g.polly.openComplaints})` : '';
+  $('#lifeN').textContent = g.lifeline.openComplaints ? `(${g.lifeline.openComplaints})` : '';
   box.innerHTML = `
     <section class="card"><div class="kicker"><span>Today · ${d.date} (UTC)</span></div>
       <div class="section-title">Real players</div>
@@ -402,6 +409,7 @@ async function ans(box, q = '', pending = false) {
 const IMPORT = {
   summit: { name: 'Summit', unit: 'days', prompt: 'Summit', hint: 'One DAY block per day, one line per stage: easy | weight | a paper clip = 1 g | a grand piano = 450 kg' },
   venn: { name: 'Venn', unit: 'days', prompt: 'Venn', hint: 'One DAY block per day: R1 / R2 circles, typical, answers.' },
+  lifeline: { name: 'Lifeline', unit: 'days', prompt: 'Lifeline', hint: 'One DAY block per day, one line per round: 1 | The attack on Pearl Harbor | 1941-12-07 | The Apollo 11 Moon landing | 1969-07-20 | Ronald Reagan; Elizabeth II' },
   polly: { name: 'Polly', unit: 'questions', prompt: 'Polly', hint: 'One QUESTION block per question. Each source page is opened and its numbers checked (15 per paste).' }
 };
 const draftKey = g => 'wk.import.' + g;
@@ -435,7 +443,7 @@ async function importTab(box, game) {
     try {
       const r = await api('admin/import/' + game, { text: ta.value, dryRun });
       $('#imOut').innerHTML = importReport(game, r);
-      if (!dryRun) toast(game === 'polly' ? `${r.added} approved, ${r.drafted} drafts` : `Added ${r.added} ${game === 'venn' ? 'rounds' : 'stages'}`);
+      if (!dryRun) toast(game === 'polly' ? `${r.added} approved, ${r.drafted} drafts` : `Added ${r.added} ${game === 'summit' ? 'stages' : 'rounds'}`);
     } catch (e) { toast(e.message); }
     finally { b.disabled = false; b.textContent = label; }
   };
@@ -458,13 +466,175 @@ function importReport(game, r) {
   }
   const good = r.days.filter(d => !d.errors.length && d.date);
   const head = r.dryRun ? `${good.length} ${good.length === 1 ? 'day' : 'days'} ready${r.days.length - good.length ? `, ${r.days.length - good.length} with problems (they'll be skipped)` : ''}. Nothing has been added yet.`
-    : `Added ${r.added} ${game === 'venn' ? 'rounds' : 'stages'} across ${good.length} ${good.length === 1 ? 'day' : 'days'}. <a href="#${game === 'venn' ? 'venn/cal' : 'summit/cal'}">See the calendar →</a>`;
-  const body = d => game === 'venn'
+    : `Added ${r.added} ${game === 'summit' ? 'stages' : 'rounds'} across ${good.length} ${good.length === 1 ? 'day' : 'days'}. <a href="#${game}/cal">See the calendar →</a>`;
+  const body = d => game === 'lifeline'
+    ? d.rounds.map(x => `<div><b>${['', 'Easy', 'Medium', 'Hard'][x.round]}</b> · ${esc(x.aLabel)} (${esc(x.aWhen)}) → ${esc(x.bLabel)} (${esc(x.bWhen)}) · ${x.years} years${x.examples.length ? `<br><span class="sub">e.g. ${esc(x.examples.join(', '))}</span>` : ''}</div>`).join('')
+    : game === 'venn'
     ? d.rounds.map(x => `<div><b>Round ${x.round}</b> · par ${x.par} (typical ${x.typical}) · ${x.answers.length} answers${x.warning ? ` · <span style="color:var(--bad)">${esc(x.warning)}</span>` : ''}<div class="vcs">${circlesHTML(x.circles)}</div></div>`).join('')
     : d.stages.map(s => `<div><b>${['', 'Easy', 'Medium', 'Hard'][s.slot]}</b> · ${esc(propLabel(s.property))}: ${esc(s.smallItem)} (${esc(show(s.property, s.smallValue))}) ↔ ${esc(s.bigItem)} (${esc(show(s.property, s.bigValue))})</div>`).join('');
   return `<div class="note ${r.dryRun ? '' : 'good'}" style="margin-top:12px">${head}</div>
     <div class="tbl" style="margin-top:10px"><table><thead><tr><th>Goes on</th><th>Puzzles</th></tr></thead><tbody>${r.days.map(d => `<tr>
       <td style="white-space:nowrap">${d.errors.length ? badge('problem', 'rejected') : esc(day(d.date))}</td><td>${body(d)}${errs(d.errors)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+/* ═══════════ Lifeline ═══════════ */
+const lifeWhen = e => `${esc(e.label)} <span class="sub">(${esc(e.when)})</span>`;
+const dateField = e => (Number(e.prec) === 9 ? String(e.date).replace(/-01-01$/, '').replace(/^(-?)0+(\d)/, '$1$2') : e.date);
+
+async function lifeDash(box) {
+  const d = await api('admin/lifeline/dashboard');
+  $('#lifeN').textContent = d.openComplaints ? `(${d.openComplaints})` : '';
+  box.innerHTML = `<section class="card">${dashHead('Lifeline', d, { players: d.players, ever: d.ever, dayMax: 3000, open: d.openComplaints })}
+      ${d.date < d.launch ? `<div class="note warn">Lifeline opens on ${d.launch} (UTC). Until then players see a countdown.</div>` : ''}
+      <div class="section-title">Today's rounds</div>
+      <div class="tbl"><table><thead><tr><th>Round</th><th>Events</th><th>Played</th><th>Avg score</th><th>Alive for both</th><th>Most named</th></tr></thead>
+      <tbody>${d.rounds.map(r => `<tr><td>${['', 'Easy', 'Medium', 'Hard'][r.round]}<br><span class="st ${r.status}">${r.status}</span></td>
+        <td>${lifeWhen(r.a)} →<br>${lifeWhen(r.b)}<br><span class="sub">${r.years} years apart</span></td><td>${r.plays}</td><td>${r.avg == null ? '–' : r.avg}</td>
+        <td>${r.plays ? Math.round(100 * r.perfect / r.plays) + '%' : '–'}</td><td>${r.top.map(t => `${esc(t.name)} (${t.n})`).join('<br>') || '–'}</td></tr>`).join('')
+        || '<tr><td colspan="6" class="empty">Not made yet. Today\'s rounds are picked on the first visit.</td></tr>'}</tbody></table></div>
+      ${dashCharts(d, { part: 'Round', parts: 'rounds', max: 1000, dayMax: 3000,
+        partNote: 'Every round played today, by score (each player counts up to 3 times).',
+        dayNote: 'Players who played all three rounds, by day total out of 3,000.',
+        weekNote: 'People who played at least one round that day.' })}
+    </section>
+    <section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Coming up</h2>
+      <div class="tbl"><table><thead><tr><th>Date</th><th>Easy</th><th>Medium</th><th>Hard</th></tr></thead>
+        <tbody>${d.next.map(n => `<tr><td>${esc(n.date)}</td>${n.parts.map(st => `<td>${st === 'approved' ? badge('ready', 'approved') : st === 'draft' ? badge('draft', 'draft') : badge('empty', 'empty')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <p class="sub">A day with nothing approved uses its newest draft; with no draft, the built-in bank (12 checked days). The AI keeps a few days of drafts ahead while people play. <a href="#lifeline/cal">Calendar</a> · <a href="#lifeline/import">Import</a></p>
+    </section>`;
+}
+
+let lifeAll = [];
+async function lifeCal(box) {
+  const d = await api(`admin/lifeline/calendar?from=${addDays(today(), -14)}&to=${addDays(today(), 30)}`);
+  lifeAll = d.puzzles;
+  const dates = [];
+  for (let i = -14; i <= 30; i++) { const dt = addDays(d.today, i); if (dt >= d.launch) dates.push(dt); }
+  const cell = (date, round) => {
+    const list = d.puzzles.filter(p => p.date === date && p.round === round);
+    const p = list.find(x => x.status === 'approved' || x.status === 'auto') || list.filter(x => x.status === 'draft').pop();
+    if (!p) return `<td><span class="st empty">empty</span><div class="row" style="margin-top:6px;gap:4px"><button class="mini-btn" data-lnew="${date}|${round}">+ Write one</button></div></td>`;
+    return `<td><span class="st ${p.status}">${p.status}</span>${list.length > 1 ? ` <span class="sub">+${list.length - 1} more</span>` : ''}
+      <div style="margin-top:4px">${lifeWhen(p.a)} →<br>${lifeWhen(p.b)}</div>
+      <div class="sub">${p.years} years · ${p.examples.length ? 'e.g. ' + esc(p.examples.join(', ')) : '<b>no examples</b>'}${p.plays ? ` · <b>${p.plays} plays</b>` : ''}</div>
+      ${p.note ? `<div class="sub">${esc(p.note)}</div>` : ''}
+      <div class="row" style="margin-top:6px;gap:4px">
+        ${p.status === 'draft' ? `<button class="mini-btn ok" data-lap="${p.id}">Approve</button>` : ''}
+        <button class="mini-btn" data-led="${p.id}">Edit</button>
+        ${list.length > 1 ? `<button class="mini-btn" data-lall="${date}|${round}">All (${list.length})</button>` : ''}
+        ${!p.plays ? `<button class="mini-btn danger" data-lrej="${p.id}">Reject</button>` : ''}
+      </div></td>`;
+  };
+  box.innerHTML = `<section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Generate drafts</h2>
+      <p class="sub">${d.rules.map(esc).join('<br>')}<br>The AI writes a whole day at a time (about 10–20 seconds). Each event's year is checked against Wikidata and each example person is looked up and scored; only examples who really were alive for both are kept.</p>
+      <div class="row"><label class="sub">From <input type="date" id="lgFrom" class="box" style="width:auto" value="${addDays(d.today, 1) > d.launch ? addDays(d.today, 1) : d.launch}"></label>
+        <label class="sub">Days <select id="lgDays" class="box" style="width:auto">${[1, 2, 3].map(n => `<option>${n}</option>`).join('')}</select></label>
+        <button class="btn sm" id="lgGo">Generate</button></div></section>
+    <section class="card"><div class="tbl"><table>
+      <thead><tr><th>Date</th><th>Easy</th><th>Medium</th><th>Hard</th></tr></thead>
+      <tbody>${dates.map(dt => `<tr class="${dt === d.today ? 'today' : ''}"><td><b>${dt.slice(5)}</b>${dt === d.today ? '<br><span class="badge">today</span>' : ''}</td>${[1, 2, 3].map(r => cell(dt, r)).join('')}</tr>`).join('')}</tbody>
+    </table></div></section>`;
+  $('#lgGo').onclick = async () => {
+    const b = $('#lgGo'); b.disabled = true; b.textContent = 'Writing…';
+    try { const r = await api('admin/lifeline/generate', { from: $('#lgFrom').value, days: Number($('#lgDays').value) }); toast(`Made ${r.made} ${r.made === 1 ? 'draft' : 'drafts'}`); go('lifeline/cal'); }
+    catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Generate'; }
+  };
+  const status = async (id, st) => { const p = lifeAll.find(x => x.id === id); try { await api('admin/lifeline/puzzle', lifeBody(p, { status: st })); toast(st === 'approved' ? 'Approved' : 'Updated'); go('lifeline/cal'); } catch (e) { toast(e.message); } };
+  box.querySelectorAll('[data-lap]').forEach(b => b.onclick = () => status(Number(b.dataset.lap), 'approved'));
+  box.querySelectorAll('[data-lrej]').forEach(b => b.onclick = () => { if (confirm('Reject this pair?')) status(Number(b.dataset.lrej), 'rejected'); });
+  box.querySelectorAll('[data-led]').forEach(b => b.onclick = () => lifeEditor(lifeAll.find(p => p.id === Number(b.dataset.led))));
+  box.querySelectorAll('[data-lnew]').forEach(b => { const [date, round] = b.dataset.lnew.split('|'); b.onclick = () => lifeEditor({ date, round: Number(round), status: 'approved', a: { label: '', date: '', prec: 11 }, b: { label: '', date: '', prec: 11 }, examples: [] }); });
+  box.querySelectorAll('[data-lall]').forEach(b => {
+    const [date, round] = b.dataset.lall.split('|');
+    b.onclick = () => {
+      const list = lifeAll.filter(p => p.date === date && p.round === Number(round));
+      openModal(`<h2>${date} · Round ${round}</h2>${list.map(p => `<div class="fact" style="grid-template-columns:auto 1fr auto">
+        <span class="st ${p.status}">${p.status}</span><div class="w">${lifeWhen(p.a)} → ${lifeWhen(p.b)}<br><small>${p.plays} plays · ${esc(p.note)}</small></div>
+        <div style="display:flex;gap:4px;flex-direction:column">${p.status === 'draft' ? `<button class="mini-btn ok" data-ap="${p.id}">Approve</button>` : ''}<button class="mini-btn" data-ed="${p.id}">Edit</button>
+        ${!p.plays ? `<button class="mini-btn danger" data-del="${p.id}">Delete</button>` : ''}</div></div>`).join('')}`);
+      $('#modalBody').querySelectorAll('[data-ap]').forEach(x => x.onclick = () => { closeModal(); status(Number(x.dataset.ap), 'approved'); });
+      $('#modalBody').querySelectorAll('[data-ed]').forEach(x => x.onclick = () => lifeEditor(lifeAll.find(p => p.id === Number(x.dataset.ed))));
+      $('#modalBody').querySelectorAll('[data-del]').forEach(x => x.onclick = async () => {
+        if (!confirm('Delete this pair for good?')) return;
+        try { await api('admin/lifeline/puzzle/delete', { id: Number(x.dataset.del) }); closeModal(); toast('Deleted'); go('lifeline/cal'); } catch (e) { toast(e.message); }
+      });
+    };
+  });
+}
+const lifeBody = (p, over = {}) => ({ id: p.id, date: p.date, round: p.round, status: p.status, aLabel: p.a.label, aDate: dateField(p.a), aPrec: p.a.prec, bLabel: p.b.label, bDate: dateField(p.b), bPrec: p.b.prec, examples: p.examples, note: p.note, ...over });
+
+function lifeEditor(p) {
+  openModal(`<h2>${p.id ? 'Edit Lifeline pair' : 'New Lifeline pair'}</h2>
+    <div class="form">
+      <label>Date (UTC)<input type="date" class="box" id="leDate" value="${esc(p.date || '')}"></label>
+      <label>Round<select class="box" id="leRound">${[1, 2, 3].map(r => `<option value="${r}" ${r === p.round ? 'selected' : ''}>${['', 'Easy', 'Medium', 'Hard'][r]}</option>`).join('')}</select></label>
+      <label>Status<select class="box" id="leStatus">${['approved', 'draft', 'rejected'].map(s => `<option ${s === (p.status === 'auto' ? 'approved' : p.status || 'approved') ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+      <label class="full">Event 1 (earlier)<input class="box" id="leA" value="${esc(p.a.label)}" placeholder="The attack on Pearl Harbor"></label>
+      <label>Event 1 date<input class="box" id="leAd" value="${esc(dateField(p.a))}" placeholder="1941-12-07, 1543 or -44"></label>
+      <label class="full">Event 2 (later)<input class="box" id="leB" value="${esc(p.b.label)}" placeholder="The Apollo 11 Moon landing"></label>
+      <label>Event 2 date<input class="box" id="leBd" value="${esc(dateField(p.b))}" placeholder="1969-07-20"></label>
+      <label class="full">Examples: people alive for both (separate with ;)<input class="box" id="leEx" value="${esc((p.examples || []).join('; '))}"></label>
+      <label class="full">Note (admin only)<input class="box" id="leNote" value="${esc(p.note || '')}"></label>
+    </div>
+    <p class="sub">A plain year (1543) means the day isn't known: anyone alive at any point that year counts. Saving checks the examples on Wikipedia.</p>
+    ${p.plays ? `<div class="note warn">${p.plays} people played this. Changing the dates rescores them.</div>` : ''}
+    <div class="msg" id="leMsg"></div>
+    <div class="row"><button class="btn" id="leSave">Save</button><button class="btn alt" id="leCancel">Cancel</button></div>`);
+  $('#leCancel').onclick = closeModal;
+  $('#leSave').onclick = async () => {
+    const body = { id: p.id, date: $('#leDate').value, round: Number($('#leRound').value), status: $('#leStatus').value,
+      aLabel: $('#leA').value, aDate: $('#leAd').value.trim(), bLabel: $('#leB').value, bDate: $('#leBd').value.trim(),
+      examples: $('#leEx').value.split(';').map(s => s.trim()).filter(Boolean), note: $('#leNote').value, check: true };
+    $('#leSave').disabled = true;
+    try {
+      const r = await api('admin/lifeline/puzzle', body);
+      if (r.check && r.check.notes.length) { $('#leMsg').innerHTML = `<div class="note warn">Saved. ${r.check.ok.length} ${r.check.ok.length === 1 ? 'example fits' : 'examples fit'}. ${r.check.notes.map(esc).join('; ')}</div>`; $('#leSave').disabled = false; return; }
+      closeModal(); toast('Saved'); go('lifeline/cal');
+    } catch (e) { toast(e.message); $('#leSave').disabled = false; }
+  };
+}
+
+async function lifeRep(box, status = 'open') {
+  const d = await api('admin/lifeline/reports?status=' + status);
+  if (status === 'open') $('#lifeN').textContent = d.reports.length ? `(${d.reports.length})` : '';
+  const pd = p => (p ? `${esc(p.birth)}${p.birthPrec === 9 ? ' (year)' : ''} – ${p.death ? esc(p.death) + (p.deathPrec === 9 ? ' (year)' : '') : 'alive'}` : '?');
+  box.innerHTML = `${reportFilter(['open', 'fixed', 'dismissed'], status)}
+    ${d.reports.map(r => `<section class="card" style="margin-bottom:14px">
+      <div class="kicker"><span>${esc(r.date)} · Round ${r.round} · ${esc(r.created_at.slice(0, 16).replace('T', ' '))}</span><span class="st ${r.status}">${r.status}</span></div>
+      <p style="margin:6px 0"><b>${esc(r.name)}</b> (typed “${esc(r.input)}”, scored ${r.score}) for ${esc(r.a_label)} → ${esc(r.b_label)}</p>
+      <p class="sub">Our dates: ${pd(r.person)}${r.person && r.person.source === 'admin' ? ' (fixed by an admin)' : ''} · <a href="https://www.wikidata.org/wiki/${esc(r.qid)}" target="_blank" rel="noopener">Wikidata ${esc(r.qid)}</a></p>
+      ${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}
+      ${r.status === 'open' ? `<div class="row"><label class="sub">Born <input class="box" style="width:150px" data-b="${r.id}" value="${esc(r.person ? r.person.birth : '')}"></label>
+        <label class="sub">Died <input class="box" style="width:150px" data-d="${r.id}" value="${esc(r.person ? r.person.death : '')}" placeholder="empty = alive"></label>
+        <input class="box" style="flex:1;min-width:160px" data-n="${r.id}" placeholder="Note to the player (optional)">
+        <button class="mini-btn ok" data-fix="${r.id}">Fix dates + rescore</button><button class="mini-btn" data-dis="${r.id}">Dates are right</button></div>` : r.admin_note ? `<p class="sub">Note: ${esc(r.admin_note)}</p>` : ''}
+    </section>`).join('') || NO_REPORTS}`;
+  box.querySelectorAll('[data-st]').forEach(b => b.onclick = () => lifeRep(box, b.dataset.st));
+  const act = async (id, action) => {
+    try {
+      const r = await api('admin/lifeline/reports/resolve', { id, action, birth: box.querySelector(`[data-b="${id}"]`).value.trim(), death: box.querySelector(`[data-d="${id}"]`).value.trim(), note: box.querySelector(`[data-n="${id}"]`).value });
+      toast(action === 'fix' ? `Fixed. ${r.rescored} ${r.rescored === 1 ? 'play' : 'plays'} rescored.` : 'Dismissed'); lifeRep(box, status);
+    } catch (e) { toast(e.message); }
+  };
+  box.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => act(Number(b.dataset.fix), 'fix'));
+  box.querySelectorAll('[data-dis]').forEach(b => b.onclick = () => act(Number(b.dataset.dis), 'dismiss'));
+}
+
+async function lifePeople(box, q = '') {
+  const d = await api('admin/lifeline/people' + (q ? '?q=' + encodeURIComponent(q) : ''));
+  box.innerHTML = `<section class="card"><form class="row" id="lpForm" style="margin-top:0"><input class="box" name="q" value="${esc(q)}" placeholder="Search people by name" style="flex:1"><button class="btn sm">Search</button></form>
+    <p class="sub">${q ? 'People players have named, plus the built-in list.' : 'Most-named people.'} Fixing someone's dates rescores every play that named them.</p>
+    <div class="tbl"><table><thead><tr><th>Person</th><th>Born</th><th>Died</th><th></th></tr></thead><tbody>
+    ${d.people.map(p => `<tr><td><b>${esc(p.name)}</b>${p.named ? ` <span class="sub">named ${p.named}× · avg ${p.avg}</span>` : ''}<br><span class="sub">${esc(p.descr || '')} · <a href="https://www.wikidata.org/wiki/${esc(p.qid)}" target="_blank" rel="noopener">${esc(p.qid)}</a> · ${esc(p.source)}</span></td>
+      <td><input class="box" style="width:130px" data-pb="${esc(p.qid)}" value="${esc(p.birth)}"></td><td><input class="box" style="width:130px" data-pd="${esc(p.qid)}" value="${esc(p.death)}" placeholder="alive"></td>
+      <td><button class="mini-btn" data-ps="${esc(p.qid)}">Save</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty">Nobody yet.</td></tr>'}
+    </tbody></table></div></section>`;
+  $('#lpForm').onsubmit = e => { e.preventDefault(); lifePeople(box, e.target.q.value.trim()); };
+  box.querySelectorAll('[data-ps]').forEach(b => b.onclick = async () => {
+    const qid = b.dataset.ps;
+    try { const r = await api('admin/lifeline/people', { qid, birth: box.querySelector(`[data-pb="${qid}"]`).value.trim(), death: box.querySelector(`[data-pd="${qid}"]`).value.trim() }); toast(`Saved. ${r.rescored} ${r.rescored === 1 ? 'play' : 'plays'} rescored.`); }
+    catch (e) { toast(e.message); }
+  });
 }
 
 /* ═══════════ Venn: dashboard ═══════════ */

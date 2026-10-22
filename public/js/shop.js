@@ -1,4 +1,4 @@
-// One shop for every pet: Skipper (Summit), Mel (Venn) and Polly (Polly, plus her town square's decor).
+// One shop for every pet: Skipper (Summit), Mel (Venn), Polly (Polly, plus her town square's decor) and Race (Lifeline).
 // Each game opens it from its header, and the pet corner opens any of the three. Prices are in WK Bucks,
 // and buying takes two taps: the first tries it on and asks.
 //
@@ -8,6 +8,8 @@ import { bucksIcon, bucksAmount } from './bucks.js';
 import { WARDROBE, SLOTS, DEFAULT_LOOK, itemKey } from './wardrobe.js';
 import { MEL_WARDROBE, MEL_SLOTS, MEL_DEFAULT_LOOK, melItemKey } from './mel-wardrobe.js';
 import { POLLY_WARDROBE, POLLY_TABS, POLLY_SLOTS, POLLY_DEFAULT_LOOK, pollyItemKey } from './polly-wardrobe.js';
+import { RACE_WARDROBE, RACE_SLOTS, RACE_DEFAULT_LOOK, raceItemKey } from './race-wardrobe.js';
+import { racePortrait } from './race.js';
 import { skipperPortrait } from './pixel.js';
 import { melPortrait } from './mel.js';
 import { pollyPortrait, hatIcon } from './polly-sprites.js';
@@ -68,6 +70,16 @@ function pollySwatch(slot, it) {
   return TAG;
 }
 
+const RACE_HAT = { none: '—', fez: '🟥', party: '🥳', propeller: '🧢', explorer: '🪖', cowboy: '🤠', graduate: '🎓', wizard: '🧙', tophat: '🎩', crown: '👑' };
+const RAINBOW_BG = 'linear-gradient(90deg,#e5483b,#f29a2e,#f2d230,#4bbf58,#3b82d6,#8e4fc4)';
+function raceSwatch(slot, it) {
+  if (slot === 'fur') return box(it.c[0]);
+  if (slot === 'hat') return emoji(RACE_HAT[it.kind] || '·');
+  if (slot === 'socks') return it.kind === 'none' ? emoji('🐾') : box(it.kind === 'rainbow' ? RAINBOW_BG : it.kind === 'stripes' ? `repeating-linear-gradient(90deg,${it.c[0]} 0 5px,${it.c[1]} 5px 10px)` : it.c[0]);
+  if (slot === 'trail') return box(it.rainbow ? RAINBOW_BG : `repeating-linear-gradient(90deg,${it.c} 0 6px,#1f1a17 6px 10px)`);
+  return TAG;
+}
+
 /* ── Portraits: drawn every 220 ms, reading the look each frame so a hovered item shows right away ── */
 let portraitTimer = 0;
 function animate(cv, frame) {
@@ -105,9 +117,16 @@ export const PETS = {
       if (g === 'town') { clearInterval(portraitTimer); drawTownStill(cv, look(), timeOfDay()); return; }
       animate(cv, n => pollyPortrait(look(), { crest: 'half', blink: n % 16 === 0 }));
     }
+  },
+  race: {
+    game: 'Lifeline', noun: 'jerboa', defaultName: 'Race', path: 'race', catalog: RACE_WARDROBE, key: raceItemKey, swatch: raceSwatch,
+    groups: [{ key: 'race', slots: RACE_SLOTS.map(s => s.key) }], slotName: k => RACE_SLOTS.find(s => s.key === k).name,
+    pays: 'Lifeline pays 1 WK Buck for every 100 points on the daily (5 more for a perfect 1,000, and 5 for finishing all three). Past days pay half.',
+    canvas: () => [56, 52], cls: () => 'sm',
+    paint: (cv, look) => animate(cv, n => racePortrait(look(), { blink: n % 14 === 0, ear: n % 9 === 0 ? 1 : 0 }))
   }
 };
-export const DEFAULT_LOOKS = { skipper: DEFAULT_LOOK, mel: MEL_DEFAULT_LOOK, polly: POLLY_DEFAULT_LOOK };
+export const DEFAULT_LOOKS = { skipper: DEFAULT_LOOK, mel: MEL_DEFAULT_LOOK, polly: POLLY_DEFAULT_LOOK, race: RACE_DEFAULT_LOOK };
 
 /** The pet's name, ready for HTML. */
 const nameOf = (pet, look) => esc((look && look.name) || PETS[pet].defaultName);

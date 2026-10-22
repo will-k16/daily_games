@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lifeline · WK Game Suite</title>
+<meta name="description" content="A daily history game: name someone who was alive for both events. Three pairs a day.">
+<meta name="theme-color" content="#b8562c">
+<link rel="icon" href="/lifeline/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Pixelify+Sans:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/lifeline.css">
+<link rel="stylesheet" href="/css/charts.css">
+<script>(function () { var h = new Date().getHours(); document.documentElement.dataset.tod = h >= 5 && h < 10 ? 'morning' : h >= 10 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'evening' : 'night'; })();</script>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brandrow">
+      <a class="wkbadge" href="/" aria-label="WK Game Suite: all games">WK</a>
+      <a class="allgames" href="/">← All games</a>
+      <a class="brand" href="#/" aria-label="Lifeline: today"><span class="wordmark">LIFE<span class="dash">~</span>LINE</span></a>
+      <span class="pnum" id="pnum"></span>
+      <span class="pips" id="pips" aria-label="Today's rounds"></span>
+    </div>
+    <nav class="tools">
+      <a class="tbtn" id="admBtn" href="/admin#lifeline" hidden title="Admin"><svg viewBox="0 0 20 20"><rect x="7" y="7" width="6" height="6"/><path d="M10 2v3M10 15v3M2 10h3M15 10h3M4.5 4.5l2 2M13.5 13.5l2 2M4.5 15.5l2-2M13.5 6.5l2-2"/></svg><span class="lbl">Admin</span></a>
+      <button class="tbtn" id="helpBtn" title="How to play"><svg viewBox="0 0 20 20"><path d="M7 7a3 3 0 1 1 4 3c-1 .5-1 1-1 2M10 15v1"/></svg><span class="lbl">How to play</span></button>
+      <button class="tbtn" id="shopBtn" title="WK Bucks: Race's shop"><span id="bucksIco" aria-hidden="true"></span><span id="bucksNum" class="cnum"></span><span class="lbl">Shop</span></button>
+      <button class="tbtn" id="statsBtn" title="Stats"><svg viewBox="0 0 20 20"><path d="M4 17V11M10 17V5M16 17V8"/></svg><span class="lbl">Stats</span></button>
+      <a class="tbtn" href="#/archive" title="Archive"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="13"/><path d="M3 8h14M7 2v4M13 2v4"/></svg><span class="lbl">Archive</span></a>
+      <button class="tbtn" id="acctBtn" title="Account"><svg viewBox="0 0 20 20"><rect x="7" y="3" width="6" height="6"/><path d="M3 18v-3h14v3"/></svg></button>
+    </nav>
+  </header>
+
+  <main id="main"><div class="loading"><div class="spin"></div>Stretching Race's legs…</div></main>
+  <footer class="foot"><a href="/">WK Game Suite</a> · <a href="/pets">Pet corner</a> · <a href="/privacy">Privacy</a> · Dates from <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a></footer>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <button class="x" id="modalX" aria-label="Close">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/js/lifeline.js"></script>
+</body>
+</html>

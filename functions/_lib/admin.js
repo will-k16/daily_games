@@ -17,15 +17,17 @@ export async function suite(env, who) {
   const db = env.DB, date = todayUTC(), since = new Date(Date.now() - 86400000).toISOString();
   // Every visit gets a guest ID (bots and link previews included), so "players" only counts people who
   // started a stage or round. Everyone else is just a visit.
-  const [sEver, sToday, vEver, vToday, pEver, pToday, anyEver, signed, visits, ai, limited, sOpen, vOpen, pOpen, pBank] = await Promise.all([
+  const [sEver, sToday, vEver, vToday, pEver, pToday, lEver, lToday, anyEver, signed, visits, ai, limited, sOpen, vOpen, pOpen, lOpen, pBank] = await Promise.all([
     db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM plays WHERE mode IN ('daily','archive')`).first(),
     db.prepare(`SELECT COUNT(DISTINCT pl.player_id) AS n FROM plays pl JOIN puzzles z ON z.id = pl.puzzle_id WHERE z.date = ? AND pl.mode = 'daily'`).bind(date).first(),
     db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM venn_plays WHERE mode IN ('daily','archive')`).first(),
     db.prepare(`SELECT COUNT(DISTINCT pl.player_id) AS n FROM venn_plays pl JOIN venn_puzzles z ON z.id = pl.puzzle_id WHERE z.date = ? AND pl.mode = 'daily'`).bind(date).first(),
     db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM polly_plays WHERE mode IN ('daily','archive') AND done > 0`).first(),
     db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM polly_plays WHERE date = ? AND mode = 'daily' AND done > 0`).bind(date).first(),
+    db.prepare(`SELECT COUNT(DISTINCT player_id) AS n FROM lifeline_plays`).first(),
+    db.prepare(`SELECT COUNT(DISTINCT pl.player_id) AS n FROM lifeline_plays pl JOIN lifeline_puzzles z ON z.id = pl.puzzle_id WHERE z.date = ? AND pl.mode = 'daily'`).bind(date).first(),
     db.prepare(`SELECT COUNT(*) AS n FROM (SELECT player_id FROM plays WHERE mode IN ('daily','archive') UNION SELECT player_id FROM venn_plays WHERE mode IN ('daily','archive')
-        UNION SELECT player_id FROM polly_plays WHERE mode IN ('daily','archive') AND done > 0)`).first(),
+        UNION SELECT player_id FROM polly_plays WHERE mode IN ('daily','archive') AND done > 0 UNION SELECT player_id FROM lifeline_plays)`).first(),
     db.prepare(`SELECT COUNT(*) AS n FROM players WHERE google_sub IS NOT NULL`).first(),
     db.prepare(`SELECT COUNT(*) AS n FROM players`).first(),
     db.prepare(`SELECT provider, kind, SUM(ok) AS ok, COUNT(*) - SUM(ok) AS fail, AVG(ms) AS ms FROM ai_log WHERE created_at >= ? GROUP BY provider, kind ORDER BY kind, provider`).bind(since).all(),
@@ -33,6 +35,7 @@ export async function suite(env, who) {
     db.prepare(`SELECT COUNT(*) AS n FROM complaints WHERE status = 'open'`).first(),
     db.prepare(`SELECT COUNT(*) AS n FROM venn_complaints WHERE status = 'open'`).first(),
     db.prepare(`SELECT COUNT(*) AS n FROM polly_reports WHERE status = 'open'`).first(),
+    db.prepare(`SELECT COUNT(*) AS n FROM lifeline_reports WHERE status = 'open'`).first(),
     pollyBank(env)
   ]);
   // "Too many requests" just means the judge moved on to the next provider, so it's counted, not listed.
@@ -41,6 +44,7 @@ export async function suite(env, who) {
   return {
     date,
     games: [
+      { key: 'lifeline', name: 'Lifeline', ever: lEver.n, today: lToday.n, openComplaints: lOpen.n },
       { key: 'polly', name: 'Polly', ever: pEver.n, today: pToday.n, openComplaints: pOpen.n },
       { key: 'venn', name: 'Venn', ever: vEver.n, today: vToday.n, openComplaints: vOpen.n },
       { key: 'summit', name: 'Summit', ever: sEver.n, today: sToday.n, openComplaints: sOpen.n }

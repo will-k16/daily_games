@@ -1,19 +1,21 @@
-// The pet corner: Skipper, Mel and Polly hanging out together, dressed in what they bought in the shops, each with a
-// name tag. The backdrop mixes their three worlds: a striped Venn-ring sun, Summit's mountains with a
-// cable car gliding by, Mel's jungle on the left, Polly's clock-tower town on the right, and fairy lights.
-// Pixel art on a 256×144 canvas (16:9, so it screenshots well), scaled up crisp.
+// The pet corner: Skipper, Mel, Polly and Race hanging out together, dressed in what they bought in the shops, each
+// with a name tag. The backdrop mixes their four worlds: a striped Venn-ring sun, Summit's mountains with a
+// cable car gliding by, Mel's jungle on the left, Race's desert, Polly's clock-tower town on the right, and fairy lights.
+// Pixel art on a 320×144 canvas, scaled up crisp.
 import { canvas, mix, bayer, rng, palette, drawSky, ridgeNoise, drawTerrain, drawPine, cloudSprite, outfit, skipperStanding } from './pixel.js';
 import { melSprite, MOUTH } from './mel.js';
 import { pollySprite, POLLY_FEET, drawText, textWidth } from './polly-sprites.js';
+import { raceSprite, RACE_FEET } from './race.js';
 
-export const W = 256, H = 144;
+export const W = 320, H = 144;
 const GROUND = 116;
 const LOG = { x0: 14, x1: 86, top: 106 };            // Mel's mossy log
 const ROCK = { cx: 128, top: 108 };                  // Skipper's boulder
-const POSTS = [204, 236], POST_TOP = 100;            // Polly's two pedestals
+const POSTS = [268, 300], POST_TOP = 100;            // Polly's two pedestals
+const DESERT = { x0: 168, x1: 238 }, DUNE = { cx: 204, top: 111 };   // Race's patch of desert, and the dune Race sits on
 const TAG_Y = 129;
 const CABLE = { a: { x: 70, y: 58 }, c: { x: 128, y: 82 }, b: { x: 186, y: 54 } };
-const LIGHTS = { a: { x: 0, y: 6 }, c: { x: 128, y: 40 }, b: { x: 256, y: 6 } };
+const LIGHTS = { a: { x: 0, y: 6 }, c: { x: 160, y: 42 }, b: { x: 320, y: 6 } };
 const BULBS = ['#f2c230', '#3b82d6', '#d9412b', '#4cb956', '#e8743b', '#1f8a8a'];
 
 export function timeOfDay(d = new Date()) {
@@ -68,20 +70,45 @@ function jungle(x, pal, r) {
 function town(x, pal, r) {
   const lit = pal.tod === 'night' || pal.tod === 'evening';
   const wall = mix(pal.far[2], '#2a2440', .45), roof = mix('#8a3b2a', pal.far[2], .35), win = lit ? '#ffd66e' : mix(pal.sky[4], '#ffffff', .3);
-  [[178, 18, 22], [198, 14, 28], [244, 16, 20], [260, 14, 26]].forEach(([hx, w, h]) => {
+  [[242, 18, 22], [262, 14, 28], [308, 16, 20], [324, 14, 26]].forEach(([hx, w, h]) => {
     const top = GROUND - 8 - h;
     rect(x, hx - w / 2, top, w, h + 8, wall);
     for (let k = 0; k < 7; k++) rect(x, hx - w / 2 - 1 + k, top - k, w + 2 - k * 2, 1, roof);
     for (let wy = top + 4; wy < GROUND - 14; wy += 7) for (let wx = hx - w / 2 + 3; wx < hx + w / 2 - 3; wx += 6) if (r() < .75) rect(x, wx, wy, 2, 3, win);
   });
   // the clock tower
-  const tx = 222, tw = 16, ttop = 44;
+  const tx = 286, tw = 16, ttop = 44;
   rect(x, tx - tw / 2, ttop, tw, GROUND - ttop, mix(wall, '#000000', .1));
   for (let k = 0; k < 12; k++) rect(x, tx - tw / 2 - 1 + Math.floor(k * .75), ttop - k, tw + 2 - Math.floor(k * 1.5), 1, roof);
   rect(x, tx, ttop - 16, 1, 5, roof); rect(x, tx - 1, ttop - 17, 3, 1, '#f2c230');
   disc(x, tx, ttop + 9, 5, '#f3ead8'); disc(x, tx, ttop + 9, 4, lit ? '#fff2c0' : '#f7f1e5');
   rect(x, tx, ttop + 5, 1, 4, '#1f1a17'); rect(x, tx, ttop + 9, 3, 1, '#1f1a17');
   for (let wy = ttop + 18; wy < GROUND - 12; wy += 8) rect(x, tx - 2, wy, 4, 4, win);
+}
+
+/**
+ * Race's desert between the mountains and the town: a flat-topped mesa with a lit face and a shaded one.
+ * Returns a function that draws the cacti, which go on top of the sand once the hill is down.
+ */
+function desert(x, pal) {
+  const night = pal.tod === 'night', dusk = pal.tod === 'evening';
+  const rock = night ? '#4a3f5e' : dusk ? '#a2546a' : '#c98a62', rockD = mix(rock, '#000000', .2), rockL = mix(rock, '#ffffff', .22);
+  for (let yy = 0; yy < 40; yy++) {
+    const slope = yy < 14 ? Math.floor(yy / 5) : 2 + Math.floor((yy - 14) * .8);
+    const left = 186 - slope, w = 34 + slope * 2;
+    rect(x, left, 72 + yy, w, 1, yy === 0 ? rockL : rock);
+    rect(x, left + Math.floor(w * .62), 72 + yy, Math.ceil(w * .38), 1, yy === 0 ? rock : rockD);
+    if (yy === 9 || yy === 20) rect(x, left + 2, 72 + yy, Math.floor(w * .6) - 2, 1, rockL);
+  }
+  return () => {
+    const cactus = (cx, base, h) => {
+      const g = night ? '#3c5b4a' : '#4f8a4a', gd = mix(g, '#000000', .25);
+      rect(x, cx - 1, base - h, 3, h, g); rect(x, cx + 1, base - h, 1, h, gd);
+      rect(x, cx - 4, base - h + 5, 3, 2, g); rect(x, cx - 4, base - h + 2, 2, 4, g);
+      rect(x, cx + 2, base - h + 7, 3, 2, g); rect(x, cx + 3, base - h + 4, 2, 4, g);
+    };
+    cactus(180, 117, 13); cactus(229, 118, 10);
+  };
 }
 
 /** Sky, sun, mountains, both side worlds, the hill and the three perches: everything that doesn't move. */
@@ -96,20 +123,26 @@ function backdrop(pal, seed) {
   for (let i = 0; i <= 400; i++) { const p = quad(CABLE.a, CABLE.c, CABLE.b, i / 400); rect(x, p.x, p.y, 1, 1, pal.cable); }
   [CABLE.a, CABLE.b].forEach(p => { rect(x, p.x - 1, p.y, 3, 10, pal.steel); rect(x, p.x - 4, p.y + 9, 9, 4, pal.log[1]); rect(x, p.x - 5, p.y + 8, 11, 1, pal.roof[0]); });
   drawTerrain(x, ridgeNoise(r, W, 96, 6, 3, 50), H, pal.mid, pal, r, { specks: .03 });
-  for (let i = 0; i < 12; i++) drawPine(x, 72 + r() * 104, 102 + r() * 5, 8 + Math.floor(r() * 7), pal);
+  for (let i = 0; i < 12; i++) drawPine(x, 72 + r() * 88, 102 + r() * 5, 8 + Math.floor(r() * 7), pal);
   jungle(x, pal, r);
+  const cacti = desert(x, pal);
   town(x, pal, r);
   // the hill everyone stands on: a soft dome with a bright rim and dithered texture
+  const SAND = [mix('#f4dcaa', pal.near[0], .2), mix('#e8c58d', pal.near[1], .2), mix('#d6ad72', pal.near[2], .2)];
   for (let i = 0; i < W; i++) {
     const top = Math.round(GROUND - 6 + ((i - W / 2) / (W / 2)) ** 2 * 6);
     for (let y = top; y < H; y++) {
       const d = y - top;
-      rect(x, i, y, 1, 1, d === 0 ? mix(pal.near[0], '#ffffff', .35) : d < 3 ? pal.near[0] : bayer(i, y) > .82 ? pal.near[2] : d > 18 && bayer(i, y) > .5 ? pal.near[2] : pal.near[1]);
+      // Race's patch is sand, blending into the grass at its edges
+      const into = Math.min(i - DESERT.x0, DESERT.x1 - i), sandy = into >= 0 && (into > 4 || bayer(i, y) < into / 5);
+      const g = sandy ? SAND : pal.near;
+      rect(x, i, y, 1, 1, d === 0 ? mix(g[0], '#ffffff', .35) : d < 3 ? g[0] : bayer(i, y) > .82 ? g[2] : d > 18 && bayer(i, y) > .5 ? g[2] : g[1]);
     }
   }
   const flowers = ['#f28cb1', '#f2d230', '#ffffff', '#8fb7ff', '#e8743b'];
   for (let i = 0; i < 40; i++) {
     const fx = r() * W, fy = GROUND + 2 + r() * (H - GROUND - 4);
+    if (fx > DESERT.x0 - 2 && fx < DESERT.x1 + 2) continue;
     rect(x, fx, fy + 1, 1, 1, pal.near[2]); rect(x, fx, fy, 1, 1, mix(flowers[i % 5], pal.near[1], night ? .5 : 0));
   }
   // Mel's mossy log
@@ -126,6 +159,12 @@ function backdrop(pal, seed) {
     for (let xx = -half; xx <= half; xx++) rect(x, ROCK.cx + xx, ROCK.top + yy, 1, 1, yy < 2 ? rockL : xx > half * .45 ? rockD : bayer(xx & 3, yy) > .85 ? rockD : rock);
   }
   rect(x, ROCK.cx - 12, ROCK.top + 6, 5, 1, rockD); rect(x, ROCK.cx + 6, ROCK.top + 9, 7, 1, rockD);
+  // Race's dune
+  for (let i = -20; i <= 20; i++) {
+    const top = Math.round(DUNE.top + (i / 20) ** 2 * 7);
+    for (let y = top; y < GROUND + 2; y++) rect(x, DUNE.cx + i, y, 1, 1, y === top ? mix(SAND[0], '#ffffff', .4) : bayer(i & 3, y) > .8 ? SAND[2] : SAND[0]);
+  }
+  cacti();
   // Polly's pedestals: little stone columns like her podium in the square
   POSTS.forEach(cx => {
     rect(x, cx - 8, POST_TOP, 16, 3, '#c9c4b8'); rect(x, cx - 6, POST_TOP + 3, 12, GROUND - POST_TOP - 1, '#a39e94');
@@ -149,7 +188,7 @@ function nameTag(x, name, cx, y) {
 const flip = src => { const c = canvas(src.width, src.height), x = c.getContext('2d'); x.translate(src.width, 0); x.scale(-1, 1); x.drawImage(src, 0, 0); return c; };
 
 /**
- * Mounts the scene in `host`. looks: { skipper, mel, polly }. Returns { canvas, setLooks, snapshot, destroy }.
+ * Mounts the scene in `host`. looks: { skipper, mel, polly, race }. Returns { canvas, setLooks, snapshot, destroy }.
  */
 export function createPetsScene(host, looks, { tod = timeOfDay(), reduced = false } = {}) {
   const cv = document.createElement('canvas');
@@ -164,7 +203,7 @@ export function createPetsScene(host, looks, { tod = timeOfDay(), reduced = fals
   const glow = tod === 'night' || tod === 'evening';
   const motes = Array.from({ length: glow ? 12 : 8 }, () => ({ x: r() * W, y: 50 + r() * 60, a: r() * 6 }));
   let L = looks;
-  const label = () => cv.setAttribute('aria-label', `${L.skipper.name || 'Skipper'} the goat, ${L.mel.name || 'Mel'} the chameleon and ${L.polly.name || 'Polly'} the cockatoo, hanging out on a hill.`);
+  const label = () => cv.setAttribute('aria-label', `${L.skipper.name || 'Skipper'} the goat, ${L.mel.name || 'Mel'} the chameleon, ${L.polly.name || 'Polly'} the cockatoo and ${(L.race && L.race.name) || 'Race'} the jerboa, hanging out on a hill.`);
   label();
 
   const later = (a, b) => performance.now() + a + Math.random() * (b - a);
@@ -172,6 +211,7 @@ export function createPetsScene(host, looks, { tod = timeOfDay(), reduced = fals
   const mel = { x: 30, tx: 30, face: 1, blink: 0, eye: { dx: 0, dy: 0 }, mood: 'smile', tongue: 0, nextBlink: later(1500, 4000), nextLook: later(800, 2000), nextWalk: later(5000, 10000), nextTongue: later(5000, 11000), moodUntil: 0 };
   const sk = { x: home, tx: home, blink: 0, ear: 0, mood: 'smile', hop: 0, tail: 0, step: 0, nextBlink: later(1200, 3500), nextEar: later(2000, 5000), nextWalk: later(7000, 14000), nextMood: later(6000, 12000), nextHop: later(9000, 16000), moodUntil: 0 };
   const po = { post: 0, x: POSTS[0], y: 0, hop: null, blink: 0, crest: 'half', tilt: false, pose: 'idle', face: 1, nextBlink: later(1000, 3500), nextHop: later(8000, 15000), nextFidget: later(2500, 6000), fidgetUntil: 0 };
+  const ra = { x: DUNE.cx, blink: 0, ear: 0, hop: 0, hopStart: 0, face: 1, mood: 'smile', moodUntil: 0, nextBlink: later(1200, 3000), nextEar: later(1500, 4000), nextHop: later(6000, 12000) };
   let car = .2, carDir = 1;
 
   function step(now) {
@@ -209,6 +249,13 @@ export function createPetsScene(host, looks, { tod = timeOfDay(), reduced = fals
       po.x = po.hop.from + (po.hop.to - po.hop.from) * p; po.y = -Math.sin(p * Math.PI) * 14;
       if (p >= 1) { po.hop = null; po.y = 0; po.x = POSTS[po.post]; po.crest = 'half'; setTimeout(() => { po.face = 1; }, 1500); }
     }
+    // Race: blinks, twitches those ears, and now and then does a big jerboa hop (and maybe turns around)
+    if (now > ra.nextBlink) { ra.blink = now + 140; ra.nextBlink = later(1800, 4200); }
+    if (now > ra.nextEar) { ra.ear = 1; ra.earUntil = now + 260; ra.nextEar = later(1800, 4500); }
+    if (ra.earUntil && now > ra.earUntil) { ra.ear = 0; ra.earUntil = 0; }
+    if (now > ra.nextHop && !ra.hopStart) { ra.hopStart = now; ra.mood = 'happy'; ra.moodUntil = now + 1000; ra.nextHop = later(8000, 16000); }
+    if (ra.hopStart) { const p = (now - ra.hopStart) / 520; ra.hop = p >= 1 ? 0 : Math.round(Math.sin(p * Math.PI) * 14); if (p >= 1) { ra.hopStart = 0; if (Math.random() < .5) ra.face *= -1; } }
+    if (ra.moodUntil && now > ra.moodUntil) { ra.mood = 'smile'; ra.moodUntil = 0; }
     // the cable car glides back and forth; clouds drift; fireflies wander
     car += .0009 * carDir; if (car > .85 || car < .15) carDir *= -1;
     clouds.forEach(c => { c.x += c.v; if (c.x > W + 4) c.x = -c.s.width; });
@@ -252,13 +299,20 @@ export function createPetsScene(host, looks, { tod = timeOfDay(), reduced = fals
     const pxx = Math.round(po.x - ps.width / 2), pyy = POST_TOP - POLLY_FEET + 1 + Math.round(po.y || 0);
     ctx.drawImage(po.face < 0 ? flip(ps) : ps, pxx, pyy);
     nameTag(ctx, L.polly.name || 'Polly', (POSTS[0] + POSTS[1]) / 2, TAG_Y);
+    // Race on the dune (crouched at the start and end of a hop, stretched out in the air)
+    const rp = ra.hopStart ? (ra.hop > 3 ? 'jump' : 'crouch') : 'sit';
+    const rs = raceSprite(L.race || {}, { pose: rp, blink: now < ra.blink, mood: ra.mood, ear: ra.ear });
+    const rfx = ra.face < 0 ? rs.width - 31 : 31, ry = DUNE.top + 1 - RACE_FEET - ra.hop;
+    ctx.globalAlpha = .3; rect(ctx, ra.x - 8 + Math.floor(ra.hop / 4), DUNE.top + 1, 16 - Math.floor(ra.hop / 2), 2, '#000000'); ctx.globalAlpha = 1;
+    ctx.drawImage(ra.face < 0 ? flip(rs) : rs, Math.round(ra.x - rfx), ry);
+    nameTag(ctx, (L.race && L.race.name) || 'Race', DUNE.cx, TAG_Y);
     // fireflies by night, pollen by day
     motes.forEach((m, i) => {
       if (glow && Math.sin(now / 400 + i) <= -.2) return;
       rect(ctx, m.x, m.y, 1, 1, glow ? '#f6f39a' : '#fff8d8');
       if (glow) { ctx.globalAlpha = .35; rect(ctx, m.x - 1, m.y, 3, 1, '#f6f39a'); rect(ctx, m.x, m.y - 1, 1, 3, '#f6f39a'); ctx.globalAlpha = 1; }
     });
-    S.hit = { mel: [mx, my, ms.width, ms.height], skipper: [sk.x, sy, ss.width, ss.height], polly: [pxx, pyy, ps.width, ps.height] };
+    S.hit = { mel: [mx, my, ms.width, ms.height], skipper: [sk.x, sy, ss.width, ss.height], polly: [pxx, pyy, ps.width, ps.height], race: [Math.round(ra.x - rfx), ry, rs.width, rs.height] };
   }
 
   const S = { hit: {} };
@@ -280,6 +334,7 @@ export function createPetsScene(host, looks, { tod = timeOfDay(), reduced = fals
     if (S.hit.polly && inside(S.hit.polly)) { po.crest = 'fan'; po.pose = 'happy'; po.fidgetUntil = now + 1400; }
     else if (S.hit.skipper && inside(S.hit.skipper)) { if (!sk.hopStart) sk.hopStart = now; sk.mood = 'happy'; sk.moodUntil = now + 1500; sk.ear = 1; sk.tail = 1; sk.earUntil = now + 400; }
     else if (S.hit.mel && inside(S.hit.mel)) { if (!mel.tongue) mel.tongue = now; }
+    else if (S.hit.race && inside(S.hit.race)) { if (!ra.hopStart) ra.hopStart = now; ra.mood = 'happy'; ra.moodUntil = now + 1200; }
     draw(now);
   });
 

@@ -10,6 +10,8 @@ import * as vennAdmin from '../_lib/venn-admin.js';
 import * as pollyAdmin from '../_lib/polly-admin.js';
 import * as pollyAuto from '../_lib/polly-auto.js';
 import * as importer from '../_lib/importer.js';
+import * as lifeline from '../_lib/lifeline.js';
+import * as lifelineAdmin from '../_lib/lifeline-admin.js';
 
 const ROUTES = {
   // Suite
@@ -52,6 +54,19 @@ const ROUTES = {
   'GET mel': (c) => bucks.get(c.env, c.who, 'mel'),
   'POST mel/buy': (c) => bucks.buy(c.env, c.who, c.body, 'mel'),
   'POST mel/wear': (c) => bucks.wear(c.env, c.who, c.body, 'mel'),
+
+  // Lifeline
+  // After the page is served, a few days of drafts are kept ready ahead.
+  'GET lifeline/today': (c) => { c.waitUntil(lifelineAdmin.maybeGenerate(c.env)); return lifeline.today(c.env, c.who); },
+  'POST lifeline/guess': (c) => lifeline.guess(c.env, c.who, c.body),
+  'POST lifeline/report': (c) => lifeline.report(c.env, c.who, c.body),
+  'POST lifeline/notifications/seen': (c) => lifeline.markSeen(c.env, c.who, c.body),
+  'GET lifeline/stats': (c) => lifeline.stats(c.env, c.who),
+  'GET lifeline/archive': (c) => lifeline.archiveList(c.env, c.who),
+  'GET lifeline/archive/day': (c) => lifeline.archiveDay(c.env, c.who, c.q.get('date')),
+  'GET race': (c) => bucks.get(c.env, c.who, 'race'),
+  'POST race/buy': (c) => bucks.buy(c.env, c.who, c.body, 'race'),
+  'POST race/wear': (c) => bucks.wear(c.env, c.who, c.body, 'race'),
 
   // Polly
   // After the page is served, Polly quietly finds more questions when the bank is low.
@@ -115,11 +130,23 @@ const ROUTES = {
   'POST admin/polly/auto/settings': (c) => pollyAuto.settings(c.env, c.body),
   'POST admin/polly/feeds': (c) => pollyAuto.saveFeed(c.env, c.body),
 
+  // Admin: Lifeline
+  'GET admin/lifeline/dashboard': (c) => lifelineAdmin.dashboard(c.env),
+  'GET admin/lifeline/calendar': (c) => lifelineAdmin.calendar(c.env, c.q),
+  'POST admin/lifeline/generate': (c) => lifelineAdmin.generate(c.env, c.body),
+  'POST admin/lifeline/puzzle': (c) => lifelineAdmin.savePuzzle(c.env, c.body),
+  'POST admin/lifeline/puzzle/delete': (c) => lifelineAdmin.deletePuzzle(c.env, c.body),
+  'GET admin/lifeline/reports': (c) => lifelineAdmin.reports(c.env, c.q),
+  'POST admin/lifeline/reports/resolve': (c) => lifelineAdmin.resolveReport(c.env, c.body),
+  'GET admin/lifeline/people': (c) => lifelineAdmin.people(c.env, c.q),
+  'POST admin/lifeline/people': (c) => lifelineAdmin.savePerson(c.env, c.body),
+
   // Admin: paste-in puzzles for every game
   'POST admin/import/summit': (c) => importer.importSummit(c.env, c.body),
   'POST admin/import/venn': (c) => importer.importVenn(c.env, c.body),
   'POST admin/import/polly': (c) => importer.importPolly(c.env, c.body),
-  'GET admin/import/avoid': (c) => importer.avoidList(c.env, c.q)
+  'POST admin/import/lifeline': (c) => lifelineAdmin.importLifeline(c.env, c.body),
+  'GET admin/import/avoid': (c) => (c.q.get('game') === 'lifeline' ? lifelineAdmin.avoid(c.env) : importer.avoidList(c.env, c.q))
 };
 
 // The pause sent with navigator.sendBeacon as the page hides arrives as text/plain (a beacon can't

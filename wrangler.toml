@@ -15,6 +15,8 @@ LAUNCH_DATE = "2026-10-08"
 VENN_LAUNCH_DATE = "2026-10-18"
 # First Polly day (UTC): the day Polly is deployed. Polly #1 is this date.
 POLLY_LAUNCH_DATE = "2026-10-18"
+# First Lifeline day (UTC). Lifeline #1 is this date; before it the game shows a countdown.
+LIFELINE_LAUNCH_DATE = "2026-10-23"
 # Comma-separated Google emails that can open /admin
 ADMIN_EMAILS = "will.kolander@gmail.com"
 # "Buy me a coffee" link (Buy Me a Coffee, Ko-fi, PayPal.me…): shows on the home page and every game's end-of-day
