@@ -4,7 +4,7 @@ import {
   dayNumber, parseDate, span, showDate, lifeOf, eventSpan, scoreLife, bucksForRound, lifelineShareText, band, yearOf, yearLabel, PREC
 } from '../public/js/lifeline-score.js';
 import { resolveRaceLook, RACE_DEFAULT_LOOK, raceItemKey } from '../public/js/race-wardrobe.js';
-import { readDate, parseLifeline } from '../functions/_lib/lifeline-admin.js';
+import { readDate, parseLifeline, gapProblem } from '../functions/_lib/lifeline-admin.js';
 import { nameKey, cleanDesc } from '../functions/_lib/lifeline-wiki.js';
 import { BANK } from '../functions/_lib/lifeline-bank.js';
 import { PEOPLE } from '../functions/_lib/lifeline-people.js';
@@ -108,6 +108,15 @@ test('admin dates and the paste-in format', () => {
   assert.deepEqual(days[0].rounds[0].examples, ['Ronald Reagan', 'Elizabeth II']);
   assert.match(days[0].errors[0], /after the first/);
   assert.match(days[1].errors[0], /after the first/);
+});
+
+test('AI drafts must fit their round', () => {
+  const pair = (round, aDate, bDate) => ({ round, aDate, aPrec: 11, bDate, bPrec: 11 });
+  assert.equal(gapProblem(pair(1, '1941-12-07', '1969-07-20')), '');
+  assert.match(gapProblem(pair(1, '1815-06-18', '1912-04-15')), /97 years/);
+  assert.match(gapProblem(pair(3, '1633-06-22', '1721-09-10')), /88 years/);
+  assert.match(gapProblem(pair(3, '1914-06-28', '1947-08-15')), /before 1760/);
+  assert.equal(gapProblem(pair(3, '-0044-03-15', '-0031-09-02')), '');
 });
 
 test('names and descriptions', () => {

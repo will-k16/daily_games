@@ -103,6 +103,19 @@ export const RULES = [
   'Round 3 (hard): two events before 1750 (any era, even BCE) 15 to 60 years apart, where only a few famous people were alive for both.'
 ];
 
+// How far apart each round's events may be (years, with a little slack on RULES), and the latest year round 3 may start.
+const GAPS = { 1: [15, 50], 2: [40, 75], 3: [10, 65] };
+const R3_BEFORE = 1760;
+
+/** An AI pair that doesn't fit its round's rules, or ''. */
+export function gapProblem(p) {
+  const A = eventSpan({ date: p.aDate, prec: p.aPrec }), B = eventSpan({ date: p.bDate, prec: p.bPrec });
+  const years = (B.lo - A.hi) / YEAR, [lo, hi] = GAPS[p.round];
+  if (years < lo || years > hi) return `${Math.round(years)} years apart (round ${p.round} wants ${lo}–${hi})`;
+  if (p.round === 3 && Number(p.aDate.slice(0, p.aDate.startsWith('-') ? 5 : 4)) >= R3_BEFORE) return 'round 3 should start before 1760';
+  return '';
+}
+
 function genPrompt(date, avoid) {
   return [
     'You write puzzles for "Lifeline", a daily history game. Each round shows two real historical events. The player names one real, famous person who was alive on BOTH dates.',
@@ -138,7 +151,7 @@ async function aiDay(env, date) {
     const A = readDate(r.dateA), B = readDate(r.dateB);
     if (!A || !B) continue;
     const p = { round, aLabel: clampStr(r.eventA, 140), aDate: A.date, aPrec: A.prec, bLabel: clampStr(r.eventB, 140), bDate: B.date, bPrec: B.prec };
-    if (pairProblem(p)) continue;
+    if (pairProblem(p) || gapProblem(p)) continue;
     const notes = [];
     const [wa, wb] = await Promise.all([wikidataDate(r.wikiA), wikidataDate(r.wikiB)]);
     if (wa && !sameYear(wa, A)) notes.push(`Wikidata dates "${r.wikiA}" to ${showDate(wa.date, wa.prec)}.`);
