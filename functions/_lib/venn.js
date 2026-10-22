@@ -388,6 +388,17 @@ export async function answer(env, who, body) {
   if (!input || !norm) return { verdict: 'ignored', count: play.count, elapsed: elapsedOf(play) };
   if (input.length > MAX_ANSWER) return { verdict: 'invalid', reason: `Keep it under ${MAX_ANSWER} characters.`, count: play.count, elapsed: elapsedOf(play) };
 
+  if (body.retry) {
+    // The first try may have been recorded with its reply lost on the way back: hand back that verdict
+    // instead of judging it again (which would show "Already have it").
+    const prev = await env.DB.prepare(`SELECT * FROM venn_answers WHERE play_id = ? AND input = ? ORDER BY id DESC LIMIT 1`).bind(play.id, input).first();
+    if (prev) {
+      const now = await getPlay(env, who.player.id, p.id, mode);
+      const base = { answerId: prev.id, count: now.count, elapsed: Math.min(ROUND_MS, elapsedOf(now)), state: now.state };
+      if (prev.verdict === 'pending') return { ...base, verdict: 'pending', didYouMean: prev.canonical, canonical: '', fits: [], reason: '' };
+      return { ...base, verdict: prev.verdict, canonical: prev.canonical, fits: safeJson(prev.fits, []), reason: prev.reason, didYouMean: '' };
+    }
+  }
   // After a "No" to a suggestion, the same text goes straight to the judge without another suggestion.
   const declined = await env.DB.prepare(`SELECT 1 FROM venn_answers WHERE play_id = ? AND norm = ? AND verdict = 'no' AND reason = ?`).bind(play.id, norm, DECLINED).first();
   const known = await knownAnswers(env, p);
@@ -410,6 +421,11 @@ export async function answer(env, who, body) {
 export async function confirm(env, who, body) {
   const a = await env.DB.prepare(`SELECT a.*, pl.player_id, pl.puzzle_id, pl.mode FROM venn_answers a JOIN venn_plays pl ON pl.id = a.play_id WHERE a.id = ?`)
     .bind(Number(body.answerId)).first();
+  if (!a && body.retry && body.puzzleId) {
+    // The first try went through but its reply was lost: send back where the round stands now.
+    const { p, mode } = await playFor(env, who, body);
+    return { verdict: 'stale', ...(await roundState(env, who, p, mode)) };
+  }
   if (!a || a.player_id !== who.player.id) throw new HttpError(404, 'Answer not found.');
   const p = await getPuzzle(env, a.puzzle_id);
   checkAccess(p, a.mode, who);

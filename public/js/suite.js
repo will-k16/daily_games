@@ -9,6 +9,7 @@ import { bayer, skipperPortrait } from './pixel.js';
 import { melPortrait } from './mel.js';
 import { pollyPortrait } from './polly-sprites.js';
 import { renderDesk, decorate, season } from './desk.js';
+import { api } from './net.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -24,6 +25,7 @@ const GAMES = {
 // Games by other people. `by` is the credit shown; leave it '' if the site doesn't say who made it.
 const SIMILAR = [
   { name: 'Krillion', url: 'https://krillion.io', pitch: 'The daily dive: name the most obscure answer', by: '' },
+  { name: 'Noillirk', url: 'https://noillirkdailygame.com', pitch: 'Give the most common answer and climb the highest', by: '' },
   { name: 'Chainle', url: 'https://chainle.io', pitch: 'Find the word that connects the others', by: 'the younger brother of Krillion’s maker' },
   { name: 'FactMap', url: 'https://factmap.world', pitch: 'A daily game on the world map', by: '' },
   { name: 'NYT Games', url: 'https://www.nytco.com/games', pitch: 'Wordle, Connections, Spelling Bee and more', by: 'The New York Times' },
@@ -41,13 +43,6 @@ function renderSimilar() {
   }).join('');
 }
 
-async function api(path, body) {
-  const opt = body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
-  const res = await fetch('/api/' + path, { credentials: 'same-origin', ...opt });
-  const data = await res.json().catch(() => ({ error: 'Lost the connection there. Try again?' }));
-  if (!res.ok || data.error) throw new Error(data.error || 'Something went wrong.');
-  return data;
-}
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); }
 const accountUI = () => ({ me: S.me, api, openModal, closeModal, toast });
 

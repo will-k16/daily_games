@@ -6,18 +6,12 @@ import { bucksIcon } from './bucks.js';
 import { skipperPortrait } from './pixel.js';
 import { melPortrait } from './mel.js';
 import { pollyPortrait } from './polly-sprites.js';
+import { api } from './net.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); }
-async function api(path, body) {
-  const opt = body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
-  const res = await fetch('/api/' + path, { credentials: 'same-origin', ...opt });
-  const data = await res.json().catch(() => ({ error: 'Lost the connection there. Try again?' }));
-  if (!res.ok || data.error) throw new Error(data.error || 'Something went wrong.');
-  return data;
-}
 
 // Left to right, the way they sit in the meadow, each with the game that pays for it.
 const SHOPS = [

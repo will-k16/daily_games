@@ -11,6 +11,7 @@ import { openShop } from './shop.js';
 import { bucksIcon } from './bucks.js';
 import { showAccount as accountModal, signInReturn } from './account.js';
 import { openModal, closeModal } from './modal.js';
+import { api } from './net.js';
 
 /* ═══════════ Basics ═══════════ */
 const $ = s => document.querySelector(s);
@@ -37,13 +38,6 @@ const S = {
   scene: null, scenePid: null, shownTotal: 0, unl: null
 };
 
-async function api(path, body) {
-  const opt = body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
-  const res = await fetch('/api/' + path, { credentials: 'same-origin', ...opt });
-  const data = await res.json().catch(() => ({ error: 'Lost the connection there. Try again?' }));
-  if (!res.ok || data.error) throw new Error(data.error || 'Something went wrong.');
-  return data;
-}
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3000);

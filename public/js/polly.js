@@ -9,6 +9,7 @@ import { DAY_MAX, QUESTION_MAX, band, crestFor, moodFor, pollyShareText, niceDat
 import { bucksIcon } from './bucks.js';
 import { showAccount as accountModal, signInReturn } from './account.js';
 import { openModal, closeModal } from './modal.js';
+import { api } from './net.js';
 
 /* ═══════════ Basics ═══════════ */
 const $ = s => document.querySelector(s);
@@ -19,13 +20,6 @@ const clamp = v => Math.max(0, Math.min(100, Math.round(v)));
 
 const S = { me: { signedIn: false, isAdmin: false, email: '', polly: { ...POLLY_DEFAULT_LOOK } }, bucks: null, today: null, ctx: null, scene: null, sel: null, busy: false, clockOn: false };
 
-async function api(path, body) {
-  const opt = body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
-  const res = await fetch('/api/' + path, { credentials: 'same-origin', ...opt });
-  const data = await res.json().catch(() => ({ error: 'Lost the connection there. Try again?' }));
-  if (!res.ok || data.error) { const e = new Error(data.error || 'Something went wrong.'); e.status = res.status; throw e; }
-  return data;
-}
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3000); }
 
 const look = () => S.me.polly || POLLY_DEFAULT_LOOK;

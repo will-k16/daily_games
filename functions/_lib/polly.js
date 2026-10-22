@@ -282,7 +282,14 @@ async function lockIn(env, who, date, mode, rows, body) {
     play = await getPlay(env, who.player.id, date, mode);
   }
   const before = await guessesFor(env, play.id);
-  if (before.some(g => g.slot === slot)) throw new HttpError(409, 'You already locked that one in.');
+  if (before.some(g => g.slot === slot)) {
+    // A retry whose first try went through (its reply got lost): show the same reveal again.
+    if (body.retry) {
+      const state = await dayState(env, who, date, mode, rows);
+      return { ...state, reveal: state.questions.find(x => x.slot === slot).reveal, bucks: await bucksBalance(env, who.player.id) };
+    }
+    throw new HttpError(409, 'You already locked that one in.');
+  }
   const next = [1, 2, 3].find(s => !before.some(g => g.slot === s));
   if (slot !== next) throw new HttpError(409, 'Answer the questions in order.');
   const score = questionScore(guess, r.real);

@@ -3,6 +3,7 @@
 import { tierOf as summitTier } from './score.js';
 import { tierOf as vennTier, DAY_MAX as VENN_MAX } from './venn-score.js';
 import { band as pollyBand, DAY_MAX as POLLY_MAX } from './polly-score.js';
+import { api } from './net.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -49,9 +50,7 @@ function summary(days) {
 async function load() {
   let d;
   try {
-    const res = await fetch('/api/suite/history', { credentials: 'same-origin' });
-    d = await res.json();
-    if (!res.ok || d.error) throw new Error(d.error || 'Something went wrong.');
+    d = await api('suite/history');
   } catch (e) {
     $('#hdays').innerHTML = `<p class="note bad">${esc(e.message || 'Lost the connection there. Try again?')}</p>`;
     return;

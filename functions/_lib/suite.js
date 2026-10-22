@@ -39,9 +39,8 @@ export async function today(env, who) {
     bucks, wkStreak: wk.streak,
     games: [
       { key: 'polly', number: pollyDay.number, done: pollyDay.done, of: 3, total: pollyDay.total, max: 300, streak: pollyStats.streak,
-        noPoll: pollyDay.noPoll, isNew: isNew(date, env.POLLY_LAUNCH_DATE) },
-      { key: 'venn', number: vennDay.number, done: vennDay.done, of: 2, total: vennDay.total, max: 200, streak: vennStats.streak,
-        isNew: isNew(date, env.VENN_LAUNCH_DATE) },
+        noPoll: pollyDay.noPoll, isNew: false },
+      { key: 'venn', number: vennDay.number, done: vennDay.done, of: 2, total: vennDay.total, max: 200, streak: vennStats.streak, isNew: false },
       { key: 'summit', number: summit.number, done: summit.done, of: 3, total: summit.total, max: 3000, streak: summitStats.streak, isNew: false }
     ]
   };
