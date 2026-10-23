@@ -13,7 +13,7 @@ const meters = n => Math.round(n).toLocaleString('en-US') + ' m';
 // Newest game first, the same order as the home page.
 const LIFE_TIER = { perfect: 'green', one: 'yellow', near: 'orange', miss: 'red' };
 const GAMES = [
-  { key: 'lifeline', name: 'Lifeline', href: '/lifeline', tier: s => LIFE_TIER[lifeBand(s)], part: n => ['Easy', 'Medium', 'Hard'][n - 1], total: t => `${t.toLocaleString('en-US')}/${LIFE_MAX.toLocaleString('en-US')}`, max: LIFE_MAX },
+  { key: 'lifeline', name: 'Life-Line', href: '/lifeline', tier: s => LIFE_TIER[lifeBand(s)], part: n => ['Easy', 'Medium', 'Hard'][n - 1], total: t => `${t.toLocaleString('en-US')}/${LIFE_MAX.toLocaleString('en-US')}`, max: LIFE_MAX },
   { key: 'polly', name: 'Polly', href: '/polly', tier: pollyBand, part: n => `Question ${n}`, total: t => `${t}/${POLLY_MAX}`, max: POLLY_MAX },
   { key: 'venn', name: 'Venn', href: '/venn', tier: vennTier, part: n => `Round ${n}`, total: t => `${t}/${VENN_MAX}`, max: VENN_MAX,
     tip: p => `${p.count} found, par ${p.par}` },

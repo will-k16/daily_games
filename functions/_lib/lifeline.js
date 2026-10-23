@@ -12,10 +12,11 @@ import {
 } from '../../public/js/lifeline-score.js';
 
 const LIVE = `status IN ('approved','auto')`;
-const MODES = ['daily', 'archive'];
+const MODES = ['daily', 'archive', 'unlimited'];
 const MAX_INPUT = 80;
 
 export function lifelineNumber(env, date) {
+  if (!isDate(date)) return null;
   const launch = isDate(env.LIFELINE_LAUNCH_DATE) ? env.LIFELINE_LAUNCH_DATE : date;
   return Math.max(1, dayIndex(date) - dayIndex(launch) + 1);
 }
@@ -85,8 +86,9 @@ export async function ensureDay(env, date) {
 
 const dayRows = (env, date) => env.DB.prepare(`SELECT * FROM lifeline_puzzles WHERE date = ? AND ${LIVE} ORDER BY round`).bind(date).all().then(r => r.results);
 
-function checkAccess(env, z, mode) {
+function checkAccess(env, z, mode, who) {
   const today = todayUTC();
+  if (mode === 'unlimited') { if (who.isAdmin && z.status === 'unlimited') return; throw new HttpError(403, 'Unlimited is for admins.'); }
   const live = z.status === 'approved' || z.status === 'auto';
   if (!isOpen(env, today)) throw new HttpError(403, 'Lifeline opens soon.');
   if (mode === 'daily' && live && z.date === today) return;
@@ -94,6 +96,8 @@ function checkAccess(env, z, mode) {
   throw new HttpError(403, 'You can\'t play that one right now.');
 }
 const modeOf = m => (MODES.includes(m) ? m : 'daily');
+/** The rounds that go with a puzzle: its day's three, or just itself in unlimited. */
+const rowsFor = (env, z, mode) => (mode === 'unlimited' ? [z] : dayRows(env, z.date));
 
 /* ───────────── People and scores ───────────── */
 
@@ -191,10 +195,10 @@ export async function today(env, who) {
 export async function guess(env, who, body) {
   const mode = modeOf(body.mode);
   const z = await getPuzzle(env, body.puzzleId);
-  checkAccess(env, z, mode);
+  checkAccess(env, z, mode, who);
   if (mode === 'archive' && await playedOnTheDay(env, who, z.date)) throw new HttpError(409, 'You played this day already.');
   const already = await getPlay(env, who.player.id, z.id, mode);
-  if (already) return { status: 'scored', round: z.round, ...(await dayState(env, who, z.date, mode, await dayRows(env, z.date))) };
+  if (already) return { status: 'scored', round: z.round, ...(await dayState(env, who, z.date, mode, await rowsFor(env, z, mode))) };
 
   const input = clampStr(body.input, 200).replace(/\s+/g, ' ');
   let person = null;
@@ -218,7 +222,7 @@ export async function guess(env, who, body) {
   const v = personView(person, z);
   await env.DB.prepare(`INSERT OR IGNORE INTO lifeline_plays (player_id, puzzle_id, mode, input, qid, name, score, kind, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(who.player.id, z.id, mode, input || person.name, person.qid, person.name, v.score, v.kind, nowISO()).run();
-  const state = await dayState(env, who, z.date, mode, await dayRows(env, z.date));
+  const state = await dayState(env, who, z.date, mode, await rowsFor(env, z, mode));
   return { status: 'scored', round: z.round, ...state, bucks: await bucksBalance(env, who.player.id) };
 }
 
@@ -330,4 +334,4 @@ export async function rescore(env, { qid = null, puzzleId = null }) {
   return stmts.length;
 }
 
-export { dayRows };
+export { dayRows, dayState };

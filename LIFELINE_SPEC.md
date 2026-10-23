@@ -1,6 +1,6 @@
-# Lifeline: game spec
+# Life-Line: game spec
 
-Lifeline is the fourth game in WK Game Suite, at `/lifeline`. Lifeline #1 is `LIFELINE_LAUNCH_DATE` (2026-10-23, 7 pm US Central); before then the page shows a countdown and the home card says "Opens tonight".
+Life-Line ("Lifeline" in the code) is the fourth game in WK Game Suite, at `/lifeline`. Lifeline #1 is `LIFELINE_LAUNCH_DATE` (2026-10-23, 7 pm US Central); before then the page shows a countdown and the home card says "Opens tonight".
 
 ## The game
 - Each day has **three rounds**: easy, medium and hard. Each round is a pair of real historical events, shown by name. Their dates are hidden until the player turns on **Show the events' dates** (no penalty; the choice is remembered on the device).
@@ -38,6 +38,12 @@ After each guess: the score, the person and their dates, which events they were 
 - **AI drafts** (admin calendar, and automatically while people play when fewer than 4 of the next 7 days are ready): the AI writes a day; each event's year is checked against its Wikidata item, and each example person is looked up and scored, keeping only those really alive for both. A pair with no example that checks out is thrown away and asked for again.
 - **Import:** paste an LLM's answer in the format from `prompts/PROMPTS.md`.
 - **Difficulty:** round 1 is two modern events 20–45 years apart; round 2 is 45–70 years apart; round 3 is before 1750 (any era, BCE included), where few famous people lived through both. (Gaps of 80+ years were tried and dropped: almost no famous person lived through both.)
+
+## Unlimited (admins)
+`/lifeline#/unlimited` (the ∞ button): one pair at a time from the built-in bank and every past day, skipping pairs you've already played there; when those run out, the AI writes new ones. No WK Bucks, and it never counts toward stats.
+
+## Calendar
+Drag a pair onto another day or round to move it (the pair already there swaps into its place), or into the tray to take it off the calendar. Each day has a Generate day button and each round its own Generate / ↻ New pair; a new pair replaces the unplayed one there (the old one stays under All). Played pairs never move.
 
 ## Reports and fixes
 Admin → Lifeline → Reports: fix the person's dates (rescores every play that named them) or dismiss. Admin → Lifeline → People: fix anyone's dates directly. Admin fixes always win over Wikidata.

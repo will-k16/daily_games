@@ -93,7 +93,7 @@ test('WK Bucks, bands and share text', () => {
   assert.equal(bucksForRound(709, 'unlimited'), 0);
   assert.deepEqual([1000, 600, 100, 0].map(band), ['perfect', 'one', 'near', 'miss']);
   assert.equal(lifelineShareText({ number: 3, rounds: [{ round: 1, score: 1000 }, { round: 2, score: 709 }, { round: 3, score: null }] }, 'x.dev/lifeline'),
-    'Lifeline #3 🟩🟨⬜\n1,709 / 3,000\nx.dev/lifeline');
+    'Life-Line #3 🟩🟨⬜\n1,709 / 3,000\nx.dev/lifeline');
 });
 
 test('admin dates and the paste-in format', () => {

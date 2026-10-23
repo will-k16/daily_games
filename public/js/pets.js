@@ -21,57 +21,68 @@ const SHOPS = [
   { pet: 'mel', game: 'Venn', kind: 'chameleon', pic: l => melPortrait(l, { mood: 'smile' }) },
   { pet: 'skipper', game: 'Summit', kind: 'goat', pic: l => skipperPortrait('smile', false, 0, l) },
   { pet: 'polly', game: 'Polly', kind: 'cockatoo', pic: l => pollyPortrait(l, {}) },
-  { pet: 'race', game: 'Lifeline', kind: 'jerboa', pic: l => racePortrait(l, {}) }
+  { pet: 'race', game: 'Life-Line', kind: 'jerboa', pic: l => racePortrait(l, {}) }
 ];
 
-// The real animals. Statuses are the IUCN Red List's; photos are from Wikimedia Commons (credited on the card).
+// The real animals. Statuses are the IUCN Red List's; photos are from Wikimedia Commons (credited under each photo).
 const WILD = [
-  { pet: 'mel', species: 'Chapman\'s pygmy chameleon', latin: 'Rhampholeon chapmanorum', status: 'Critically Endangered', cls: 'cr',
+  { pet: 'mel', species: 'Chapman\'s pygmy chameleon', where: 'Malawi', status: 'Critically endangered', cls: 'cr',
+    stat: '80%', statLabel: 'of its forest home is gone', line: 'A chameleon smaller than your thumb, found in just a few patches of forest in the Malawi Hills.',
     img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Cameroon_Stumptail_Chameleon_%28Rhampholeon_spectrum%29_%287668008064%29.jpg/500px-Cameroon_Stumptail_Chameleon_%28Rhampholeon_spectrum%29_%287668008064%29.jpg',
-    credit: 'A close cousin, the spectral pygmy chameleon (no free photo of Chapman\'s exists yet). Photo: Bernard Dupont, CC BY-SA 2.0',
+    credit: 'Pictured: a close cousin (no free photo of Chapman\'s exists yet). Bernard Dupont, CC BY-SA 2.0',
     creditUrl: 'https://commons.wikimedia.org/wiki/File:Cameroon_Stumptail_Chameleon_(Rhampholeon_spectrum)_(7668008064).jpg',
-    fact: 'A chameleon about 5 cm long that lives only in a few forest patches in the Malawi Hills. About 80% of its forest has been cleared since the 1980s.',
-    org: 'BINCO\'s Matandwe forest project', url: 'https://binco.eu/projects/malawi/matandwe-forest-reserve/' },
-  { pet: 'skipper', species: 'Walia ibex', latin: 'Capra walie', status: 'Critically Endangered', cls: 'cr',
+    org: 'BINCO', url: 'https://binco.eu/projects/malawi/matandwe-forest-reserve/' },
+  { pet: 'skipper', species: 'Walia ibex', where: 'Ethiopia', status: 'Critically endangered', cls: 'cr',
+    stat: '≈270', statLabel: 'left in the wild', line: 'A cliff-climbing goat that lives only in Ethiopia\'s Simien Mountains.',
     img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Walia_ibex_3.jpg/500px-Walia_ibex_3.jpg',
-    credit: 'Photo: Leonard A. Floyd, CC0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Walia_ibex_3.jpg',
-    fact: 'A mountain goat found only in Ethiopia\'s Simien Mountains. Counts fell from about 865 in 2015 to roughly 270 in 2025.',
-    org: 'African Wildlife Foundation (works in Simien Mountains National Park)', url: 'https://www.awf.org/donate' },
-  { pet: 'polly', species: 'Yellow-crested cockatoo', latin: 'Cacatua sulphurea', status: 'Critically Endangered', cls: 'cr',
+    credit: 'Leonard A. Floyd, CC0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Walia_ibex_3.jpg',
+    org: 'African Wildlife Foundation', url: 'https://www.awf.org/donate' },
+  { pet: 'polly', species: 'Yellow-crested cockatoo', where: 'Indonesia & Timor-Leste', status: 'Critically endangered', cls: 'cr',
+    stat: '<2,000', statLabel: 'left in the wild', line: 'Trapped for the pet trade until only a few island flocks were left.',
     img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Cacatua_sulphurea_330278728_%28centered%29.jpg/500px-Cacatua_sulphurea_330278728_%28centered%29.jpg',
-    credit: 'Photo: Kalvin Chan, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Cacatua_sulphurea_330278728_(centered).jpg',
-    fact: 'Trapping for the pet trade has left fewer than about 2,000 in the wild, on islands in Indonesia and Timor-Leste.',
-    org: 'World Parrot Trust\'s yellow-crested cockatoo project', url: 'https://parrots.org/projects/yellow-crested-cockatoo/' },
-  { pet: 'race', species: 'Long-eared jerboa', latin: 'Euchoreutes naso', status: 'Vulnerable in Mongolia', cls: 'vu',
+    credit: 'Kalvin Chan, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Cacatua_sulphurea_330278728_(centered).jpg',
+    org: 'World Parrot Trust', url: 'https://parrots.org/projects/yellow-crested-cockatoo/' },
+  { pet: 'race', species: 'Long-eared jerboa', where: 'Gobi Desert', status: 'Vulnerable in Mongolia', cls: 'vu',
+    stat: '⅓', statLabel: 'of its body length is ear', line: 'One of the most unusual mammals on Earth, hopping across the Gobi at night.',
     img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Euchoreutes_naso.jpg/500px-Euchoreutes_naso.jpg',
-    credit: 'Illustration: Joseph Smit, public domain', creditUrl: 'https://commons.wikimedia.org/wiki/File:Euchoreutes_naso.jpg',
-    fact: 'A desert hopper of the Gobi with ears a third of its body length. Listed as Least Concern worldwide, but Vulnerable in Mongolia, and an EDGE species: one of the most unusual mammals on Earth.',
-    org: 'ZSL\'s EDGE of Existence programme', url: 'https://donate.zsl.org/edge-of-existence/' }
+    credit: 'Joseph Smit, public domain', creditUrl: 'https://commons.wikimedia.org/wiki/File:Euchoreutes_naso.jpg',
+    org: 'ZSL EDGE of Existence', url: 'https://donate.zsl.org/edge-of-existence/' }
 ];
 
-function showHelp() {
-  const card = w => {
-    const name = esc(looks[w.pet].name || DEFAULT_LOOKS[w.pet].name);
-    return `<article class="wild">
-      <div class="wild-pics"><span class="wild-pet"></span><img src="${w.img}" alt="${esc(w.species)}" loading="lazy"></div>
-      <h3>${name} → ${esc(w.species)}</h3>
-      <p class="wild-latin"><i>${esc(w.latin)}</i> <span class="wild-st ${w.cls}">${esc(w.status)}</span></p>
-      <p class="wild-fact">${esc(w.fact)}</p>
-      <p class="wild-org">Helping them: <b>${esc(w.org)}</b></p>
-      <a class="btn sm wild-give" href="${w.url}" target="_blank" rel="noopener">Donate ↗</a>
-      <p class="wild-credit"><a href="${w.creditUrl}" target="_blank" rel="noopener">${esc(w.credit)}</a></p>
-    </article>`;
-  };
+/** "Help your pets!": one real animal at a time, picked from the four pets along the top. */
+function showHelp(start = 0) {
+  let at = start;
+  const petName = w => esc(looks[w.pet].name || DEFAULT_LOOKS[w.pet].name);
   openModal(`<div class="wildwrap"><h2>Help your pets!</h2>
-    <p class="sub">Each pet is based on a real animal, and three of them are critically endangered. These groups are working to protect them in the wild.</p>
-    <div class="wildgrid">${WILD.map(card).join('')}</div>
-    <p class="sub">Links go to each group's own site. WK Game Suite isn't connected to them and gets nothing from donations.</p></div>`);
-  document.querySelectorAll('.wild-pet').forEach((el, i) => {
+    <p class="wild-intro">Every pet here has a real cousin in the wild, and <b>3 of the 4</b> are critically endangered.</p>
+    <div class="wild-tabs" role="tablist">${WILD.map((w, i) => `<button type="button" role="tab" data-w="${i}"><span class="wild-tabpic"></span><b>${petName(w)}</b></button>`).join('')}</div>
+    <div id="wildCard"></div>
+    <p class="wild-foot">Donations go straight to each group. WK Game Suite isn't connected to them and gets nothing.</p></div>`);
+  document.querySelectorAll('.wild-tabpic').forEach((el, i) => {
     const s = SHOPS.find(x => x.pet === WILD[i].pet), c = s.pic(looks[s.pet]);
     c.className = 'petpic'; el.appendChild(c);
   });
+  const show = i => {
+    at = (i + WILD.length) % WILD.length;
+    const w = WILD[at];
+    document.querySelectorAll('[data-w]').forEach(b => b.setAttribute('aria-selected', String(Number(b.dataset.w) === at)));
+    $('#wildCard').innerHTML = `<article class="wild">
+      <figure class="wild-photo"><img src="${w.img}" alt="${esc(w.species)}"><span class="wild-st ${w.cls}">${esc(w.status)}</span>
+        <figcaption><a href="${w.creditUrl}" target="_blank" rel="noopener">${esc(w.credit)}</a></figcaption></figure>
+      <div class="wild-body">
+        <p class="wild-kicker">${petName(w)}'s wild cousin · ${esc(w.where)}</p>
+        <h3>${esc(w.species)}</h3>
+        <p class="wild-stat"><b>${esc(w.stat)}</b><span>${esc(w.statLabel)}</span></p>
+        <p class="wild-line">${esc(w.line)}</p>
+        <a class="btn wild-give" href="${w.url}" target="_blank" rel="noopener">♥ Help with ${esc(w.org)} ↗</a>
+        <button class="link wild-next" type="button" id="wildNext">Meet ${petName(WILD[(at + 1) % WILD.length])}'s cousin →</button>
+      </div></article>`;
+    $('#wildNext').onclick = () => show(at + 1);
+  };
+  document.querySelectorAll('[data-w]').forEach(b => b.onclick = () => show(Number(b.dataset.w)));
+  show(at);
 }
-$('#helpPets').onclick = showHelp;
+$('#helpPets').onclick = () => showHelp(0);
 
 let looks = { ...DEFAULT_LOOKS };
 let bucks = null;

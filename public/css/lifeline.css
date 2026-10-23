@@ -1,9 +1,9 @@
 /* ═══════════ Lifeline · the desert timeline (built on Polly's styles) ═══════════ */
 
 :root {
-  --left: #1f8a8a; --right: #e8743b; --ink: #1f1a17; --paper: #f7eedd; --panel: #fffaf0; --crest: #f2b33d; --brand: #b8562c;
+  --left: #6b4fbb; --right: #c2417a; --ink: #1f1a17; --paper: #f7eedd; --panel: #fffaf0; --crest: #f2b33d; --brand: #b8562c;
   --edge: #1f1a17; --shadow: #1f1a17; --muted: #6e6458; --panel2: #f1e8d6; --line: #d9ccb4;
-  --left-d: #176c6c; --right-d: #c95c27;
+  --left-d: #523b94; --right-d: #9c2f5e;
   --good: #3d8b4a; --bad: #c8412f;
   --sq-perfect: #f2c230; --sq-green: #6cbf5b; --sq-yellow: #f2d14a; --sq-orange: #f39a3c; --sq-red: #e5604f;
   --font-px: 'Pixelify Sans', 'Courier New', monospace;
@@ -211,7 +211,7 @@ textarea.box { width: 100%; min-height: 80px; padding: 8px 10px; border: 3px sol
 @media (max-width: 560px) { .rtabs { gap: 6px; margin-bottom: 8px; flex-wrap: nowrap; } .rtab { padding: 4px 8px; font-size: 13px; gap: 5px; } .rtab b { display: none; } .ev .lbl { font-size: 16px; } .ev .when { margin-top: 2px; } .ask { font-size: 19px; } }
 
 /* the two events */
-.events { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; max-width: 960px; margin: 0 auto 10px; }
+.events { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; max-width: 960px; margin: 12px auto 0; }
 .ev { position: relative; padding: 10px 12px 10px 18px; background: var(--panel); border: 3px solid var(--edge); box-shadow: 3px 3px 0 var(--shadow); }
 .ev::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 8px; }
 .ev.a::before { background: var(--left); } .ev.b::before { background: var(--right); }

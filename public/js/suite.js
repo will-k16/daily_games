@@ -19,7 +19,7 @@ const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const S = { me: { signedIn: false }, data: null, previews: [] };
 
 const GAMES = {
-  lifeline: { name: 'Lifeline', pitch: 'Who lived through both?', href: '/lifeline', color: '#b8562c', draw: drawLifelinePreview },
+  lifeline: { name: 'Life-Line', pitch: 'Who lived through both?', href: '/lifeline', color: '#b8562c', draw: drawLifelinePreview },
   polly: { name: 'Polly', pitch: 'Guess what America said', href: '/polly', color: '#1f8a8a', draw: (cv, n) => drawPollyPreview(cv, n) },
   venn: { name: 'Venn', pitch: 'Find what fits both', href: '/venn', color: '#2f8f4e', draw: (cv, n) => drawVennPreview(cv, n) },
   summit: { name: 'Summit', pitch: 'Name something juuust right', href: '/summit', color: '#d9482b', draw: drawSummitPreview }

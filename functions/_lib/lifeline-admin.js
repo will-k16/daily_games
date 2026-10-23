@@ -6,7 +6,8 @@ import { callAI } from './ai.js';
 import { blocks } from './importer.js';
 import { spread } from '../../public/js/charts.js';
 import { ROUNDS, ROUND_MAX, DAY_MAX, PREC, eventSpan, lifeOf, scoreLife, showDate } from '../../public/js/lifeline-score.js';
-import { lifelineNumber, insertPuzzle, pairProblem, eventsOf, rescore, getPuzzle, launchDate } from './lifeline.js';
+import { lifelineNumber, insertPuzzle, pairProblem, eventsOf, rescore, getPuzzle, launchDate, bankDay, dayState } from './lifeline.js';
+import { BANK } from './lifeline-bank.js';
 import { findPerson, personById, builtinMatches } from './lifeline-wiki.js';
 
 const LIVE = `status IN ('approved','auto')`;
@@ -190,6 +191,9 @@ export async function generate(env, body) {
     }
     for (const r of Object.values(have)) {
       if (want && r.round !== want) continue;
+      // Asked for this day by name: the new pair replaces what's there (unless someone already played it).
+      if (isDate(body.date)) await env.DB.prepare(`UPDATE lifeline_puzzles SET status = 'draft' WHERE date = ? AND round = ? AND ${LIVE}
+          AND NOT EXISTS (SELECT 1 FROM lifeline_plays pl WHERE pl.puzzle_id = lifeline_puzzles.id)`).bind(date, r.round).run();
       await insertPuzzle(env, date, r.round, 'draft', r);
       made++;
     }
@@ -211,6 +215,31 @@ export async function maybeGenerate(env) {
   } catch (e) { console.error('lifeline auto-generate', e.message); }
 }
 
+/* ───────────── Unlimited (admin only) ───────────── */
+
+const pairKey = p => [p.aLabel || p.a_label, p.aDate || p.a_date, p.bLabel || p.b_label, p.bDate || p.b_date].join('|').toLowerCase();
+
+/**
+ * A fresh pair to play: one this admin hasn't played in unlimited yet, from the built-in bank and every past
+ * day's pairs (never today's or a future day's). When those run out, the AI writes new ones.
+ */
+export async function newUnlimited(env, who) {
+  if (!who.isAdmin) throw new HttpError(403, 'Unlimited is for admins.');
+  const db = env.DB;
+  const played = new Set((await db.prepare(`SELECT z.a_label, z.a_date, z.b_label, z.b_date FROM lifeline_plays pl JOIN lifeline_puzzles z ON z.id = pl.puzzle_id
+      WHERE pl.player_id = ? AND pl.mode = 'unlimited'`).bind(who.player.id).all()).results.map(pairKey));
+  const past = (await db.prepare(`SELECT * FROM lifeline_puzzles WHERE date < ? AND status IN ('approved','auto')`).bind(todayUTC()).all()).results
+    .map(z => ({ round: z.round, aLabel: z.a_label, aDate: z.a_date, aPrec: z.a_prec, bLabel: z.b_label, bDate: z.b_date, bPrec: z.b_prec, examples: safeJson(z.examples, []) }));
+  const bank = BANK.flatMap(day => day.map(r => ({ round: r.round, aLabel: r.a.label, aDate: r.a.date, aPrec: r.a.prec, bLabel: r.b.label, bDate: r.b.date, bPrec: r.b.prec, examples: r.examples })));
+  const seen = new Set();
+  let pool = [...past, ...bank].filter(p => { const k = pairKey(p); if (played.has(k) || seen.has(k)) return false; seen.add(k); return true; });
+  if (!pool.length) pool = await aiDay(env, todayUTC()).catch(() => []);
+  if (!pool.length) throw new HttpError(503, 'You\'ve played every pair, and the AI didn\'t come up with new ones just now. Try again in a moment.');
+  const p = pool[Math.floor(Math.random() * pool.length)];
+  const z = await insertPuzzle(env, null, p.round, 'unlimited', { ...p, note: 'Unlimited.' });
+  return dayState(env, who, null, 'unlimited', [z]);
+}
+
 /* ───────────── Calendar ───────────── */
 
 export async function calendar(env, q) {
@@ -218,7 +247,36 @@ export async function calendar(env, q) {
   const to = isDate(q.get('to')) ? q.get('to') : addDays(todayUTC(), 30);
   const rows = (await env.DB.prepare(`SELECT z.*, (SELECT COUNT(*) FROM lifeline_plays pl WHERE pl.puzzle_id = z.id) AS plays
       FROM lifeline_puzzles z WHERE z.date BETWEEN ? AND ? AND z.status != 'rejected' ORDER BY z.date, z.round, z.id`).bind(from, to).all()).results;
-  return { from, to, today: todayUTC(), launch: launchDate(env), rules: RULES, puzzles: rows.map(z => adminPuzzle(z, env)) };
+  // The tray: pairs taken off the calendar (or never put on it), waiting to be dragged onto a day.
+  const tray = (await env.DB.prepare(`SELECT z.*, 0 AS plays FROM lifeline_puzzles z WHERE z.date IS NULL AND z.status IN ('draft','approved') ORDER BY z.id DESC LIMIT 100`).all()).results;
+  return { from, to, today: todayUTC(), launch: launchDate(env), rules: RULES, puzzles: rows.map(z => adminPuzzle(z, env)), tray: tray.map(z => adminPuzzle(z, env)) };
+}
+
+const playsOf = async (env, id) => (await env.DB.prepare(`SELECT COUNT(*) AS n FROM lifeline_plays WHERE puzzle_id = ?`).bind(id).first()).n;
+
+/**
+ * Drag and drop: puts a pair on a day and round (approved), or in the tray (body.date empty; it becomes a draft).
+ * Whatever was live in that spot swaps into the pair's old spot, or goes to the tray. Played pairs never move.
+ */
+export async function movePuzzle(env, body) {
+  const db = env.DB, today = todayUTC();
+  const z = await getPuzzle(env, body.id);
+  if (!['draft', 'approved', 'auto'].includes(z.status)) throw new HttpError(400, 'Only drafts and approved pairs can be moved.');
+  if (await playsOf(env, z.id)) throw new HttpError(409, 'People already played that pair, so it stays where it is.');
+  const to = isDate(body.date) ? body.date : null, round = [1, 2, 3].includes(Number(body.round)) ? Number(body.round) : z.round;
+  if (to && to < today) throw new HttpError(400, 'Past days can\'t change.');
+  if (to && to < launchDate(env)) throw new HttpError(400, 'That\'s before Life-Line opens.');
+  const there = to ? await db.prepare(`SELECT * FROM lifeline_puzzles WHERE date = ? AND round = ? AND ${LIVE} AND id != ?`).bind(to, round, z.id).first() : null;
+  if (there && await playsOf(env, there.id)) throw new HttpError(409, 'People already played the pair on that day.');
+  const from = { date: z.date, round: z.round, live: z.status === 'approved' || z.status === 'auto' };
+  // Off the board first (so the one-live-pair-per-slot rule never trips), then into place.
+  await db.prepare(`UPDATE lifeline_puzzles SET status = 'draft', date = NULL WHERE id = ?`).bind(z.id).run();
+  if (there) {
+    if (from.date && from.date >= today) await db.prepare(`UPDATE lifeline_puzzles SET date = ?, round = ?, status = 'approved' WHERE id = ?`).bind(from.date, from.round, there.id).run();
+    else await db.prepare(`UPDATE lifeline_puzzles SET date = NULL, status = 'draft' WHERE id = ?`).bind(there.id).run();
+  }
+  if (to) await db.prepare(`UPDATE lifeline_puzzles SET date = ?, round = ?, status = 'approved' WHERE id = ?`).bind(to, round, z.id).run();
+  return { ok: true, swapped: !!there };
 }
 
 /** Create or update a puzzle. Approving demotes any other live puzzle for that day and round (unless it's been played). */

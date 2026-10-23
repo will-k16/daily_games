@@ -119,9 +119,9 @@ export const PETS = {
     }
   },
   race: {
-    game: 'Lifeline', noun: 'jerboa', defaultName: 'Race', path: 'race', catalog: RACE_WARDROBE, key: raceItemKey, swatch: raceSwatch,
+    game: 'Life-Line', noun: 'jerboa', defaultName: 'Race', path: 'race', catalog: RACE_WARDROBE, key: raceItemKey, swatch: raceSwatch,
     groups: [{ key: 'race', slots: RACE_SLOTS.map(s => s.key) }], slotName: k => RACE_SLOTS.find(s => s.key === k).name,
-    pays: 'Lifeline pays 1 WK Buck for every 100 points on the daily (5 more for a perfect 1,000, and 5 for finishing all three). Past days pay half.',
+    pays: 'Life-Line pays 1 WK Buck for every 100 points on the daily (5 more for a perfect 1,000, and 5 for finishing all three). Past days pay half.',
     canvas: () => [56, 52], cls: () => 'sm',
     paint: (cv, look) => animate(cv, n => racePortrait(look(), { blink: n % 14 === 0, ear: n % 9 === 0 ? 1 : 0 }))
   }

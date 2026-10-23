@@ -9,7 +9,7 @@ import { yearOf, yearLabel, dayOfYear } from './lifeline-score.js';
 
 export const W = 360, H = 170;
 const TRACK = 140, MARGIN = 26;
-export const FLAG_A = '#1f8a8a', FLAG_B = '#e8743b';
+export const FLAG_A = '#6b4fbb', FLAG_B = '#c2417a';
 const FOOT_X = 31;                                   // Race's feet, across the sprite (after the outline)
 
 function rect(x, a, b, w, h, c) { x.fillStyle = c; x.fillRect(Math.floor(a), Math.floor(b), Math.round(w), Math.round(h)); }
@@ -136,12 +136,13 @@ export function createLifelineScene(host, look, { tod = timeOfDay(), reduced = f
       const xa = X(ev.a.hi), xb = X(ev.b.lo);
       rect(ctx, xa, y + 3, xb - xa, 3, '#f2c13d'); ctx.globalAlpha = .35; rect(ctx, xa, y - 2, xb - xa, 2, '#f2c13d'); ctx.globalAlpha = 1;
     }
-    // ticks and years
+    // ticks, and their years only when the dates are showing (otherwise the scale would give them away)
     const y0 = yearOf(view.lo), y1 = yearOf(view.hi), step = tickStep(y1 - y0);
     for (let yr = Math.ceil(y0 / step) * step; yr <= y1; yr += step) {
       const n = dayOfYear(yr), tx = Math.round(X(n));
       if (tx < 4 || tx > W - 4) continue;
       rect(ctx, tx, y + 3, 1, 3, ink);
+      if (!showDates) continue;
       const label = yearLabel(yr === 0 ? 0.5 : yr);
       drawText(ctx, label, Math.round(Math.max(1, Math.min(W - textWidth(label) - 1, tx - textWidth(label) / 2))), y + 8, ink);
     }
@@ -178,7 +179,7 @@ export function createLifelineScene(host, look, { tod = timeOfDay(), reduced = f
 
   /** The birth and death years, drawn last so Race never covers them. */
   function drawPlates() {
-    if (!life || !jump || !jump.started || !life.labels) return;
+    if (!life || !jump || !jump.started || !life.labels || !showDates) return;
     const [bl, dl] = life.labels;
     plate(ctx, bl, X(life.from), TRACK - 20, '#3a6b38');
     if (done) plate(ctx, dl, X(life.to), TRACK - (life.living ? 26 : 20), life.living ? '#b8862e' : '#5d5850');

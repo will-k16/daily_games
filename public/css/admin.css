@@ -45,3 +45,8 @@ input.box, select.box { width: 100%; height: 40px; padding: 0 10px; border: 3px 
 .pq-chip[draggable="true"] { cursor: grab; }
 .pq-chip b { font-size: 13px; line-height: 1.2; display: block; }
 .pq-chip .st { font-size: 11px; padding: 0 5px; }
+.lchip .lev { font-size: 13px; line-height: 1.25; font-weight: 700; display: flex; gap: 6px; align-items: baseline; }
+.lchip .lev i { flex: none; width: 8px; height: 8px; display: inline-block; }
+.lchip.dragging { opacity: .4; }
+.ltray { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; min-height: 56px; margin-top: 10px; padding: 8px; border: 2px dashed var(--line); border-radius: 8px; }
+.ltray.over { outline: 3px dashed var(--accent); outline-offset: -3px; }

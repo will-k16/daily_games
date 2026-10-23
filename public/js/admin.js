@@ -28,7 +28,7 @@ $('#modalX').onclick = closeModal;
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 
 /* ═══════════ Tabs ═══════════ */
-const GAME_NAMES = { polly: 'Polly', venn: 'Venn', summit: 'Summit' };   // games with an admin-only unlimited mode
+const GAME_NAMES = { lifeline: 'Life-Line', polly: 'Polly', venn: 'Venn', summit: 'Summit' };   // games with an admin-only unlimited mode
 const SHARED = [['', 'Dashboard'], ['/cal', 'Calendar'], ['/import', 'Import'], ['/reports', 'Reports']];
 const SUBTABS = {
   suite: [],
@@ -506,42 +506,74 @@ async function lifeDash(box) {
 
 let lifeAll = [];
 async function lifeCal(box) {
-  const d = await api(`admin/lifeline/calendar?from=${addDays(today(), -14)}&to=${addDays(today(), 30)}`);
-  lifeAll = d.puzzles;
+  const d = await api(`admin/lifeline/calendar?from=${addDays(today(), -14)}&to=${addDays(today(), 45)}`);
+  lifeAll = [...d.puzzles, ...d.tray];
   const dates = [];
-  for (let i = -14; i <= 30; i++) { const dt = addDays(d.today, i); if (dt >= d.launch) dates.push(dt); }
+  for (let i = -14; i <= 45; i++) { const dt = addDays(d.today, i); if (dt >= d.launch) dates.push(dt); }
+  const open = date => date >= d.today;
+  // One pair as a card: drag it to another day (or the tray) to move it; whatever was there swaps back.
+  const chip = (p, { canDrag = true, extra = '' } = {}) => `<div class="pq-chip lchip" ${canDrag && !p.plays ? 'draggable="true"' : ''} data-id="${p.id}">
+      <div class="lev"><i style="background:#6b4fbb"></i>${esc(p.a.label)} <span class="sub">${esc(p.a.when)}</span></div>
+      <div class="lev"><i style="background:#c2417a"></i>${esc(p.b.label)} <span class="sub">${esc(p.b.when)}</span></div>
+      <div class="sub">${badge(p.status, p.status === 'auto' ? 'auto' : p.status)} ${['', 'Easy', 'Medium', 'Hard'][p.round]} · ${p.years} yrs${p.plays ? ` · <b>${p.plays} plays</b>` : ''}</div>
+      <div class="sub">${p.examples.length ? 'e.g. ' + esc(p.examples.join(', ')) : '<b style="color:var(--bad)">no examples</b>'}</div>
+      ${p.note ? `<div class="sub" title="${esc(p.note)}">${esc(p.note.length > 90 ? p.note.slice(0, 90) + '…' : p.note)}</div>` : ''}
+      <div class="row" style="margin-top:4px;gap:4px">
+        ${p.status === 'draft' && p.date ? `<button class="mini-btn ok" data-lap="${p.id}">Approve</button>` : ''}
+        <button class="mini-btn" data-led="${p.id}">Edit</button>${extra}
+        ${!p.plays && p.date ? `<button class="mini-btn" data-lout="${p.id}" title="Take it off this day and put it in the tray">Unschedule</button>` : ''}
+        ${!p.plays ? `<button class="mini-btn danger" data-lrej="${p.id}">Reject</button>` : ''}
+      </div></div>`;
   const cell = (date, round) => {
     const list = d.puzzles.filter(p => p.date === date && p.round === round);
     const p = list.find(x => x.status === 'approved' || x.status === 'auto') || list.filter(x => x.status === 'draft').pop();
-    if (!p) return `<td><span class="st empty">empty</span><div class="row" style="margin-top:6px;gap:4px"><button class="mini-btn" data-lnew="${date}|${round}">+ Write one</button></div></td>`;
-    return `<td><span class="st ${p.status}">${p.status}</span>${list.length > 1 ? ` <span class="sub">+${list.length - 1} more</span>` : ''}
-      <div style="margin-top:4px">${lifeWhen(p.a)} →<br>${lifeWhen(p.b)}</div>
-      <div class="sub">${p.years} years · ${p.examples.length ? 'e.g. ' + esc(p.examples.join(', ')) : '<b>no examples</b>'}${p.plays ? ` · <b>${p.plays} plays</b>` : ''}</div>
-      ${p.note ? `<div class="sub">${esc(p.note)}</div>` : ''}
-      <div class="row" style="margin-top:6px;gap:4px">
-        ${p.status === 'draft' ? `<button class="mini-btn ok" data-lap="${p.id}">Approve</button>` : ''}
-        <button class="mini-btn" data-led="${p.id}">Edit</button>
-        ${list.length > 1 ? `<button class="mini-btn" data-lall="${date}|${round}">All (${list.length})</button>` : ''}
-        ${!p.plays ? `<button class="mini-btn danger" data-lrej="${p.id}">Reject</button>` : ''}
-      </div></td>`;
+    const can = open(date) && !(p && p.plays);
+    const gen = can ? `<button class="mini-btn" data-lgen="${date}|${round}" title="Ask the AI for a new ${['', 'easy', 'medium', 'hard'][round]} pair for this day">${p ? '↻ New pair' : 'Generate'}</button>` : '';
+    const more = list.length > 1 ? `<button class="mini-btn" data-lall="${date}|${round}">All (${list.length})</button>` : '';
+    return `<td class="pslot ${can ? 'drop' : ''}" data-date="${date}" data-round="${round}">${p ? chip(p, { canDrag: open(date), extra: gen + more })
+      : `<span class="st empty">empty</span>${open(date) ? '<div class="sub">Drop a pair here, or</div>' : ''}<div class="row" style="margin-top:6px;gap:4px">${gen}${open(date) ? `<button class="mini-btn" data-lnew="${date}|${round}">+ Write one</button>` : ''}${more}</div>`}</td>`;
   };
+  const dayFull = date => [1, 2, 3].every(r => d.puzzles.some(p => p.date === date && p.round === r && ['approved', 'auto'].includes(p.status)));
   box.innerHTML = `<section class="card"><h2 class="prompt" style="margin-top:0;font-size:22px">Generate drafts</h2>
-      <p class="sub">${d.rules.map(esc).join('<br>')}<br>The AI writes a whole day at a time (about 10–20 seconds). Each event's year is checked against Wikidata and each example person is looked up and scored; only examples who really were alive for both are kept.</p>
+      <p class="sub">${d.rules.map(esc).join('<br>')}<br>The AI writes a whole day at a time (about 10–20 seconds). Each event's year is checked against Wikidata and each example person is looked up and scored; pairs with no example that checks out are thrown away.</p>
       <div class="row"><label class="sub">From <input type="date" id="lgFrom" class="box" style="width:auto" value="${addDays(d.today, 1) > d.launch ? addDays(d.today, 1) : d.launch}"></label>
-        <label class="sub">Days <select id="lgDays" class="box" style="width:auto">${[1, 2, 3].map(n => `<option>${n}</option>`).join('')}</select></label>
-        <button class="btn sm" id="lgGo">Generate</button></div></section>
-    <section class="card"><div class="tbl"><table>
+        <label class="sub">Days <select id="lgDays" class="box" style="width:auto">${[1, 2, 3, 5].map(n => `<option>${n}</option>`).join('')}</select></label>
+        <button class="btn sm" id="lgGo">Fill empty days</button></div></section>
+    <section class="card"><div class="kicker"><span>Drag a pair onto another day or round to move it; the pair that was there swaps into its place. Drag one here to take it off the calendar.</span></div>
+      <div class="ltray drop" data-tray="1">${d.tray.length ? d.tray.map(p => chip(p)).join('') : '<p class="sub" style="margin:0">The tray is empty. Unscheduled pairs wait here.</p>'}</div></section>
+    <section class="card"><div class="tbl"><table class="pcal">
       <thead><tr><th>Date</th><th>Easy</th><th>Medium</th><th>Hard</th></tr></thead>
-      <tbody>${dates.map(dt => `<tr class="${dt === d.today ? 'today' : ''}"><td><b>${dt.slice(5)}</b>${dt === d.today ? '<br><span class="badge">today</span>' : ''}</td>${[1, 2, 3].map(r => cell(dt, r)).join('')}</tr>`).join('')}</tbody>
+      <tbody>${dates.map(dt => `<tr class="${dt === d.today ? 'today' : ''}"><td><b>${dt.slice(5)}</b>${dt === d.today ? '<br><span class="badge">today</span>' : ''}
+        ${open(dt) && !d.puzzles.some(p => p.date === dt && p.plays) ? `<div style="margin-top:6px"><button class="mini-btn" data-lday="${dt}" title="Ask the AI for a whole new day">${dayFull(dt) ? '↻ New day' : 'Generate day'}</button></div>` : ''}</td>
+        ${[1, 2, 3].map(r => cell(dt, r)).join('')}</tr>`).join('')}</tbody>
     </table></div></section>`;
+
+  const busy = (b, text) => { b.disabled = true; b.textContent = text; };
   $('#lgGo').onclick = async () => {
-    const b = $('#lgGo'); b.disabled = true; b.textContent = 'Writing…';
+    const b = $('#lgGo'); busy(b, 'Writing…');
     try { const r = await api('admin/lifeline/generate', { from: $('#lgFrom').value, days: Number($('#lgDays').value) }); toast(`Made ${r.made} ${r.made === 1 ? 'draft' : 'drafts'}`); go('lifeline/cal'); }
-    catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Generate'; }
+    catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Fill empty days'; }
+  };
+  box.querySelectorAll('[data-lday]').forEach(b => b.onclick = async () => {
+    if (dayFull(b.dataset.lday) && !confirm('Replace this whole day with three new AI pairs? (The current ones stay in "All".)')) return;
+    busy(b, 'Writing…');
+    try { const r = await api('admin/lifeline/generate', { date: b.dataset.lday }); toast(`Made ${r.made} new ${r.made === 1 ? 'pair' : 'pairs'}`); go('lifeline/cal'); }
+    catch (e) { toast(e.message); go('lifeline/cal'); }
+  });
+  box.querySelectorAll('[data-lgen]').forEach(b => b.onclick = async () => {
+    const [date, round] = b.dataset.lgen.split('|');
+    busy(b, 'Writing…');
+    try { await api('admin/lifeline/generate', { date, round: Number(round) }); toast('New pair'); go('lifeline/cal'); }
+    catch (e) { toast(e.message); go('lifeline/cal'); }
+  });
+  const move = async (id, date, round) => {
+    try { const r = await api('admin/lifeline/move', { id, date, round }); toast(!date ? 'Moved to the tray' : r.swapped ? 'Swapped' : 'Moved'); go('lifeline/cal'); }
+    catch (e) { toast(e.message); }
   };
   const status = async (id, st) => { const p = lifeAll.find(x => x.id === id); try { await api('admin/lifeline/puzzle', lifeBody(p, { status: st })); toast(st === 'approved' ? 'Approved' : 'Updated'); go('lifeline/cal'); } catch (e) { toast(e.message); } };
   box.querySelectorAll('[data-lap]').forEach(b => b.onclick = () => status(Number(b.dataset.lap), 'approved'));
   box.querySelectorAll('[data-lrej]').forEach(b => b.onclick = () => { if (confirm('Reject this pair?')) status(Number(b.dataset.lrej), 'rejected'); });
+  box.querySelectorAll('[data-lout]').forEach(b => b.onclick = () => move(Number(b.dataset.lout), null));
   box.querySelectorAll('[data-led]').forEach(b => b.onclick = () => lifeEditor(lifeAll.find(p => p.id === Number(b.dataset.led))));
   box.querySelectorAll('[data-lnew]').forEach(b => { const [date, round] = b.dataset.lnew.split('|'); b.onclick = () => lifeEditor({ date, round: Number(round), status: 'approved', a: { label: '', date: '', prec: 11 }, b: { label: '', date: '', prec: 11 }, examples: [] }); });
   box.querySelectorAll('[data-lall]').forEach(b => {
@@ -550,14 +582,30 @@ async function lifeCal(box) {
       const list = lifeAll.filter(p => p.date === date && p.round === Number(round));
       openModal(`<h2>${date} · Round ${round}</h2>${list.map(p => `<div class="fact" style="grid-template-columns:auto 1fr auto">
         <span class="st ${p.status}">${p.status}</span><div class="w">${lifeWhen(p.a)} → ${lifeWhen(p.b)}<br><small>${p.plays} plays · ${esc(p.note)}</small></div>
-        <div style="display:flex;gap:4px;flex-direction:column">${p.status === 'draft' ? `<button class="mini-btn ok" data-ap="${p.id}">Approve</button>` : ''}<button class="mini-btn" data-ed="${p.id}">Edit</button>
+        <div style="display:flex;gap:4px;flex-direction:column">${!p.plays && p.status !== 'approved' && p.status !== 'auto' ? `<button class="mini-btn ok" data-ap="${p.id}">Use this one</button>` : ''}<button class="mini-btn" data-ed="${p.id}">Edit</button>
         ${!p.plays ? `<button class="mini-btn danger" data-del="${p.id}">Delete</button>` : ''}</div></div>`).join('')}`);
-      $('#modalBody').querySelectorAll('[data-ap]').forEach(x => x.onclick = () => { closeModal(); status(Number(x.dataset.ap), 'approved'); });
+      $('#modalBody').querySelectorAll('[data-ap]').forEach(x => x.onclick = () => { closeModal(); move(Number(x.dataset.ap), date, Number(round)); });
       $('#modalBody').querySelectorAll('[data-ed]').forEach(x => x.onclick = () => lifeEditor(lifeAll.find(p => p.id === Number(x.dataset.ed))));
       $('#modalBody').querySelectorAll('[data-del]').forEach(x => x.onclick = async () => {
         if (!confirm('Delete this pair for good?')) return;
         try { await api('admin/lifeline/puzzle/delete', { id: Number(x.dataset.del) }); closeModal(); toast('Deleted'); go('lifeline/cal'); } catch (e) { toast(e.message); }
       });
+    };
+  });
+  // drag and drop
+  box.querySelectorAll('.lchip[draggable="true"]').forEach(el => {
+    el.ondragstart = e => { e.dataTransfer.setData('text/plain', el.dataset.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('dragging'); };
+    el.ondragend = () => el.classList.remove('dragging');
+  });
+  box.querySelectorAll('.drop').forEach(t => {
+    t.ondragover = e => { e.preventDefault(); t.classList.add('over'); };
+    t.ondragleave = () => t.classList.remove('over');
+    t.ondrop = e => {
+      e.preventDefault(); t.classList.remove('over');
+      const id = Number(e.dataTransfer.getData('text/plain'));
+      if (!id) return;
+      if (t.dataset.tray) move(id, null);
+      else move(id, t.dataset.date, Number(t.dataset.round));
     };
   });
 }

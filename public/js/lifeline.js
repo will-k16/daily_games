@@ -49,6 +49,10 @@ async function route() {
   try {
     if (h === 'archive') return await renderArchiveList();
     if (h.startsWith('archive/')) return await loadArchiveDay(h.slice(8));
+    if (h === 'unlimited') {
+      if (!S.today) await loadMeta();
+      if (S.me.isAdmin) return await loadUnlimited();
+    }
     return await loadToday();
   } catch (e) { showError(e); }
 }
@@ -82,11 +86,18 @@ async function loadArchiveDay(date) {
   setCtx({ kind: 'archive', ...d });
 }
 
+/** Unlimited (admins): one pair at a time, as many as you like. Pays no WK Bucks and never counts toward stats. */
+async function loadUnlimited() {
+  dropScene(); $('#main').innerHTML = loadingHTML('Finding Race a fresh stretch of history…');
+  const d = await api('lifeline/unlimited/new', {});
+  setCtx({ kind: 'unlimited', ...d });
+}
+
 function setCtx(d) {
   S.ctx = { kind: d.kind, date: d.date, number: d.number, mode: d.mode, rounds: d.rounds, summary: d.summary, total: d.total, done: d.done };
   const open = d.rounds.findIndex(r => !r.result);
   S.idx = open < 0 ? 0 : open;
-  S.view = open < 0 ? 'summary' : 'round';
+  S.view = open < 0 && d.kind !== 'unlimited' ? 'summary' : 'round';
   render();
 }
 
@@ -95,7 +106,7 @@ function renderSoon(d) {
   paintHead();
   $('#main').innerHTML = `<section class="card soon">
       <div class="portrait"><canvas id="soonCv" width="56" height="52"></canvas></div>
-      <h2 class="prompt">Lifeline opens soon</h2>
+      <h2 class="prompt">Life-Line opens soon</h2>
       <div class="clock cd" data-to="${esc(d.opensAt)}">--:--:--</div>
       <p class="sub" style="margin-top:0">${esc(new Date(d.opensAt).toLocaleString([], { weekday: 'long', hour: 'numeric', minute: '2-digit' }))}, your time</p>
       <ol class="rules">${rulesHTML()}</ol>
@@ -111,8 +122,8 @@ const cur = () => S.ctx && S.ctx.rounds[S.idx];
 
 function paintHead() {
   const c = S.ctx;
-  $('#pnum').textContent = c ? `#${c.number}${c.kind === 'archive' ? ' · ' + niceDate(c.date) : ''}` : '';
-  $('#pips').innerHTML = c ? c.rounds.map((r, i) => {
+  $('#pnum').textContent = c ? (c.kind === 'unlimited' ? '∞ Unlimited' : `#${c.number}${c.kind === 'archive' ? ' · ' + niceDate(c.date) : ''}`) : '';
+  $('#pips').innerHTML = c && c.kind !== 'unlimited' ? c.rounds.map((r, i) => {
     const s = r.result ? r.result.you.score : null;
     return `<button type="button" class="${s == null ? '' : 'sq-' + band(s)} ${i === S.idx && S.view === 'round' ? 'cur' : ''}" data-pip="${i}" title="Round ${i + 1}${s == null ? '' : ': ' + s}"></button>`;
   }).join('') : '';
@@ -124,7 +135,7 @@ function render() {
   const c = S.ctx; if (!c) return;
   paintHead();
   const done = c.rounds.every(r => r.result);
-  const tabs = `<nav class="rtabs">${c.rounds.map((r, i) => `<button type="button" class="rtab ${S.view === 'round' && i === S.idx ? 'on' : ''}" data-r="${i}">
+  const tabs = c.kind === 'unlimited' ? `<nav class="rtabs"><span class="rtab on">∞ Unlimited <b>${TIERS[c.rounds[0].puzzle.round]}</b></span></nav>` : `<nav class="rtabs">${c.rounds.map((r, i) => `<button type="button" class="rtab ${S.view === 'round' && i === S.idx ? 'on' : ''}" data-r="${i}">
       ${r.result ? `<span class="sqchip sq-${band(r.result.you.score)}"></span>` : ''}Round ${i + 1} <b>${TIERS[r.puzzle.round]}</b></button>`).join('')}
     ${done ? `<button type="button" class="rtab ${S.view === 'summary' ? 'on' : ''}" data-sum>Your day</button>` : ''}</nav>`;
   if (S.view === 'summary') {
@@ -135,12 +146,12 @@ function render() {
   }
   const r = cur(), p = r.puzzle;
   $('#main').innerHTML = `${tabs}
+    <div class="stage" id="stage"><div class="scene-host" id="sceneHost"></div></div>
     <div class="events">
       <div class="ev a"><div class="n">EVENT 1</div><div class="lbl">${esc(p.a.label)}</div><div class="when ${S.showDates ? '' : 'hide'}">${S.showDates ? esc(p.a.when) : 'Date hidden'}</div></div>
       <div class="evand">and</div>
       <div class="ev b"><div class="n">EVENT 2</div><div class="lbl">${esc(p.b.label)}</div><div class="when ${S.showDates ? '' : 'hide'}">${S.showDates ? esc(p.b.when) : 'Date hidden'}</div></div>
     </div>
-    <div class="stage" id="stage"><div class="scene-host" id="sceneHost"></div></div>
     <div class="datesw"><label><input type="checkbox" id="dates" ${S.showDates ? 'checked' : ''}> Show the events' dates</label></div>
     <section class="qcard" id="panel"></section>`;
   wireTabs();
@@ -260,13 +271,14 @@ function resultHTML(r) {
     ${res.everyone ? crowdHTML(res.everyone, { max: ROUND_MAX, daily: c.kind === 'daily' }) : ''}
     <div class="reveal-foot">
       ${res.report ? `<span class="sub" style="margin:0">Dates reported</span>` : '<button class="link" id="report" type="button">Dates look wrong?</button>'}
-      ${nextIdx >= 0 ? `<button class="btn" id="next">Round ${nextIdx + 1} →</button>` : `<button class="btn" id="toSum">See your day →</button>`}
+      ${c.kind === 'unlimited' ? '<button class="btn" id="unlNext">Next pair →</button>' : nextIdx >= 0 ? `<button class="btn" id="next">Round ${nextIdx + 1} →</button>` : `<button class="btn" id="toSum">See your day →</button>`}
     </div>`;
 }
 
 function wireResult(r, fresh = false) {
   if (fresh) countUp($('#bigScore'), r.result.you.score);
   const c = S.ctx;
+  const un = $('#unlNext'); if (un) un.onclick = () => { loadUnlimited().catch(showError); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const next = $('#next'); if (next) next.onclick = () => { S.idx = c.rounds.findIndex((x, i) => i !== S.idx && !x.result); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const sum = $('#toSum'); if (sum) sum.onclick = () => { S.view = 'summary'; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const rep = $('#report'); if (rep) rep.onclick = () => showReport(r);
@@ -279,7 +291,7 @@ function summaryHTML(c) {
   const bucks = c.rounds.reduce((t, r) => t + bucksForRound(r.result ? r.result.you.score : 0, c.mode), 0) + (c.mode === 'daily' ? DAY_BONUS : 0);
   return `<section class="card summary">
       <div class="portrait" style="margin:0 auto"><canvas id="sumCv" width="56" height="52"></canvas></div>
-      <div class="kicker" style="justify-content:center;margin-top:10px"><span>Lifeline #${c.number}${c.kind === 'archive' ? ' · ' + niceDate(c.date) : ''}</span></div>
+      <div class="kicker" style="justify-content:center;margin-top:10px"><span>Life-Line #${c.number}${c.kind === 'archive' ? ' · ' + niceDate(c.date) : ''}</span></div>
       <div class="total"><span id="dayTotal">${num(total)}</span> <small>/ ${num(DAY_MAX)}</small></div>
       <p class="moodline">“${esc(RACE_MOODS[m])}”</p>
       ${bucks ? `<p class="bucksline" style="justify-content:center;display:flex">+<b>${bucks}</b> ${bucksIcon()} WK Bucks${c.mode === 'daily' ? ` (with ${DAY_BONUS} for finishing)` : ''}</p>` : ''}
@@ -422,6 +434,7 @@ async function renderArchiveList() {
 /* ═══════════ Header tools ═══════════ */
 function paintTools() {
   $('#admBtn').hidden = !S.me.isAdmin;
+  $('#unlBtn').hidden = !S.me.isAdmin;
   $('#acctBtn').classList.toggle('on', !!S.me.signedIn);
   $('#bucksIco').innerHTML = bucksIcon();
   $('#bucksNum').textContent = S.bucks ? S.bucks.balance : '';
@@ -430,6 +443,7 @@ $('#statsBtn').onclick = showStats;
 $('#helpBtn').onclick = showHelp;
 $('#acctBtn').onclick = () => accountModal(accountUI());
 $('#shopBtn').onclick = showShop;
+$('#unlBtn').onclick = () => { if (location.hash === '#/unlimited') loadUnlimited().catch(showError); else location.hash = '#/unlimited'; };
 
 paintTools();
 route();

@@ -168,7 +168,7 @@ export function lifelineShareText({ number, rounds, archive = false }, link) {
   const rs = [1, 2, 3].map(n => (rounds || []).find(r => r && r.round === n) || { round: n, score: null });
   const total = rs.reduce((t, r) => t + (r.score || 0), 0);
   const squares = rs.map(r => (r.score == null ? '⬜' : scoreSquare(r.score))).join('');
-  const lines = [`Lifeline #${number}${archive ? ' (archive)' : ''} ${squares}`, `${total.toLocaleString('en-US')} / ${DAY_MAX.toLocaleString('en-US')}`];
+  const lines = [`Life-Line #${number}${archive ? ' (archive)' : ''} ${squares}`, `${total.toLocaleString('en-US')} / ${DAY_MAX.toLocaleString('en-US')}`];
   if (link) lines.push(link);
   return lines.join('\n');
 }
