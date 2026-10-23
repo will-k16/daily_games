@@ -201,8 +201,7 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .wild-tabs button[aria-selected="true"] { opacity: 1; background: color-mix(in srgb, #e5604f 20%, var(--paper)); box-shadow: 4px 4px 0 var(--ink); transform: translate(-2px, -2px); }
 .wild-tabs b { font-family: var(--font-px); font-size: 17px; }
 .wild-tabpic .petpic { height: 40px; }
-.wild { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; margin-top: 16px; padding: 14px; border: 3px solid var(--ink); background: var(--paper); box-shadow: 6px 6px 0 var(--ink); animation: wildIn .25s steps(3) both; }
-@keyframes wildIn { from { opacity: 0; transform: translateY(8px); } }
+.wild { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; margin-top: 16px; padding: 14px; border: 3px solid var(--ink); background: var(--paper); box-shadow: 6px 6px 0 var(--ink); }
 .wild-photo { position: relative; margin: 0; }
 .wild-photo img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border: 3px solid var(--ink); background: var(--paper2); }
 .wild-photo figcaption { margin-top: 4px; font-size: 11px; line-height: 1.3; } .wild-photo figcaption a { color: var(--muted); }
@@ -215,6 +214,7 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .wild-stat b { font-family: var(--font-px); font-size: 52px; line-height: 1; color: #d9412b; }
 .wild-stat span { font-size: 18px; font-weight: 800; }
 .wild-line { margin: 0; font-size: 18px; line-height: 1.4; }
+.wild-note { margin: 0; padding: 8px 12px; border-left: 5px solid #f2c230; background: var(--paper2); font-size: 15px; font-weight: 700; line-height: 1.4; }
 .wild-give { margin-top: auto; height: auto; min-height: 50px; padding: 10px 14px; font-size: 18px; white-space: normal; text-align: center; background: #d9412b; border-color: var(--ink); color: #fff; }
 .wild-give:hover, .wild-give:focus-visible { background: #b8331f; color: #fff; }
 .wild-next { align-self: center; font-size: 15px; }

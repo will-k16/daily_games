@@ -43,7 +43,8 @@ const WILD = [
     credit: 'Kalvin Chan, CC BY 4.0', creditUrl: 'https://commons.wikimedia.org/wiki/File:Cacatua_sulphurea_330278728_(centered).jpg',
     org: 'World Parrot Trust', url: 'https://parrots.org/projects/yellow-crested-cockatoo/' },
   { pet: 'race', species: 'Long-eared jerboa', where: 'Gobi Desert', status: 'Vulnerable in Mongolia', cls: 'vu',
-    stat: '⅓', statLabel: 'of its body length is ear', line: 'One of the most unusual mammals on Earth, hopping across the Gobi at night.',
+    stat: '1 of 1', statLabel: 'the last of its whole subfamily', line: "The IUCN doesn't list it as endangered worldwide, but it's under real pressure across its range and rated Vulnerable in Mongolia.",
+    note: "Why it matters: the EDGE of Existence programme makes it a priority because it's the only member of its entire evolutionary subfamily. If it goes extinct, that whole branch of the tree of life is gone forever.",
     img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Euchoreutes_naso.jpg/500px-Euchoreutes_naso.jpg',
     credit: 'Joseph Smit, public domain', creditUrl: 'https://commons.wikimedia.org/wiki/File:Euchoreutes_naso.jpg',
     org: 'ZSL EDGE of Existence', url: 'https://donate.zsl.org/edge-of-existence/' }
@@ -74,6 +75,7 @@ function showHelp(start = 0) {
         <h3>${esc(w.species)}</h3>
         <p class="wild-stat"><b>${esc(w.stat)}</b><span>${esc(w.statLabel)}</span></p>
         <p class="wild-line">${esc(w.line)}</p>
+        ${w.note ? `<p class="wild-note">${esc(w.note)}</p>` : ''}
         <a class="btn wild-give" href="${w.url}" target="_blank" rel="noopener">♥ Help with ${esc(w.org)} ↗</a>
         <button class="link wild-next" type="button" id="wildNext">Meet ${petName(WILD[(at + 1) % WILD.length])}'s cousin →</button>
       </div></article>`;
