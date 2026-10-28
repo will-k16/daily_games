@@ -231,38 +231,44 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 /* ── Your scores (history page) ── */
 .hlink { margin-top: 10px; }
-.hsum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 22px; }
-.hcard { border: 3px solid var(--ink); border-top: 8px solid var(--g); padding: 10px 12px; background: var(--paper); }
-.hcard .hname { font-family: var(--font-px); font-size: 22px; }
-.hcard dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 6px 0 0; }
+/* One column per game, in the home page's order, so every day lines up under the totals. */
+.hsum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 22px; }
+.hcard { border: 3px solid var(--ink); border-top: 8px solid var(--g); padding: 8px 10px 10px; background: var(--paper); }
+.hcard .hname { display: block; font-family: var(--font-px); font-size: 20px; }
+.hcard dl { display: grid; gap: 2px; margin: 6px 0 0; }
+.hcard dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
 .hcard dt { font-size: 12px; font-weight: 800; color: var(--muted); }
-.hcard dd { margin: 0; font-family: var(--font-num); font-size: 14px; }
+.hcard dd { margin: 0; font-family: var(--font-num); font-size: 14px; white-space: nowrap; }
 .hdays { margin-top: 10px; }
 .hmonth { margin: 28px 0 8px; font-family: var(--font-px); font-size: 26px; }
-.hday { margin-top: 10px; }
+.hday { margin-top: 12px; }
 .hday h3 { margin: 0 0 6px; font-size: 15px; font-weight: 800; }
 .htoday { display: inline-block; margin-left: 6px; padding: 0 6px; background: var(--sticker); color: #1b1915; border: 2px solid var(--ink); font-family: var(--font-num); font-size: 11px; font-weight: 400; }
-.hrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.hgame { display: grid; gap: 4px; align-content: start; padding: 8px 10px; border: 2px solid var(--ink); border-left: 8px solid var(--g); background: var(--paper); color: var(--ink); text-decoration: none;
+.hrow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.hgame { display: grid; grid-template-rows: auto auto 1fr; gap: 4px; padding: 8px 10px; border: 2px solid var(--ink); border-left: 8px solid var(--g); background: var(--paper); color: var(--ink); text-decoration: none;
   transition: transform .08s steps(2), box-shadow .08s steps(2); }
 a.hgame:hover, a.hgame:focus-visible { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--ink); outline: none; }
-.hgame.none { border-color: color-mix(in srgb, var(--ink) 25%, transparent); border-left-width: 2px; color: var(--muted); }
+.hgame.none { grid-template-rows: auto 1fr; border-style: dashed; border-color: color-mix(in srgb, var(--ink) 30%, transparent); border-left: 2px dashed color-mix(in srgb, var(--ink) 30%, transparent); background: transparent; color: var(--muted); }
 .hname { font-family: var(--font-px); font-size: 17px; line-height: 1.1; }
-.hname small { font-family: var(--font); font-size: 12px; font-weight: 700; color: var(--muted); }
+.hname small { font-family: var(--font); font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
 .htotal { font-family: var(--font-num); font-weight: 400; font-size: 16px; }
-.htotal small { font-family: var(--font); font-size: 12px; font-weight: 700; color: var(--muted); }
-.hnone { font-family: var(--font-num); }
-.hsqs { display: flex; gap: 4px; flex-wrap: wrap; }
-.hsq { min-width: 34px; padding: 1px 4px; text-align: center; font-style: normal; font-family: var(--font-num); font-size: 11px; border: 2px solid var(--ink); color: var(--muted); }
+.htotal small { font-family: var(--font); font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.hnone { font-family: var(--font-num); align-self: end; }
+.hsqs { display: flex; gap: 4px; align-self: end; }
+.hsq { flex: 1; min-width: 0; max-width: 40px; padding: 1px 2px; text-align: center; font-style: normal; font-family: var(--font-num); font-size: 11px; border: 2px solid var(--ink); color: var(--muted); }
 .hsq.perfect { background: #f2c230; } .hsq.green { background: #78c46b; } .hsq.yellow { background: #f5d547; } .hsq.orange { background: #f39a3c; } .hsq.red { background: #e5604f; color: #fff; }
 .hsq.perfect, .hsq.green, .hsq.yellow, .hsq.orange { color: #1b1915; border-color: #1b1915; }
 .hsq.red { border-color: #1b1915; }
-@media (max-width: 600px) {
-  .hsum { grid-template-columns: 1fr; }
-  .hrow { grid-template-columns: 1fr; }
-  .hgame { grid-template-columns: 1fr auto; align-items: center; }
+/* Narrower: two by two. Phones: the totals stay two by two and each day becomes a list, one game a line. */
+@media (max-width: 680px) {
+  .hsum, .hrow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 460px) {
+  .hrow { grid-template-columns: 1fr; gap: 6px; }
+  .hgame { grid-template-columns: 1fr auto; grid-template-rows: none; align-items: center; }
   .hgame .hsqs { grid-column: 1 / -1; }
-  .hgame.none { display: flex; justify-content: space-between; }
+  .hsq { max-width: 52px; }
+  .hgame.none { display: flex; justify-content: space-between; align-items: center; }
 }
 
 /* ── Pet corner: the three shops ── */

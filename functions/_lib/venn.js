@@ -10,6 +10,10 @@ import { crowd as crowdOf, spread } from '../../public/js/charts.js';
 const LIVE = `status IN ('approved','auto')`;
 const MODES = ['daily', 'archive', 'unlimited'];
 const DECLINED = 'Not one we know. Check the spelling?';
+// An answer the judge couldn't get to (every AI provider busy or down). It's kept, not thrown away, and
+// judged again moments later (venn/recheck); it counts as soon as it's judged, even after the round ends.
+const LATER = 'later';
+const judgeDown = e => e instanceof HttpError && e.status === 503;
 
 export function vennNumber(env, date) {
   const launch = isDate(env.VENN_LAUNCH_DATE) ? env.VENN_LAUNCH_DATE : date;
@@ -101,8 +105,11 @@ async function settle(env, play, p) {
   return play;
 }
 
+// 'pending' and 'later' rows keep the text still to be judged in canonical; players don't see it.
+const hidden = v => v === 'pending' || v === LATER;
+
 function answerView(a) {
-  return { id: a.id, input: a.input, canonical: a.verdict === 'pending' ? '' : a.canonical, verdict: a.verdict, fits: safeJson(a.fits, []), reason: a.reason };
+  return { id: a.id, input: a.input, canonical: hidden(a.verdict) ? '' : a.canonical, verdict: a.verdict, fits: safeJson(a.fits, []), reason: a.reason };
 }
 
 function playView(play, answers, now = Date.now()) {
@@ -396,13 +403,20 @@ export async function answer(env, who, body) {
       const now = await getPlay(env, who.player.id, p.id, mode);
       const base = { answerId: prev.id, count: now.count, elapsed: Math.min(ROUND_MS, elapsedOf(now)), state: now.state };
       if (prev.verdict === 'pending') return { ...base, verdict: 'pending', didYouMean: prev.canonical, canonical: '', fits: [], reason: '' };
-      return { ...base, verdict: prev.verdict, canonical: prev.canonical, fits: safeJson(prev.fits, []), reason: prev.reason, didYouMean: '' };
+      return { ...base, verdict: prev.verdict, canonical: hidden(prev.verdict) ? '' : prev.canonical, fits: safeJson(prev.fits, []), reason: prev.reason, didYouMean: '' };
     }
   }
   // After a "No" to a suggestion, the same text goes straight to the judge without another suggestion.
   const declined = await env.DB.prepare(`SELECT 1 FROM venn_answers WHERE play_id = ? AND norm = ? AND verdict = 'no' AND reason = ?`).bind(play.id, norm, DECLINED).first();
   const known = await knownAnswers(env, p);
-  const got = await judgmentFor(env, p, input, norm, who.player.id, { known, allowSuggest: !declined });
+  let got;
+  try { got = await judgmentFor(env, p, input, norm, who.player.id, { known, allowSuggest: !declined }); }
+  catch (e) {
+    if (!judgeDown(e)) throw e;
+    const row = await env.DB.prepare(`INSERT INTO venn_answers (play_id, input, norm, canonical, verdict, fits, reason, created_at)
+        VALUES (?, ?, ?, ?, ?, '[]', '', ?) RETURNING id`).bind(play.id, input, norm, input, LATER, nowISO()).first();
+    return { answerId: row.id, verdict: LATER, canonical: '', fits: [], reason: '', didYouMean: '', count: play.count, elapsed: Math.min(ROUND_MS, elapsedOf(play)), state: 'running' };
+  }
 
   if (got.suggestion) {
     // "Did you mean ___?" stops the clock until the player answers.
@@ -435,10 +449,18 @@ export async function confirm(env, who, body) {
   let out;
   if (body.yes) {
     const suggestion = a.canonical, norm = normalize(suggestion);
-    await env.DB.prepare(`DELETE FROM venn_answers WHERE id = ?`).bind(a.id).run();
     const known = await knownAnswers(env, p);
-    const got = await judgmentFor(env, p, suggestion, norm, who.player.id, { known, allowSuggest: false });
-    out = await record(env, play, p, a.input, norm, got.j);
+    let got = null;
+    try { got = await judgmentFor(env, p, suggestion, norm, who.player.id, { known, allowSuggest: false }); }
+    catch (e) { if (!judgeDown(e)) throw e; }
+    if (got) {
+      await env.DB.prepare(`DELETE FROM venn_answers WHERE id = ?`).bind(a.id).run();
+      out = await record(env, play, p, a.input, norm, got.j);
+    } else {
+      // The judge is busy: the suggestion waits to be judged like any other answer.
+      await env.DB.prepare(`UPDATE venn_answers SET verdict = ?, norm = ? WHERE id = ?`).bind(LATER, norm, a.id).run();
+      out = { answerId: a.id, verdict: LATER, canonical: '', fits: [], reason: '', count: play.count };
+    }
   } else {
     await env.DB.prepare(`UPDATE venn_answers SET verdict = 'no', reason = ? WHERE id = ?`).bind(DECLINED, a.id).run();
     out = { answerId: a.id, verdict: 'no', canonical: '', fits: [], reason: DECLINED, count: play.count };
@@ -447,6 +469,35 @@ export async function confirm(env, who, body) {
   if (play.state === 'paused') await resumePlay(env, play);
   play = await getPlay(env, who.player.id, p.id, a.mode);
   return { ...out, didYouMean: '', elapsed: Math.min(ROUND_MS, elapsedOf(play)), state: play.state };
+}
+
+/**
+ * Judges this play's answers that are waiting on the judge, then rescores the play so they take their
+ * place in order (a catch, a duplicate of a later answer, and so on). Works during and after the round.
+ */
+async function judgeLater(env, who, play, p) {
+  const db = env.DB;
+  const rows = (await db.prepare(`SELECT * FROM venn_answers WHERE play_id = ? AND verdict = ? ORDER BY id LIMIT 12`).bind(play.id, LATER).all()).results;
+  if (!rows.length) return;
+  const known = await knownAnswers(env, p);
+  for (const a of rows) {
+    try { await judgmentFor(env, p, a.canonical || a.input, a.norm, who.player.id, { known, allowSuggest: false }); }
+    catch (e) {
+      if (judgeDown(e)) break;                    // still busy: try again on the next recheck
+      if (!(e instanceof HttpError) || e.status !== 429) throw e;
+      // Out of brand-new answers for today: these can't be judged, so they don't count.
+      await db.prepare(`UPDATE venn_answers SET verdict = 'no', reason = ? WHERE play_id = ? AND verdict = ?`).bind(e.message, play.id, LATER).run();
+      break;
+    }
+  }
+  await rescorePlay(env, play.id);
+}
+
+/** Tries again on answers the judge couldn't get to. Returns the round as it stands now. */
+export async function recheck(env, who, body) {
+  const { p, mode, play } = await playFor(env, who, body);
+  if (play) await judgeLater(env, who, play, p);
+  return roundState(env, who, p, mode);
 }
 
 /* ───────────── Complaints & notifications ───────────── */
@@ -567,7 +618,9 @@ export async function rescorePlay(env, playId) {
   }
   for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50));
   const n = prior.filter(a => a.verdict === 'ok').length;
-  await db.prepare(`UPDATE venn_plays SET count = ?, score = CASE WHEN state = 'done' THEN ? ELSE score END WHERE id = ?`).bind(n, roundScore(n, p.par), playId).run();
+  // Counted in SQL so an answer recorded mid-rescore (a recheck while the round is running) isn't dropped.
+  await db.prepare(`UPDATE venn_plays SET count = (SELECT COUNT(*) FROM venn_answers WHERE play_id = ? AND verdict = 'ok'),
+      score = CASE WHEN state = 'done' THEN ? ELSE score END WHERE id = ?`).bind(playId, roundScore(n, p.par), playId).run();
 }
 
 /** Rescores every play on a puzzle that used this answer (or all plays when norm is null). */

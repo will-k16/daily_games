@@ -164,6 +164,7 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .msg:empty { display: none; } .msg { margin-top: 12px; }
 .note { padding: 12px 14px; border-radius: 10px; border: 3px solid var(--ink); background: var(--panel2); font-weight: 700; }
 .note.bad { background: #f7d9d2; } .note.warn { background: #fbefc4; }
+.note.later { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
 .empty { color: var(--muted); font-size: 14px; }
 .h4 { font-family: var(--font-px); font-size: 18px; margin: 18px 0 8px; }
 
@@ -189,6 +190,9 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .feed li i { font-style: normal; font-family: var(--font-num); text-align: center; }
 .feed li small { display: block; font-weight: 600; font-size: 12px; color: var(--muted); }
 .feed li.ok i { color: var(--good); } .feed li.no i { color: var(--bad); } .feed li.close i { color: #c08a00; } .feed li.dup i { color: var(--muted); }
+.feed li.wait i { color: var(--muted); animation: wait-blink 1.2s steps(2) infinite; }
+@keyframes wait-blink { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .feed li.wait i { animation: none; } }
 .done { margin-top: 12px; width: 100%; }
 @media (max-width: 899px) { .feed { max-height: 150px; } }
 

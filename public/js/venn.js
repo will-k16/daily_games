@@ -28,7 +28,9 @@ const S = {
   clock: null, chips: [], pending: null, paused: false, leaving: false,
   // Answers being judged right now (several at once, including ones held back while a "did you mean"
   // has the clock stopped), and any further "did you mean"s waiting their turn.
-  checking: [], inflight: new Set(), dymQueue: []
+  checking: [], inflight: new Set(), dymQueue: [],
+  // Answers the judge couldn't get to yet are asked about again until they're judged.
+  recheck: null
 };
 const MAX_PARALLEL = 4;
 
@@ -126,6 +128,8 @@ function render() {
     $('#play').classList.add('summary-mode');
     $('#stage').hidden = true;
     $('#panel').innerHTML = summaryHTML(c); wireSummary(c);
+    const waiting = c.rounds.find(x => x.play.answers.some(isLater));
+    if (waiting) scheduleRecheck(waiting);
     return;
   }
   $('#play').classList.remove('summary-mode');
@@ -137,6 +141,8 @@ function render() {
   else if (st === 'running') renderPlaying(r);
   else if (st === 'paused') renderPaused(r);
   else renderReady(r);
+  const waiting = c.rounds.find(x => x.play.answers.some(isLater));
+  if (waiting) scheduleRecheck(waiting);
 }
 
 function renderHead(c) {
@@ -307,13 +313,15 @@ function trackCaret() {
 }
 
 const VERDICT = {
-  ok: ['✓', 'ok'], no: ['✗', 'no'], dup: ['=', 'dup'], close: ['≈', 'close'], pending: ['?', 'wait']
+  ok: ['✓', 'ok'], no: ['✗', 'no'], dup: ['=', 'dup'], close: ['≈', 'close'], pending: ['?', 'wait'], later: ['…', 'wait']
 };
+const LATER_NOTE = 'Saved for the judge. It counts if it fits.';
+const isLater = a => a.verdict === 'later';
 function feedItem(a) {
   const [icon, cls] = VERDICT[a.verdict] || VERDICT.no;
   const text = a.verdict === 'ok' || a.verdict === 'close' ? a.canonical || a.input : a.input;
-  const why = a.verdict === 'dup' ? 'Already have it' : a.verdict === 'close' ? 'Close! Fits 2 of 3' : a.verdict === 'no' ? a.reason : '';
-  return `<li class="${cls}"><i>${icon}</i><span>${esc(text)}${why ? `<small>${esc(why)}</small>` : ''}</span></li>`;
+  const why = a.verdict === 'dup' ? 'Already have it' : a.verdict === 'close' ? 'Close! Fits 2 of 3' : a.verdict === 'no' ? a.reason : isLater(a) ? LATER_NOTE : '';
+  return `<li class="${cls}" data-a="${a.id}"><i>${icon}</i><span>${esc(text)}${why ? `<small>${esc(why)}</small>` : ''}</span></li>`;
 }
 function pushFeed(a) {
   const feed = $('#feed'); if (!feed) return;
@@ -393,6 +401,7 @@ async function sendAnswer(r, c) {
 
 function applyVerdict(r, a, count) {
   r.play.answers.push(a);
+  if (isLater(a)) { pushFeed(a); scheduleRecheck(r); return; }
   // Verdicts can land out of order, so keep the highest count seen.
   count = r.play.count = Math.max(r.play.count || 0, count);
   const fn = $('#foundNum'); if (fn) { fn.textContent = count; }
@@ -432,6 +441,50 @@ function bounce(text, reason, cls) {
   el.innerHTML = `${esc(text)}${reason ? `<small>${esc(reason)}</small>` : ''}`;
   $('#labels').appendChild(el);
   setTimeout(() => el.remove(), reduced() ? 1800 : 2400);
+}
+
+/* ── Answers the judge couldn't get to: kept, and asked about again until they're judged ── */
+const RECHECK_WAITS = [2500, 5000, 10000, 20000, 30000];
+
+function scheduleRecheck(r) {
+  if (S.recheck && S.recheck.r === r) return;
+  if (S.recheck) clearTimeout(S.recheck.t);
+  S.recheck = { r, tries: 0 };
+  queueRecheck(S.recheck);
+}
+function queueRecheck(q) { q.t = setTimeout(() => recheck(q), RECHECK_WAITS[Math.min(q.tries, RECHECK_WAITS.length - 1)]); }
+
+async function recheck(q) {
+  const r = q.r;
+  if (S.recheck !== q) return;
+  if (!S.ctx || !S.ctx.rounds.includes(r)) { S.recheck = null; return; }
+  let res = null;
+  try { res = await api('venn/recheck', { puzzleId: r.puzzle.id, mode: r.mode }, { retries: 0 }); } catch { /* try again below */ }
+  if (S.recheck !== q) return;
+  if (res) mergeRecheck(r, res);
+  if (r.play.answers.some(isLater) && q.tries < 60) { q.tries++; queueRecheck(q); return; }
+  S.recheck = null;
+  // Another round of the day may have answers waiting too.
+  if (S.ctx) { const next = S.ctx.rounds.find(x => x.play.answers.some(isLater)); if (next) scheduleRecheck(next); }
+}
+
+function mergeRecheck(r, res) {
+  const fresh = new Map(res.play.answers.map(a => [a.id, a]));
+  const settled = r.play.answers.filter(a => isLater(a) && fresh.has(a.id) && !isLater(fresh.get(a.id)));
+  if (!settled.length) return;
+  if (r.play.state === 'done') {
+    // The round's over: take the new verdicts, count and score as they are, and redraw.
+    Object.assign(r, { puzzle: res.puzzle, play: res.play, results: res.results });
+    if (S.view === 'summary' || cur() === r) render();
+    if (S.ctx.kind !== 'unlimited') refreshMeta();
+    return;
+  }
+  // Mid-round: each one lands like a fresh verdict (a catch, a bounce…), leaving the clock alone.
+  settled.forEach(a => {
+    r.play.answers = r.play.answers.filter(x => x !== a);
+    const li = $(`#feed [data-a="${a.id}"]`); if (li) li.remove();
+    applyVerdict(r, fresh.get(a.id), res.play.count);
+  });
 }
 
 /* ── Did you mean ── */
@@ -588,6 +641,7 @@ function renderResults(r) {
   S.scene.setMood(mood);
   const wrong = r.play.answers.filter(a => a.verdict === 'no');
   const close = r.play.answers.filter(a => a.verdict === 'close');
+  const later = r.play.answers.filter(isLater);
   const c = S.ctx;
   const nextIdx = c.rounds.findIndex(x => x !== r && x.play.state !== 'done');
   const next = c.kind === 'unlimited' ? '<button class="btn" id="nextUnl">Next puzzle →</button>'
@@ -599,13 +653,14 @@ function renderResults(r) {
     return `<li><span><b>${esc(a.input)}</b><small>${esc(a.reason || '')}</small></span>${cpl ? `<em>${esc(REPORT[cpl] || cpl)}</em>` : `<button class="link report" data-a="${a.id}">Wrong call?</button>`}</li>`;
   }).join('')}</ul>` : '';
   const closeHTML = close.length ? `<p class="sub">Close (fit 2 of 3, so no catch): ${close.map(a => esc(a.canonical)).join(', ')}</p>` : '';
+  const laterHTML = later.length ? `<p class="note later">The judge is still checking ${later.map(a => `<b>${esc(a.input)}</b>`).join(', ')}. ${later.length === 1 ? 'It counts' : 'They count'} toward this score as soon as ${later.length === 1 ? 'it\'s' : 'they\'re'} checked.</p>` : '';
   const crowd = res.everyone ? crowdHTML(res.everyone, { max: ROUND_MAX, daily: c.kind === 'daily' }) : '';
   const earned = bucksForRound(r.play.score, r.mode);
   $('#panel').innerHTML = `<div class="results">
       <div class="verdict"><div class="score"><span id="bigScore">0</span><small>/ 100</small></div>
         <div><h3>${esc(verdictTitle(r.play.score, res.count >= res.par))}</h3><p>You found ${res.count}. Par was ${res.par}. ${r.play.score} / 100.</p></div></div>
       ${earned ? `<div class="bucksline">${bucksIcon()} <b>+${earned}</b> WK ${earned === 1 ? 'Buck' : 'Bucks'}</div>` : ''}
-      ${wrongHTML}${closeHTML}
+      ${laterHTML}${wrongHTML}${closeHTML}
       ${res.missed.length ? `<div class="h4">Answers you missed</div><div class="missed">${res.missed.map(m => `<span title="${m.players ? `${m.players} ${m.players === 1 ? 'player' : 'players'} found it` : ''}">${esc(m.name)}</span>`).join('')}</div>` : ''}
       ${crowd}
       <div class="row">${next}</div>

@@ -41,7 +41,7 @@ npm run dev                          # http://localhost:8788
 
 With `MOCK_AI=1`:
 - **Summit:** put a number in your answer to control the judge: `rock 820` is judged as 820 (in the puzzle's base unit). `dog` is "vague" and `unicorn` is "invalid".
-- **Venn:** answers containing `yes` fit every circle, `close` fits 2 of 3, `typo` triggers "Did you mean", `fiction` / `rude` are refused. Answers from the puzzle's built-in list fit too. Puzzles come from the built-in bank.
+- **Venn:** answers containing `yes` fit every circle, `close` fits 2 of 3, `typo` triggers "Did you mean", `fiction` / `rude` are refused. `busy` finds the judge busy the first time (the answer is saved and judged a moment later). Answers from the puzzle's built-in list fit too. Puzzles come from the built-in bank.
 - **Lifeline:** names are looked up for real (the built-in list of ~700 famous people first, then Wikipedia/Wikidata), so it needs the internet. AI drafts are off with `MOCK_AI=1`; days come from the built-in bank. Add `LIFELINE_LAUNCH_DATE=<today>` to `.dev.vars` to play before the real launch.
 - **Polly:** there are no built-in questions (nothing is ever made up). Add some in `/admin` → Polly → Add: "Enter by hand" works offline, and "Paste text instead" turns every sentence with two percentages into a candidate ("Yes" / "No") so you can try the server check. A day with an empty bank shows "No poll today".
 

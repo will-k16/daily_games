@@ -60,6 +60,10 @@ export async function judgeAnswer(env, { circles, date, answer, known = [], play
       throw new HttpError(429, 'You\'ve hit today\'s limit for brand-new answers. Try more common ones, or come back tomorrow.');
     }
   }
+  if (env.MOCK_AI === '1' && /busy/.test(normalize(answer)) && !mockBusy.has(normalize(answer))) {
+    mockBusy.add(normalize(answer));
+    throw new HttpError(503, 'The judge is swamped right now. Give it a minute and try again.');
+  }
   const ai = env.MOCK_AI === '1'
     ? mockJudge(circles, answer, known)
     : await callAI(env, judgePrompt(circles, date || todayUTC(), answer, known), JUDGE_SCHEMA, 'venn-judge', playerId, 0, { timeout: 6000, retries: 1 });
@@ -90,8 +94,10 @@ export function cleanJudgment(ai, n, answer) {
  *   contains "close" → fits 2 of 3 (round 2) or 1 of 2 (round 1)
  *   contains "typo"  → not recognized, "did you mean" the same text with "yes" instead of "typo"
  *   "fiction" / "rude" → fictional / offensive
+ *   contains "busy"  → the judge is busy the first time it's asked (the answer waits), then judged as above
  *   an answer from the puzzle's list fits everything; anything else fits nothing.
  */
+const mockBusy = new Set();
 function mockJudge(circles, answer, known) {
   const a = normalize(answer), n = circles.length;
   const all = v => Array.from({ length: n }, () => v);

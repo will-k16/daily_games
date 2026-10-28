@@ -330,6 +330,8 @@ export async function callAI(env, prompt, schema, kind, playerId, temperature = 
   if (geminiKey) attempts.push(['gemini', () => gemini(prompt, schema, geminiKey, env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, temperature, opts)]);
   if (groqKey) attempts.push(['groq', () => groqAny(env, prompt, schema, groqKey, temperature, opts)]);
   if (String(env.JUDGE || '').toLowerCase() === 'groq') attempts.reverse();
+  // A provider that just said "slow down" goes to the back for a bit (sort is stable).
+  attempts.sort((a, b) => resting(a[0]) - resting(b[0]));
   for (const [name, fn] of attempts) {
     const t = Date.now();
     try {
@@ -337,7 +339,9 @@ export async function callAI(env, prompt, schema, kind, playerId, temperature = 
       await log(env, kind, name, 1, Date.now() - t, '', playerId);
       return out;
     } catch (e) {
-      busy = busy || /429/.test(e.message);
+      const limited = /429/.test(e.message);
+      busy = busy || limited;
+      if (limited && name === 'gemini') rest('gemini', 20000);
       await log(env, kind, name, 0, Date.now() - t, e.message, playerId);
     }
   }
@@ -389,17 +393,28 @@ export function log(env, kind, provider, ok, ms, error, playerId) {
     .bind(kind, provider, ok, ms, String(error || '').slice(0, 300), playerId || '', nowISO()).run().catch(() => {});
 }
 
+// Providers and models that just answered 429, and until when. They're tried last until then, so a
+// call a player is waiting on doesn't spend its few seconds on one that's sure to refuse.
+const restingUntil = new Map();
+const rest = (k, ms) => restingUntil.set(k, Date.now() + ms);
+const resting = k => (restingUntil.get(k) || 0) > Date.now();
+
 let knownGroqModel = null;
 async function groqAny(env, prompt, schema, key, temperature, opts) {
-  const order = [env.GROQ_MODEL, knownGroqModel, ...GROQ_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
-  let last = null;
+  const order = [env.GROQ_MODEL, knownGroqModel, ...GROQ_MODELS].filter((m, i, a) => m && a.indexOf(m) === i)
+    .sort((a, b) => resting('groq:' + a) - resting('groq:' + b));
+  let last = null, limited = false;
   for (const model of order) {
+    // Each Groq model has its own free-tier quota, so when one is maxed out the next can still answer.
+    // The tiny model only stands in for a missing one, never for a busy one: its verdicts aren't good enough.
+    if (limited && /8b-instant/.test(model)) continue;
     try {
       const out = await groq(prompt, schema, key, model, temperature, opts);
       knownGroqModel = model;
       return out;
     } catch (e) {
       last = e;
+      if (/429|rate.?limit/i.test(e.message)) { limited = true; rest('groq:' + model, 30000); continue; }
       if (!/model_not_found|does not exist|decommissioned|404/.test(e.message)) throw e;
     }
   }

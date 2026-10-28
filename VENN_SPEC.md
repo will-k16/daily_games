@@ -18,6 +18,8 @@ Venn is the second game in WK Game Suite, at `/venn`. The decisions behind it ar
 
 ## The judge (`functions/_lib/venn-ai.js`)
 - Gemini 3.5 Flash-Lite from memory via `callAI` (6 s timeout, one retry), Groq as backup. Logged to `ai_log` as `venn-judge`.
+- A provider (or Groq model) that answers 429 is tried last for a while, and a rate-limited Groq model hands over to the next one (each has its own quota; the tiny 8b model never stands in for a busy one).
+- **The judge is never allowed to lose an answer.** If every provider is busy or down, the answer is saved as `later` ("Saved for the judge" in the feed) and the page asks `POST venn/recheck` again after 2.5 s, 5 s, 10 s, 20 s, then every 30 s. Each recheck judges the waiting answers and rescores the play, so they land as normal verdicts mid-round, or raise the score after the round ends (results say the judge is still checking until then).
 - Prompt inputs: the circle phrases, "judge facts as of <puzzle date>", the strictness, variant and no-fictional rules, the known answers (so canonical names line up), and the answer in `<answer>` tags with `<>` stripped.
 - Output: `{ recognized, canonical, fits[], reason (≤12 words), didYouMean, offensive, fictional }`.
 - Cached per puzzle in `venn_judgments` (puzzle id + normalized answer). The same answer always gets the same verdict; archive replays use the cache; admin edits win. An exact match to the puzzle's list counts without an AI call.

@@ -42,6 +42,7 @@ const ROUTES = {
   'POST venn/start': (c) => venn.start(c.env, c.who, c.body),
   'POST venn/answer': (c) => venn.answer(c.env, c.who, c.body),
   'POST venn/confirm': (c) => venn.confirm(c.env, c.who, c.body),
+  'POST venn/recheck': (c) => venn.recheck(c.env, c.who, c.body),
   'POST venn/pause': (c) => venn.pause(c.env, c.who, c.body),
   'POST venn/resume': (c) => venn.resume(c.env, c.who, c.body),
   'POST venn/done': (c) => venn.done(c.env, c.who, c.body),
